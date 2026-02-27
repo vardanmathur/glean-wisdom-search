@@ -14,7 +14,118 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      books: {
+        Row: {
+          author: string
+          cover_image_url: string | null
+          created_at: string
+          description: string | null
+          id: string
+          isbn: string | null
+          title: string
+        }
+        Insert: {
+          author: string
+          cover_image_url?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          isbn?: string | null
+          title: string
+        }
+        Update: {
+          author?: string
+          cover_image_url?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          isbn?: string | null
+          title?: string
+        }
+        Relationships: []
+      }
+      highlights: {
+        Row: {
+          blogged: boolean | null
+          book_id: string | null
+          char_length: number | null
+          created_at: string
+          highlight_date: string | null
+          id: string
+          location: string | null
+          my_notes: string | null
+          quote: string
+          record_id: string | null
+          stars: boolean | null
+          tags: string[] | null
+        }
+        Insert: {
+          blogged?: boolean | null
+          book_id?: string | null
+          char_length?: number | null
+          created_at?: string
+          highlight_date?: string | null
+          id?: string
+          location?: string | null
+          my_notes?: string | null
+          quote: string
+          record_id?: string | null
+          stars?: boolean | null
+          tags?: string[] | null
+        }
+        Update: {
+          blogged?: boolean | null
+          book_id?: string | null
+          char_length?: number | null
+          created_at?: string
+          highlight_date?: string | null
+          id?: string
+          location?: string | null
+          my_notes?: string | null
+          quote?: string
+          record_id?: string | null
+          stars?: boolean | null
+          tags?: string[] | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "highlights_book_id_fkey"
+            columns: ["book_id"]
+            isOneToOne: false
+            referencedRelation: "books"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      saved_highlights: {
+        Row: {
+          created_at: string
+          highlight_id: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          highlight_id: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          highlight_id?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "saved_highlights_highlight_id_fkey"
+            columns: ["highlight_id"]
+            isOneToOne: false
+            referencedRelation: "highlights"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never

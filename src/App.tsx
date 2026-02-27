@@ -12,6 +12,7 @@ import BookDetail from "./pages/BookDetail";
 import SavedHighlights from "./pages/SavedHighlights";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
+import AdminSeed from "./pages/AdminSeed";
 
 const queryClient = new QueryClient();
 
@@ -31,6 +32,7 @@ const App = () => (
             <Route path="/book/:title" element={<BookDetail />} />
             <Route path="/saved" element={<SavedHighlights />} />
             <Route path="/auth" element={<Auth />} />
+            <Route path="/admin/seed" element={<AdminSeed />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
