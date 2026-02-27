@@ -1,13 +1,32 @@
-import { useParams } from "react-router-dom";
-import { books, highlights, getBookByTitle } from "@/lib/data";
+import { useParams, Link } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { getBookByTitle, getHighlightsByBook } from "@/lib/data";
 import HighlightCard from "@/components/HighlightCard";
-import { BookOpen, ExternalLink, ArrowLeft } from "lucide-react";
-import { Link } from "react-router-dom";
+import { BookOpen, ExternalLink, ArrowLeft, Loader2 } from "lucide-react";
 
 const BookDetail = () => {
   const { title } = useParams();
   const decodedTitle = decodeURIComponent(title || "");
-  const book = getBookByTitle(decodedTitle);
+
+  const { data: book, isLoading } = useQuery({
+    queryKey: ["book", decodedTitle],
+    queryFn: () => getBookByTitle(decodedTitle),
+    enabled: !!decodedTitle,
+  });
+
+  const { data: bookHighlights = [] } = useQuery({
+    queryKey: ["book-highlights", book?.id],
+    queryFn: () => getHighlightsByBook(book!.id),
+    enabled: !!book?.id,
+  });
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center py-12">
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   if (!book) {
     return (
@@ -20,8 +39,6 @@ const BookDetail = () => {
     );
   }
 
-  const bookHighlights = highlights.filter((h) => book.highlightIds.includes(h.id));
-
   return (
     <div className="container mx-auto max-w-2xl px-4 py-8">
       <Link
@@ -32,13 +49,19 @@ const BookDetail = () => {
       </Link>
 
       <div className="flex gap-6 mb-8">
-        <div className="flex h-32 w-24 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-          <BookOpen className="h-10 w-10" />
+        <div className="flex h-32 w-24 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary overflow-hidden">
+          {book.coverImageUrl ? (
+            <img src={book.coverImageUrl} alt={book.title} className="h-full w-full object-cover" />
+          ) : (
+            <BookOpen className="h-10 w-10" />
+          )}
         </div>
         <div>
           <h1 className="font-display text-3xl text-foreground">{book.title}</h1>
           <p className="text-muted-foreground mt-1">{book.author}</p>
-          <p className="text-sm text-muted-foreground mt-3 leading-relaxed">{book.description}</p>
+          {book.description && (
+            <p className="text-sm text-muted-foreground mt-3 leading-relaxed">{book.description}</p>
+          )}
           <a
             href="#"
             className="inline-flex items-center gap-1.5 mt-4 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
