@@ -2,7 +2,6 @@ import { useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { Search, Leaf } from "lucide-react";
 import { Link } from "react-router-dom";
-import { topics } from "@/lib/data";
 
 const exampleQueries = [
   "I'm struggling to motivate my team",
@@ -35,7 +34,6 @@ const Index = () => {
 
   return (
     <div className="flex min-h-[calc(100vh-4rem)] flex-col items-center justify-center px-4">
-      {/* Hero */}
       <div className="w-full max-w-2xl text-center mb-12">
         <div className="inline-flex items-center gap-2 text-primary mb-6">
           <Leaf className="h-8 w-8" />
@@ -49,7 +47,6 @@ const Index = () => {
         </p>
       </div>
 
-      {/* Search */}
       <form onSubmit={handleSearch} className="w-full max-w-xl mb-8">
         <div className="relative">
           <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
@@ -63,7 +60,6 @@ const Index = () => {
         </div>
       </form>
 
-      {/* Example chips */}
       <div className="flex flex-wrap justify-center gap-2 max-w-xl mb-16">
         {exampleQueries.map((q) => (
           <button
@@ -76,26 +72,21 @@ const Index = () => {
         ))}
       </div>
 
-      {/* Browse by Topic */}
       <div className="w-full max-w-2xl text-center">
         <h2 className="font-display text-2xl text-foreground mb-6">Browse by Topic</h2>
         <div className="flex flex-wrap justify-center gap-2">
-          {featuredTopics.map((topic) => {
-            const t = topics.find((tp) => tp.name === topic);
-            return (
-              <Link
-                key={topic}
-                to={t ? `/topics/${encodeURIComponent(t.name)}` : "/topics"}
-                className="rounded-full bg-primary/8 border border-primary/15 px-4 py-2 text-sm font-medium text-primary hover:bg-primary/15 transition-colors"
-              >
-                {topic}
-              </Link>
-            );
-          })}
+          {featuredTopics.map((topic) => (
+            <Link
+              key={topic}
+              to={`/topics/${encodeURIComponent(topic)}`}
+              className="rounded-full bg-primary/8 border border-primary/15 px-4 py-2 text-sm font-medium text-primary hover:bg-primary/15 transition-colors"
+            >
+              {topic}
+            </Link>
+          ))}
         </div>
       </div>
 
-      {/* Footer */}
       <footer className="mt-auto py-8 text-center text-xs text-muted-foreground">
         Built for Glean — extract meaning from what you've read · Founder: Vardan Mathur · February 2026
       </footer>

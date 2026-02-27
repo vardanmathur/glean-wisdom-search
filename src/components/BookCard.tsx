@@ -13,8 +13,12 @@ const BookCard = ({ book, reason }: BookCardProps) => {
       to={`/book/${encodeURIComponent(book.title)}`}
       className="flex gap-4 rounded-lg border bg-card p-4 card-shadow hover:card-shadow-hover transition-all duration-300"
     >
-      <div className="flex h-20 w-14 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
-        <BookOpen className="h-6 w-6" />
+      <div className="flex h-20 w-14 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary overflow-hidden">
+        {book.coverImageUrl ? (
+          <img src={book.coverImageUrl} alt={book.title} className="h-full w-full object-cover" />
+        ) : (
+          <BookOpen className="h-6 w-6" />
+        )}
       </div>
       <div className="min-w-0">
         <h3 className="font-display text-base font-semibold text-foreground truncate">{book.title}</h3>

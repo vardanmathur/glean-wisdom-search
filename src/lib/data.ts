@@ -1,9 +1,13 @@
+import { supabase } from "@/integrations/supabase/client";
+
 export interface Highlight {
   id: string;
   text: string;
   bookTitle: string;
   author: string;
   tags: string[];
+  bookId?: string;
+  coverImageUrl?: string;
 }
 
 export interface Book {
@@ -11,7 +15,9 @@ export interface Book {
   title: string;
   author: string;
   description: string;
-  highlightIds: string[];
+  isbn?: string;
+  coverImageUrl?: string;
+  highlightCount?: number;
 }
 
 export interface Topic {
@@ -21,83 +27,172 @@ export interface Topic {
   highlightCount: number;
 }
 
-export const highlights: Highlight[] = [
-  {
-    id: "h1",
-    text: "If your goal does not have a schedule, it is a dream.",
-    bookTitle: "Excellent Advice for Living",
-    author: "Kevin Kelly",
-    tags: ["Habits", "Productivity", "Motivation", "Goals"],
-  },
-  {
-    id: "h2",
-    text: "Easy choices, hard life. Hard choices, easy life.",
-    bookTitle: "The Almanack of Naval Ravikant",
-    author: "Eric Jorgenson",
-    tags: ["Decision Making", "Discipline", "Habits", "Motivation", "Willpower"],
-  },
-  {
-    id: "h3",
-    text: "We cannot prevent birds from flying over our heads, but we can keep them from making nests on top of our heads. Similarly, bad thoughts sometimes appear in our mind, but we can choose whether we allow them to live there.",
-    bookTitle: "A Calendar of Wisdom",
-    author: "Leo Tolstoy",
-    tags: ["Anxiety", "Mental Health", "Positivity", "Thinking", "Equanimity"],
-  },
-  {
-    id: "h4",
-    text: "Jim Carrey once said that everybody should get rich and famous and do everything they ever dreamed of — so they can see that it's not the answer.",
-    bookTitle: "Same As Ever",
-    author: "Morgan Housel",
-    tags: ["Happiness", "Success", "Expectations", "Envy"],
-  },
-  {
-    id: "h5",
-    text: "You are the average of the five people you spend most time with.",
-    bookTitle: "Dear Adaa",
-    author: "Vardan Mathur",
-    tags: ["Relationships", "Growth", "Habits", "Success"],
-  },
-  {
-    id: "h6",
-    text: "The minimum requirement of a system is that a reasonable person expects it to work more often than not.",
-    bookTitle: "How to Fail at Almost Everything",
-    author: "Scott Adams",
-    tags: ["Success", "Habits", "Productivity", "Systems"],
-  },
-  {
-    id: "h7",
-    text: "Clarity of purpose matters. What you're trying to pursue and put effort behind should actually be what you really want.",
-    bookTitle: "Dear Adaa",
-    author: "Vardan Mathur",
-    tags: ["Purpose", "Ambition", "Career", "Clarity"],
-  },
-  {
-    id: "h8",
-    text: "There's no use running if you're on the wrong road.",
-    bookTitle: "Seeking Wisdom",
-    author: "Peter Bevelin",
-    tags: ["Purpose", "Decision Making", "Life", "Strategy"],
-  },
-];
+// Transform DB row to app Highlight
+function toHighlight(row: any): Highlight {
+  return {
+    id: row.id,
+    text: row.quote,
+    bookTitle: row.books?.title || "Unknown",
+    author: row.books?.author || "Unknown",
+    tags: row.tags || [],
+    bookId: row.book_id,
+    coverImageUrl: row.books?.cover_image_url,
+  };
+}
 
-export const books: Book[] = [
-  { id: "b1", title: "Excellent Advice for Living", author: "Kevin Kelly", description: "A collection of practical life advice distilled from decades of experience, offering concise wisdom on work, relationships, and personal growth.", highlightIds: ["h1"] },
-  { id: "b2", title: "The Almanack of Naval Ravikant", author: "Eric Jorgenson", description: "A guide to wealth and happiness based on the wisdom of entrepreneur and philosopher Naval Ravikant.", highlightIds: ["h2"] },
-  { id: "b3", title: "A Calendar of Wisdom", author: "Leo Tolstoy", description: "Daily thoughts from the world's greatest thinkers, compiled by one of history's greatest novelists.", highlightIds: ["h3"] },
-  { id: "b4", title: "Same As Ever", author: "Morgan Housel", description: "A guide to the things that never change, exploring the timeless behaviors that shape our world.", highlightIds: ["h4"] },
-  { id: "b5", title: "Dear Adaa", author: "Vardan Mathur", description: "A personal collection of life lessons and reflections, written as letters of wisdom for the next generation.", highlightIds: ["h5", "h7"] },
-  { id: "b6", title: "How to Fail at Almost Everything", author: "Scott Adams", description: "Scott Adams shares his philosophy on systems over goals, and how strategic failure leads to success.", highlightIds: ["h6"] },
-  { id: "b7", title: "Seeking Wisdom", author: "Peter Bevelin", description: "A deep exploration of decision-making, mental models, and the wisdom of Charlie Munger and Warren Buffett.", highlightIds: ["h8"] },
-];
+function toBook(row: any): Book {
+  return {
+    id: row.id,
+    title: row.title,
+    author: row.author,
+    description: row.description || "",
+    isbn: row.isbn,
+    coverImageUrl: row.cover_image_url,
+    highlightCount: row.highlights?.[0]?.count ?? 0,
+  };
+}
 
-const allTags = Array.from(new Set(highlights.flatMap((h) => h.tags)));
+// Search highlights using keyword matching
+export async function searchHighlights(query: string): Promise<Highlight[]> {
+  if (!query.trim()) return [];
+  
+  const words = query.toLowerCase().split(/\s+/).filter((w) => w.length > 2);
+  if (words.length === 0) return [];
 
-export const topics: Topic[] = allTags.map((tag) => ({
-  id: tag.toLowerCase().replace(/\s+/g, "-"),
-  name: tag,
-  description: getTopicDescription(tag),
-  highlightCount: highlights.filter((h) => h.tags.includes(tag)).length,
-}));
+  // Fetch all highlights with book info for client-side scoring
+  const { data, error } = await supabase
+    .from("highlights")
+    .select("*, books(title, author, cover_image_url)")
+    .limit(500);
+
+  if (error || !data) return [];
+
+  const scored = data.map((h) => {
+    let score = 0;
+    const searchText = `${h.quote} ${(h.tags || []).join(" ")} ${h.books?.title || ""} ${h.books?.author || ""}`.toLowerCase();
+    for (const word of words) {
+      if (searchText.includes(word)) score++;
+    }
+    for (const tag of h.tags || []) {
+      for (const word of words) {
+        if (tag.toLowerCase().includes(word)) score += 2;
+      }
+    }
+    return { row: h, score };
+  });
+
+  return scored
+    .filter((s) => s.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 10)
+    .map((s) => toHighlight(s.row));
+}
+
+export async function getAllTopics(): Promise<Topic[]> {
+  const { data, error } = await supabase
+    .from("highlights")
+    .select("tags");
+
+  if (error || !data) return [];
+
+  const tagCounts: Record<string, number> = {};
+  for (const row of data) {
+    for (const tag of row.tags || []) {
+      tagCounts[tag] = (tagCounts[tag] || 0) + 1;
+    }
+  }
+
+  return Object.entries(tagCounts)
+    .map(([name, count]) => ({
+      id: name.toLowerCase().replace(/\s+/g, "-"),
+      name,
+      description: getTopicDescription(name),
+      highlightCount: count,
+    }))
+    .sort((a, b) => b.highlightCount - a.highlightCount);
+}
+
+export async function getHighlightsByTag(tag: string): Promise<Highlight[]> {
+  const { data, error } = await supabase
+    .from("highlights")
+    .select("*, books(title, author, cover_image_url)")
+    .contains("tags", [tag]);
+
+  if (error || !data) return [];
+  return data.map(toHighlight);
+}
+
+export async function getBookByTitle(title: string): Promise<Book | undefined> {
+  const { data, error } = await supabase
+    .from("books")
+    .select("*, highlights(count)")
+    .eq("title", title)
+    .maybeSingle();
+
+  if (error || !data) return undefined;
+  return toBook(data);
+}
+
+export async function getBookById(id: string): Promise<Book | undefined> {
+  const { data, error } = await supabase
+    .from("books")
+    .select("*, highlights(count)")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (error || !data) return undefined;
+  return toBook(data);
+}
+
+export async function getHighlightsByBook(bookId: string): Promise<Highlight[]> {
+  const { data, error } = await supabase
+    .from("highlights")
+    .select("*, books(title, author, cover_image_url)")
+    .eq("book_id", bookId);
+
+  if (error || !data) return [];
+  return data.map(toHighlight);
+}
+
+export async function getAllBooks(): Promise<Book[]> {
+  const { data, error } = await supabase
+    .from("books")
+    .select("*, highlights(count)")
+    .order("title");
+
+  if (error || !data) return [];
+  return data.map(toBook);
+}
+
+export async function getRecommendedBooks(query: string): Promise<Book[]> {
+  const words = query.toLowerCase().split(/\s+/).filter((w) => w.length > 2);
+  if (words.length === 0) return [];
+
+  const { data, error } = await supabase
+    .from("books")
+    .select("*, highlights(quote, tags)")
+    .limit(50);
+
+  if (error || !data) return [];
+
+  const scored = data.map((b) => {
+    let score = 0;
+    const hlText = (b.highlights || [])
+      .map((h: any) => `${h.quote} ${(h.tags || []).join(" ")}`)
+      .join(" ");
+    const searchText = `${b.title} ${b.author} ${b.description || ""} ${hlText}`.toLowerCase();
+    for (const word of words) {
+      if (searchText.includes(word)) score++;
+    }
+    return { book: b, score };
+  });
+
+  return scored
+    .filter((s) => s.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 3)
+    .map((s) => toBook(s.book));
+}
 
 function getTopicDescription(tag: string): string {
   const map: Record<string, string> = {
@@ -126,64 +221,32 @@ function getTopicDescription(tag: string): string {
     Clarity: "Cutting through noise to find truth",
     Life: "Making sense of the human experience",
     Strategy: "Thinking long-term with wisdom",
+    Leadership: "Guiding others with wisdom and integrity",
+    Learning: "The lifelong pursuit of knowledge",
+    People: "Understanding human nature",
+    Perseverance: "Never giving up when it matters",
+    Forgiveness: "Letting go to move forward",
+    Communication: "Expressing ideas with clarity and impact",
+    Humility: "Staying grounded in who you are",
+    Love: "The deepest human connection",
+    Family: "The bonds that shape us",
+    Friends: "The people who walk beside us",
+    Work: "Making meaningful contributions",
+    Health: "Taking care of body and mind",
+    Reading: "Growing through books and ideas",
+    Teaching: "Sharing wisdom with others",
+    Investing: "Building wealth wisely",
+    Influence: "Moving others through understanding",
+    "Anger Management": "Mastering your emotional responses",
+    Death: "Confronting mortality with grace",
+    Honesty: "Living with integrity and truth",
+    "Moral Compass": "Navigating right and wrong",
+    Networking: "Building meaningful professional connections",
+    Overwhelmed: "Finding peace in chaos",
+    Procrastinating: "Overcoming the habit of delay",
+    "Time Management": "Making every moment count",
+    Quality: "Pursuing excellence in all things",
+    Resilience: "Bouncing back stronger",
   };
   return map[tag] || "Explore wisdom on this topic";
-}
-
-// Simple keyword search
-export function searchHighlights(query: string): Highlight[] {
-  if (!query.trim()) return [];
-  const words = query.toLowerCase().split(/\s+/).filter((w) => w.length > 2);
-  
-  const scored = highlights.map((h) => {
-    let score = 0;
-    const searchText = `${h.text} ${h.tags.join(" ")} ${h.bookTitle} ${h.author}`.toLowerCase();
-    for (const word of words) {
-      if (searchText.includes(word)) score++;
-    }
-    // Boost for tag matches
-    for (const tag of h.tags) {
-      for (const word of words) {
-        if (tag.toLowerCase().includes(word)) score += 2;
-      }
-    }
-    return { highlight: h, score };
-  });
-
-  return scored
-    .filter((s) => s.score > 0)
-    .sort((a, b) => b.score - a.score)
-    .map((s) => s.highlight);
-}
-
-export function getBookByTitle(title: string): Book | undefined {
-  return books.find((b) => b.title === title);
-}
-
-export function getBookById(id: string): Book | undefined {
-  return books.find((b) => b.id === id);
-}
-
-export function getHighlightsByBook(bookId: string): Highlight[] {
-  const book = getBookById(bookId);
-  if (!book) return [];
-  return highlights.filter((h) => book.highlightIds.includes(h.id));
-}
-
-export function getHighlightsByTag(tag: string): Highlight[] {
-  return highlights.filter((h) => h.tags.includes(tag));
-}
-
-export function getRecommendedBooks(query: string): Book[] {
-  const words = query.toLowerCase().split(/\s+/).filter((w) => w.length > 2);
-  const scored = books.map((b) => {
-    let score = 0;
-    const bookHighlights = highlights.filter((h) => b.highlightIds.includes(h.id));
-    const searchText = `${b.title} ${b.author} ${b.description} ${bookHighlights.map((h) => h.tags.join(" ")).join(" ")}`.toLowerCase();
-    for (const word of words) {
-      if (searchText.includes(word)) score++;
-    }
-    return { book: b, score };
-  });
-  return scored.filter((s) => s.score > 0).sort((a, b) => b.score - a.score).slice(0, 3).map((s) => s.book);
 }
