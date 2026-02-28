@@ -8,6 +8,7 @@ export interface Highlight {
   tags: string[];
   bookId?: string;
   coverImageUrl?: string;
+  myNotes?: string;
 }
 
 export interface Book {
@@ -37,6 +38,7 @@ function toHighlight(row: any): Highlight {
     tags: row.tags || [],
     bookId: row.book_id,
     coverImageUrl: row.books?.cover_image_url,
+    myNotes: row.my_notes || undefined,
   };
 }
 
