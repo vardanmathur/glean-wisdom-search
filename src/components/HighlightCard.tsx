@@ -23,6 +23,12 @@ const HighlightCard = ({ highlight, index = 0 }: HighlightCardProps) => {
         "{highlight.text}"
       </blockquote>
 
+      {highlight.myNotes && (
+        <p className="text-sm text-muted-foreground bg-muted/50 rounded-md px-3 py-2 mb-4 border-l-2 border-primary/30">
+          <span className="font-medium text-foreground/70">Note:</span> {highlight.myNotes}
+        </p>
+      )}
+
       <div className="flex items-center justify-between">
         <div>
           <Link
