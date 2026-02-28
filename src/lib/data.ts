@@ -54,40 +54,240 @@ function toBook(row: any): Book {
   };
 }
 
-// Search highlights using keyword matching
+const normaliseQuery = (q: string): string => {
+  return q
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\b(i|me|my|we|our|you|your|am|is|are|was|were|be|been|being|have|has|had|do|does|did|will|would|could|should|can|may|might|a|an|the|and|or|but|in|on|at|to|for|of|with|about|how|what|why|when|who|so|very|really|just|feel|feeling|felt|im|ive|dont|cant|wont|its)\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+};
+
+const synonymMap: Record<string, string[]> = {
+  "stuck": ["Career", "Purpose", "Clarity", "Motivation", "Ambition", "Priorities"],
+  "career": ["Career", "Work", "Working", "Ambition", "Purpose", "Success", "Learning"],
+  "job": ["Career", "Work", "Working", "Hiring", "Success"],
+  "work": ["Work", "Working", "Career", "Productivity", "Leadership", "Quality"],
+  "working": ["Working", "Work", "Productivity", "Habits", "Quality"],
+  "promotion": ["Career", "Ambition", "Success", "Work", "Leadership"],
+  "fired": ["Career", "Resilience", "Mistakes", "Work", "Perseverance"],
+  "resign": ["Career", "Purpose", "Decision Making", "Ambition"],
+  "burnout": ["Overwhelmed", "Work", "Habits", "Mental Health", "Priorities"],
+  "overwhelm": ["Overwhelmed", "Productivity", "Prioritization", "Mental Health", "Habits"],
+  "busy": ["Productivity", "Time Management", "Priorities", "Overwhelmed", "Working"],
+  "salary": ["Money", "Investing", "Career", "Negotiation", "Success"],
+  "hiring": ["Hiring", "Leadership", "People", "Work", "Trust"],
+  "purpose": ["Purpose", "Ambition", "Life", "Motivation", "Priorities", "Success"],
+  "meaning": ["Purpose", "Life", "Happiness", "Success", "Ambition"],
+  "direction": ["Purpose", "Ambition", "Decision Making", "Priorities", "Goals"],
+  "lost": ["Purpose", "Mental Health", "Motivation", "Life", "Anxiety"],
+  "confused": ["Decision Making", "Purpose", "Thinking", "Clarity", "Anxiety"],
+  "clarity": ["Purpose", "Decision Making", "Thinking", "Priorities", "Ambition"],
+  "why": ["Purpose", "Motivation", "Life", "Ambition", "Happiness"],
+  "passion": ["Purpose", "Ambition", "Motivation", "Career", "Happiness"],
+  "dream": ["Ambition", "Purpose", "Motivation", "Success", "Procrastinating"],
+  "success": ["Success", "Ambition", "Habits", "Perseverance", "Work", "Outcomes"],
+  "ambition": ["Ambition", "Purpose", "Success", "Motivation", "Career"],
+  "goal": ["Ambition", "Priorities", "Habits", "Success", "Outcomes", "Procrastinating"],
+  "achieve": ["Success", "Habits", "Perseverance", "Ambition", "Outcomes"],
+  "fail": ["Mistakes", "Perseverance", "Resilience", "Learning", "Success"],
+  "failure": ["Mistakes", "Perseverance", "Resilience", "Learning", "Outcomes"],
+  "mistake": ["Mistakes", "Learning", "Honesty", "Perseverance", "Humility"],
+  "outcome": ["Outcomes", "Success", "Decision Making", "Priorities", "Luck"],
+  "luck": ["Luck", "Success", "Outcomes", "Perseverance", "Ambition"],
+  "win": ["Success", "Ambition", "Outcomes", "Perseverance", "Habits"],
+  "lose": ["Mistakes", "Perseverance", "Resilience", "Learning", "Outcomes"],
+  "leader": ["Leadership", "Influence", "People", "Communication", "Humility"],
+  "leadership": ["Leadership", "Influence", "People", "Hiring", "Trust", "Communication"],
+  "manage": ["Leadership", "People", "Work", "Hiring", "Communication"],
+  "manager": ["Leadership", "People", "Hiring", "Work", "Communication"],
+  "team": ["Leadership", "People", "Communication", "Trust", "Working"],
+  "boss": ["Leadership", "Work", "Communication", "People", "Influence"],
+  "employee": ["Leadership", "Hiring", "People", "Trust", "Work"],
+  "delegate": ["Leadership", "Trust", "People", "Productivity", "Working"],
+  "influence": ["Influence", "Leadership", "People", "Communication", "Negotiation"],
+  "power": ["Influence", "Leadership", "Ambition", "Negotiation", "People"],
+  "motivat": ["Motivation", "Habits", "Willpower", "Perseverance", "Productivity"],
+  "habit": ["Habits", "Productivity", "Willpower", "Success", "Time Management"],
+  "discipline": ["Willpower", "Habits", "Productivity", "Perseverance", "Success"],
+  "willpower": ["Willpower", "Habits", "Motivation", "Discipline", "Perseverance"],
+  "lazy": ["Procrastinating", "Habits", "Motivation", "Willpower", "Productivity"],
+  "energy": ["Habits", "Health", "Motivation", "Productivity", "Willpower"],
+  "routine": ["Habits", "Productivity", "Time Management", "Willpower", "Success"],
+  "procrastinat": ["Procrastinating", "Habits", "Willpower", "Motivation", "Productivity"],
+  "delay": ["Procrastinating", "Habits", "Time Management", "Willpower", "Priorities"],
+  "distract": ["Procrastinating", "Productivity", "Habits", "Focus", "Time Management"],
+  "focus": ["Productivity", "Habits", "Time Management", "Priorities", "Willpower"],
+  "productiv": ["Productivity", "Habits", "Time Management", "Working", "Priorities"],
+  "time": ["Time Management", "Productivity", "Priorities", "Habits", "Life"],
+  "priorit": ["Prioritization", "Priorities", "Time Management", "Decision Making", "Outcomes"],
+  "anxious": ["Anxiety", "Mental Health", "Overwhelmed", "Positivity", "Resilience"],
+  "anxiety": ["Anxiety", "Mental Health", "Overwhelmed", "Positivity", "Resilience"],
+  "stress": ["Overwhelmed", "Anxiety", "Mental Health", "Habits", "Resilience"],
+  "worry": ["Anxiety", "Mental Health", "Thinking", "Overwhelmed", "Positivity"],
+  "fear": ["Anxiety", "Perseverance", "Mental Health", "Willpower", "Courage"],
+  "depress": ["Mental Health", "Happiness", "Positivity", "Resilience", "Purpose"],
+  "sad": ["Mental Health", "Happiness", "Positivity", "Resilience", "Life"],
+  "happy": ["Happiness", "Positivity", "Life", "Needs&Wants", "Desires"],
+  "happiness": ["Happiness", "Positivity", "Life", "Desires", "Needs&Wants", "Success"],
+  "peace": ["Mental Health", "Happiness", "Positivity", "Life", "Overwhelmed"],
+  "calm": ["Mental Health", "Anxiety", "Positivity", "Habits", "Willpower"],
+  "health": ["Health", "Habits", "Mental Health", "Life", "Productivity"],
+  "mindful": ["Mental Health", "Habits", "Positivity", "Thinking", "Anxiety"],
+  "decision": ["Decision Making", "Thinking", "Priorities", "Outcomes", "Wisdom"],
+  "decide": ["Decision Making", "Thinking", "Priorities", "Ambition", "Outcomes"],
+  "choice": ["Decision Making", "Priorities", "Outcomes", "Life", "Thinking"],
+  "think": ["Thinking", "Decision Making", "Learning", "Mental Health", "Wisdom"],
+  "wisdom": ["Thinking", "Learning", "Life", "Purpose", "Success"],
+  "regret": ["Decision Making", "Mistakes", "Life", "Forgiveness", "Happiness"],
+  "risk": ["Decision Making", "Luck", "Outcomes", "Ambition", "Investing"],
+  "relationship": ["Relationships", "Love", "Trust", "Communication", "Living with Others"],
+  "friend": ["Friends", "Relationships", "Trust", "Living with Others", "People"],
+  "family": ["Family", "Love", "Relationships", "Living with Others", "Children"],
+  "marriage": ["Marriage", "Love", "Relationships", "Trust", "Living with Others"],
+  "love": ["Love", "Marriage", "Relationships", "Family", "Happiness"],
+  "children": ["Children", "Family", "Love", "Teaching", "Relationships"],
+  "parent": ["Family", "Children", "Love", "Teaching", "Relationships"],
+  "trust": ["Trust", "Relationships", "Honesty", "People", "Communication"],
+  "lonely": ["Relationships", "Friends", "Mental Health", "Living with Others", "Happiness"],
+  "conflict": ["Living with Others", "Communication", "Relationships", "Negotiation", "Forgiveness"],
+  "forgive": ["Forgiveness", "Relationships", "Mental Health", "Life", "Trust"],
+  "anger": ["Living with Others", "Mental Health", "Relationships", "Forgiveness", "Thinking"],
+  "people": ["People", "Relationships", "Living with Others", "Communication", "Trust"],
+  "communicat": ["Communication", "Relationships", "Influence", "Leadership", "People"],
+  "speak": ["Communication", "Influence", "People", "Leadership", "Honesty"],
+  "listen": ["Communication", "Relationships", "Humility", "People", "Leadership"],
+  "negotiat": ["Negotiation", "Influence", "Communication", "People", "Work"],
+  "persuad": ["Influence", "Communication", "Negotiation", "People", "Leadership"],
+  "feedback": ["Communication", "Learning", "Honesty", "Leadership", "Humility"],
+  "honest": ["Honesty", "Trust", "Relationships", "Life", "Communication"],
+  "integrity": ["Honesty", "Trust", "Life", "People", "Success"],
+  "humble": ["Humility", "Learning", "People", "Leadership", "Honesty"],
+  "humility": ["Humility", "Learning", "Honesty", "Leadership", "People"],
+  "ego": ["Humility", "Leadership", "People", "Success", "Living with Others"],
+  "proud": ["Humility", "Success", "Life", "Ambition", "People"],
+  "moral": ["Honesty", "Life", "Trust", "People", "Decision Making"],
+  "ethic": ["Honesty", "Work", "Leadership", "Trust", "Life"],
+  "money": ["Money", "Investing", "Success", "Work", "Priorities"],
+  "invest": ["Investing", "Money", "Success", "Habits", "Priorities"],
+  "wealth": ["Investing", "Money", "Success", "Ambition", "Habits"],
+  "financ": ["Money", "Investing", "Success", "Priorities", "Work"],
+  "rich": ["Money", "Investing", "Success", "Happiness", "Needs&Wants"],
+  "spend": ["Money", "Habits", "Priorities", "Needs&Wants", "Investing"],
+  "save": ["Money", "Habits", "Investing", "Priorities", "Willpower"],
+  "debt": ["Money", "Investing", "Habits", "Overwhelmed", "Priorities"],
+  "learn": ["Learning", "Reading", "Habits", "Growth", "Teaching"],
+  "read": ["Reading", "Learning", "Habits", "Knowledge", "Growth"],
+  "teach": ["Teaching", "Learning", "People", "Communication", "Leadership"],
+  "grow": ["Learning", "Ambition", "Habits", "Success", "Purpose"],
+  "knowledge": ["Learning", "Reading", "Thinking", "Wisdom", "Teaching"],
+  "skill": ["Learning", "Career", "Work", "Habits", "Success"],
+  "improve": ["Learning", "Habits", "Success", "Perseverance", "Quality"],
+  "quality": ["Quality", "Work", "Habits", "Success", "Learning"],
+  "life": ["Life", "Purpose", "Happiness", "Death", "Success"],
+  "death": ["Death", "Life", "Purpose", "Family", "Happiness"],
+  "old": ["Life", "Death", "Time Management", "Happiness", "Purpose"],
+  "age": ["Life", "Death", "Habits", "Health", "Purpose"],
+  "legacy": ["Life", "Purpose", "Success", "Family", "Ambition"],
+  "ai": ["Career", "Work", "Learning", "Ambition", "Thinking"],
+  "artificial intelligence": ["Career", "Work", "Learning", "Thinking", "Ambition"],
+  "technology": ["Career", "Work", "Learning", "Thinking", "Productivity"],
+  "automat": ["Career", "Work", "Ambition", "Learning", "Productivity"],
+  "relevant": ["Career", "Learning", "Ambition", "Work", "Success"],
+  "obsolete": ["Career", "Learning", "Perseverance", "Ambition", "Motivation"],
+  "want": ["Needs&Wants", "Desires", "Happiness", "Ambition", "Purpose"],
+  "need": ["Needs&Wants", "Priorities", "Life", "Happiness", "Purpose"],
+  "desire": ["Desires", "Needs&Wants", "Happiness", "Ambition", "Love"],
+  "expect": ["Expectations", "Happiness", "Relationships", "Life", "Outcomes"],
+  "disappoint": ["Expectations", "Happiness", "Relationships", "Mistakes", "Resilience"],
+  "envy": ["Happiness", "Success", "Needs&Wants", "Life", "People"],
+  "compar": ["Success", "Happiness", "Ambition", "People", "Life"],
+  "persever": ["Perseverance", "Habits", "Willpower", "Success", "Motivation"],
+  "resilience": ["Perseverance", "Mental Health", "Positivity", "Habits", "Success"],
+  "give up": ["Perseverance", "Motivation", "Willpower", "Habits", "Success"],
+  "quit": ["Perseverance", "Decision Making", "Career", "Willpower", "Habits"],
+  "tough": ["Perseverance", "Willpower", "Mental Health", "Resilience", "Habits"],
+  "hard": ["Perseverance", "Habits", "Willpower", "Success", "Work"],
+  "struggle": ["Perseverance", "Mental Health", "Motivation", "Resilience", "Habits"],
+  "fun": ["Funny", "Happiness", "Life", "People", "Relationships"],
+  "humor": ["Funny", "People", "Life", "Relationships", "Communication"],
+  "art": ["Art", "Learning", "Life", "Quality", "Happiness"],
+  "star": ["Stars", "Life", "Purpose", "Ambition", "Inspiration"],
+  "inspir": ["Stars", "Motivation", "Purpose", "Ambition", "Perseverance"],
+  "pithy": ["Pithy", "Thinking", "Wisdom", "Learning", "Life"],
+};
+
+function expandQueryTags(words: string[]): Set<string> {
+  const expandedTags = new Set<string>();
+  for (const word of words) {
+    for (const [trigger, mappedTags] of Object.entries(synonymMap)) {
+      if (word.includes(trigger) || trigger.includes(word)) {
+        mappedTags.forEach(tag => expandedTags.add(tag));
+      }
+    }
+  }
+  return expandedTags;
+}
+
+// Search highlights using semantic keyword matching
 export async function searchHighlights(query: string): Promise<Highlight[]> {
   if (!query.trim()) return [];
-  
-  const words = query.toLowerCase().split(/\s+/).filter((w) => w.length > 2);
+
+  const normalisedQuery = normaliseQuery(query);
+  const words = normalisedQuery.split(/\s+/).filter((w) => w.length > 2);
   if (words.length === 0) return [];
 
-  // Fetch all highlights with book info for client-side scoring
   const { data, error } = await supabase
     .from("highlights")
     .select("*, books(title, author, cover_image_url)")
-    .limit(500);
+    .limit(2000);
 
   if (error || !data) return [];
 
+  const expandedTags = expandQueryTags(words);
+
   const scored = data.map((h) => {
     let score = 0;
-    const searchText = `${h.quote} ${(h.tags || []).join(" ")} ${h.books?.title || ""} ${h.books?.author || ""}`.toLowerCase();
+    const highlightText = `${h.quote} ${h.books?.title || ""} ${h.books?.author || ""}`.toLowerCase();
+    const highlightTags: string[] = h.tags || [];
+
     for (const word of words) {
-      if (searchText.includes(word)) score++;
+      if (highlightText.includes(word)) score += 1;
     }
-    for (const tag of h.tags || []) {
+
+    for (const tag of highlightTags) {
       for (const word of words) {
-        if (tag.toLowerCase().includes(word)) score += 2;
+        if (tag.toLowerCase().includes(word) || word.includes(tag.toLowerCase())) {
+          score += 3;
+        }
       }
     }
+
+    for (const tag of highlightTags) {
+      if (expandedTags.has(tag)) {
+        score += 2;
+      }
+    }
+
     return { row: h, score };
   });
 
-  return scored
+  const topResults = scored
     .filter((s) => s.score > 0)
     .sort((a, b) => b.score - a.score)
     .slice(0, 10)
     .map((s) => toHighlight(s.row));
+
+  if (topResults.length === 0) {
+    return data
+      .filter(h => (h.tags || []).some((t: string) =>
+        ["Life", "Success", "Habits", "Purpose", "Motivation"].includes(t)
+      ))
+      .slice(0, 5)
+      .map(toHighlight);
+  }
+
+  return topResults;
 }
 
 export async function getAllTopics(): Promise<Topic[]> {
@@ -167,8 +367,11 @@ export async function getAllBooks(): Promise<Book[]> {
 }
 
 export async function getRecommendedBooks(query: string): Promise<Book[]> {
-  const words = query.toLowerCase().split(/\s+/).filter((w) => w.length > 2);
+  const normalisedQuery = normaliseQuery(query);
+  const words = normalisedQuery.split(/\s+/).filter((w) => w.length > 2);
   if (words.length === 0) return [];
+
+  const expandedTags = expandQueryTags(words);
 
   const { data, error } = await supabase
     .from("books")
@@ -183,9 +386,20 @@ export async function getRecommendedBooks(query: string): Promise<Book[]> {
       .map((h: any) => `${h.quote} ${(h.tags || []).join(" ")}`)
       .join(" ");
     const searchText = `${b.title} ${b.author} ${b.description || ""} ${hlText}`.toLowerCase();
+
     for (const word of words) {
       if (searchText.includes(word)) score++;
     }
+
+    // Synonym-expanded tag match on book's highlights
+    for (const h of (b.highlights || []) as any[]) {
+      for (const tag of (h.tags || []) as string[]) {
+        if (expandedTags.has(tag)) {
+          score += 2;
+        }
+      }
+    }
+
     return { book: b, score };
   });
 
