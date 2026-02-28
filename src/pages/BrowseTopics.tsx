@@ -1,7 +1,9 @@
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getAllTopics, getHighlightsByTag } from "@/lib/data";
 import { Link, useParams } from "react-router-dom";
 import HighlightCard from "@/components/HighlightCard";
+import SortFilterBar, { SortOption } from "@/components/SortFilterBar";
 import { ArrowLeft, Loader2 } from "lucide-react";
 
 const BrowseTopics = () => {
@@ -59,13 +61,34 @@ const TopicsList = () => {
     queryKey: ["topics"],
     queryFn: getAllTopics,
   });
+  const [sort, setSort] = useState<SortOption>("most-highlights");
+
+  const sorted = useMemo(() => {
+    const list = [...topics];
+    switch (sort) {
+      case "name-asc":
+        return list.sort((a, b) => a.name.localeCompare(b.name));
+      case "most-highlights":
+        return list.sort((a, b) => b.highlightCount - a.highlightCount);
+      case "fewest-highlights":
+        return list.sort((a, b) => a.highlightCount - b.highlightCount);
+      case "longest":
+        return list.sort((a, b) => (b.avgHighlightLength ?? 0) - (a.avgHighlightLength ?? 0));
+      case "shortest":
+        return list.sort((a, b) => (a.avgHighlightLength ?? 0) - (b.avgHighlightLength ?? 0));
+      default:
+        return list;
+    }
+  }, [topics, sort]);
 
   return (
     <div className="container mx-auto max-w-3xl px-4 py-8">
       <h1 className="font-display text-3xl text-foreground mb-2">Browse by Topic</h1>
-      <p className="text-muted-foreground mb-8">
+      <p className="text-muted-foreground mb-6">
         Explore wisdom across {topics.length} topics
       </p>
+
+      <SortFilterBar sort={sort} onSortChange={setSort} />
 
       {isLoading ? (
         <div className="flex justify-center py-12">
@@ -73,7 +96,7 @@ const TopicsList = () => {
         </div>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {topics.map((topic) => (
+          {sorted.map((topic) => (
             <Link
               key={topic.id}
               to={`/topics/${encodeURIComponent(topic.name)}`}
@@ -87,6 +110,7 @@ const TopicsList = () => {
               </p>
               <p className="mt-3 text-xs text-primary font-medium">
                 {topic.highlightCount} highlight{topic.highlightCount !== 1 ? "s" : ""}
+                {topic.avgHighlightLength ? ` · avg ${topic.avgHighlightLength} chars` : ""}
               </p>
             </Link>
           ))}

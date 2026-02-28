@@ -19,6 +19,7 @@ export interface Book {
   isbn?: string;
   coverImageUrl?: string;
   highlightCount?: number;
+  avgHighlightLength?: number;
 }
 
 export interface Topic {
@@ -26,6 +27,7 @@ export interface Topic {
   name: string;
   description: string;
   highlightCount: number;
+  avgHighlightLength?: number;
 }
 
 // Transform DB row to app Highlight
@@ -293,24 +295,34 @@ export async function searchHighlights(query: string): Promise<Highlight[]> {
 export async function getAllTopics(): Promise<Topic[]> {
   const { data, error } = await supabase
     .from("highlights")
-    .select("tags");
+    .select("tags, char_length");
 
   if (error || !data) return [];
 
   const tagCounts: Record<string, number> = {};
+  const tagLengths: Record<string, number[]> = {};
   for (const row of data) {
     for (const tag of row.tags || []) {
       tagCounts[tag] = (tagCounts[tag] || 0) + 1;
+      if (row.char_length) {
+        if (!tagLengths[tag]) tagLengths[tag] = [];
+        tagLengths[tag].push(row.char_length);
+      }
     }
   }
 
   return Object.entries(tagCounts)
-    .map(([name, count]) => ({
-      id: name.toLowerCase().replace(/\s+/g, "-"),
-      name,
-      description: getTopicDescription(name),
-      highlightCount: count,
-    }))
+    .map(([name, count]) => {
+      const lengths = tagLengths[name] || [];
+      const avg = lengths.length > 0 ? Math.round(lengths.reduce((a, b) => a + b, 0) / lengths.length) : 0;
+      return {
+        id: name.toLowerCase().replace(/\s+/g, "-"),
+        name,
+        description: getTopicDescription(name),
+        highlightCount: count,
+        avgHighlightLength: avg,
+      };
+    })
     .sort((a, b) => b.highlightCount - a.highlightCount);
 }
 
@@ -363,7 +375,28 @@ export async function getAllBooks(): Promise<Book[]> {
     .order("title");
 
   if (error || !data) return [];
-  return data.map(toBook);
+
+  // Fetch avg char_length per book
+  const { data: avgData } = await supabase
+    .from("highlights")
+    .select("book_id, char_length");
+
+  const bookAvg: Record<string, number[]> = {};
+  for (const row of avgData || []) {
+    if (row.book_id && row.char_length) {
+      if (!bookAvg[row.book_id]) bookAvg[row.book_id] = [];
+      bookAvg[row.book_id].push(row.char_length);
+    }
+  }
+
+  return data.map((row) => {
+    const book = toBook(row);
+    const lengths = bookAvg[row.id] || [];
+    book.avgHighlightLength = lengths.length > 0
+      ? Math.round(lengths.reduce((a: number, b: number) => a + b, 0) / lengths.length)
+      : 0;
+    return book;
+  });
 }
 
 export async function getRecommendedBooks(query: string): Promise<Book[]> {
