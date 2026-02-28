@@ -40,7 +40,13 @@ const Navbar = () => {
             to="/topics"
             className="rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
           >
-            Browse Topics
+            Topics
+          </Link>
+          <Link
+            to="/books"
+            className="rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+          >
+            Books
           </Link>
           <Link
             to="/saved"

@@ -12,6 +12,7 @@ import BookDetail from "./pages/BookDetail";
 import SavedHighlights from "./pages/SavedHighlights";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
+import BrowseBooks from "./pages/BrowseBooks";
 import AdminSeed from "./pages/AdminSeed";
 
 const queryClient = new QueryClient();
@@ -30,6 +31,7 @@ const App = () => (
             <Route path="/topics" element={<BrowseTopics />} />
             <Route path="/topics/:tag" element={<BrowseTopics />} />
             <Route path="/book/:title" element={<BookDetail />} />
+            <Route path="/books" element={<BrowseBooks />} />
             <Route path="/saved" element={<SavedHighlights />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/admin/seed" element={<AdminSeed />} />
