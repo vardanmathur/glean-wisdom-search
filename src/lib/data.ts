@@ -1,5 +1,28 @@
 import { supabase } from "@/integrations/supabase/client";
 
+// AI-powered wisdom synthesis via edge function
+export async function synthesiseWisdom(
+  question: string,
+  highlights: Highlight[]
+): Promise<string> {
+  if (highlights.length === 0) return "";
+
+  try {
+    const { data, error } = await supabase.functions.invoke("synthesise-wisdom", {
+      body: { question, highlights },
+    });
+
+    if (error) {
+      console.error("Synthesis error:", error);
+      return "";
+    }
+
+    return data?.synthesis || "";
+  } catch {
+    return "";
+  }
+}
+
 export interface Highlight {
   id: string;
   text: string;
