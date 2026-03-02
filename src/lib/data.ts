@@ -297,13 +297,11 @@ export async function searchHighlights(query: string): Promise<Highlight[]> {
     return { row: h, score };
   });
 
-  const topResults = scored
+  const keywordRanked = scored
     .filter((s) => s.score > 0)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 10)
-    .map((s) => toHighlight(s.row));
+    .sort((a, b) => b.score - a.score);
 
-  if (topResults.length === 0) {
+  if (keywordRanked.length === 0) {
     return data
       .filter(h => (h.tags || []).some((t: string) =>
         ["Life", "Success", "Habits", "Purpose", "Motivation"].includes(t)
@@ -312,7 +310,37 @@ export async function searchHighlights(query: string): Promise<Highlight[]> {
       .map(toHighlight);
   }
 
-  return topResults;
+  // Take top 20 for AI semantic re-ranking
+  const top20 = keywordRanked.slice(0, 20);
+  const top20Highlights = top20.map((s) => toHighlight(s.row));
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 3000);
+
+    const { data: rerankData, error: rerankError } = await supabase.functions.invoke(
+      "rerank-highlights",
+      {
+        body: { query, highlights: top20Highlights },
+      }
+    );
+
+    clearTimeout(timeout);
+
+    const aiScores: number[] = rerankData?.scores || [];
+    if (!rerankError && aiScores.length === top20.length) {
+      const combined = top20.map((item, i) => ({
+        ...item,
+        combinedScore: item.score * (aiScores[i] / 10),
+      }));
+      combined.sort((a, b) => b.combinedScore - a.combinedScore);
+      return combined.slice(0, 8).map((s) => toHighlight(s.row));
+    }
+  } catch {
+    // AI re-ranking failed — fall back to keyword order
+  }
+
+  return top20Highlights.slice(0, 10);
 }
 
 export async function getAllTopics(): Promise<Topic[]> {
