@@ -5,6 +5,36 @@ import HighlightCard from "@/components/HighlightCard";
 import BookCard from "@/components/BookCard";
 import { ArrowLeft, Loader2, Leaf } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Separator } from "@/components/ui/separator";
+
+const SECTION_LABELS = [
+  "WHAT I HEAR YOU SAYING",
+  "WHAT THE BOOKS SUGGEST",
+  "ONE THING WORTH TRYING",
+  "A BOOK WORTH READING",
+  "SOMETHING TO SIT WITH",
+] as const;
+
+function parseSynthesisSections(text: string): { label: string; content: string }[] {
+  const sections: { label: string; content: string }[] = [];
+
+  for (let i = 0; i < SECTION_LABELS.length; i++) {
+    const label = SECTION_LABELS[i];
+    const startIdx = text.indexOf(label);
+    if (startIdx === -1) continue;
+
+    const contentStart = startIdx + label.length;
+    const nextLabel = SECTION_LABELS[i + 1];
+    const endIdx = nextLabel ? text.indexOf(nextLabel) : -1;
+    const content = (endIdx === -1 ? text.slice(contentStart) : text.slice(contentStart, endIdx)).trim();
+
+    if (content) {
+      sections.push({ label, content });
+    }
+  }
+
+  return sections;
+}
 
 const SynthesisCard = ({
   synthesis,
@@ -17,9 +47,12 @@ const SynthesisCard = ({
 }) => {
   if (!isLoading && !synthesis) return null;
 
+  const sections = synthesis ? parseSynthesisSections(synthesis) : [];
+  const hasSections = sections.length > 0;
+
   return (
     <div className="rounded-xl border-l-4 border-primary bg-primary/5 p-6 mb-8">
-      <div className="flex items-center gap-2 mb-3">
+      <div className="flex items-center gap-2 mb-5">
         <Leaf className="h-4 w-4 text-primary" />
         <h2 className="text-sm font-medium tracking-wide text-primary uppercase">
           Glean's take
@@ -31,8 +64,31 @@ const SynthesisCard = ({
           <Skeleton className="h-4 w-full" />
           <Skeleton className="h-4 w-[95%]" />
           <Skeleton className="h-4 w-[85%]" />
+          <Skeleton className="h-4 w-[60%]" />
+          <Separator className="my-4 bg-primary/20" />
+          <Skeleton className="h-4 w-full" />
+          <Skeleton className="h-4 w-[90%]" />
+          <Skeleton className="h-4 w-full" />
+          <Skeleton className="h-4 w-[80%]" />
           <p className="text-xs text-muted-foreground mt-4 italic">
             Finding wisdom for your question…
+          </p>
+        </div>
+      ) : hasSections ? (
+        <div className="space-y-5">
+          {sections.map((section, i) => (
+            <div key={section.label}>
+              {i > 0 && <Separator className="mb-5 bg-primary/20" />}
+              <h3 className="text-xs font-semibold tracking-widest text-primary uppercase mb-2">
+                {section.label}
+              </h3>
+              <p className="text-base leading-relaxed text-foreground whitespace-pre-line">
+                {section.content}
+              </p>
+            </div>
+          ))}
+          <p className="text-xs text-muted-foreground mt-4">
+            Based on {highlightCount} curated highlight{highlightCount !== 1 ? "s" : ""}
           </p>
         </div>
       ) : (
