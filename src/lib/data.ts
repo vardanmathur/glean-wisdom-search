@@ -450,48 +450,100 @@ export async function getAllBooks(): Promise<Book[]> {
   });
 }
 
-export async function getRecommendedBooks(query: string): Promise<Book[]> {
-  const normalisedQuery = normaliseQuery(query);
-  const words = normalisedQuery.split(/\s+/).filter((w) => w.length > 2);
-  if (words.length === 0) return [];
+export async function getRecommendedBooks(
+  query: string,
+  matchedHighlights: Highlight[]
+): Promise<(Book & { matchedHighlightCount: number })[]> {
+  // Step 1: Count highlight contributions per book
+  const bookHighlightCounts: Record<string, number> = {};
 
-  const expandedTags = expandQueryTags(words);
+  for (const highlight of matchedHighlights) {
+    if (highlight.bookId) {
+      bookHighlightCounts[highlight.bookId] =
+        (bookHighlightCounts[highlight.bookId] || 0) + 1;
+    }
+  }
+
+  // Step 2: Sort books by how many matched highlights they contributed
+  const rankedBookIds = Object.entries(bookHighlightCounts)
+    .sort(([, a], [, b]) => b - a)
+    .slice(0, 3)
+    .map(([bookId]) => bookId);
+
+  // Step 3: Fetch full book details for top 3 books
+  if (rankedBookIds.length > 0) {
+    const { data, error } = await supabase
+      .from("books")
+      .select("*, highlights(count)")
+      .in("id", rankedBookIds);
+
+    if (!error && data) {
+      const bookMap = new Map(data.map((b) => [b.id, b]));
+      const rankedBooks = rankedBookIds
+        .filter((id) => bookMap.has(id))
+        .map((id) => ({
+          ...toBook(bookMap.get(id)),
+          matchedHighlightCount: bookHighlightCounts[id] || 0,
+        }));
+
+      if (rankedBooks.length >= 3) return rankedBooks;
+
+      // Step 4: Fallback — fill remaining slots with keyword-matched books
+      const existingIds = new Set(rankedBookIds);
+      const words = query.toLowerCase().split(/\s+/).filter((w) => w.length > 2);
+
+      const { data: allBooks } = await supabase
+        .from("books")
+        .select("*, highlights(count)")
+        .limit(50);
+
+      if (allBooks) {
+        const fallbacks = allBooks
+          .filter((b) => !existingIds.has(b.id))
+          .map((b) => {
+            let score = 0;
+            const searchText = `${b.title} ${b.author} ${b.description || ""}`.toLowerCase();
+            for (const word of words) {
+              if (searchText.includes(word)) score++;
+            }
+            return { book: b, score };
+          })
+          .filter((s) => s.score > 0)
+          .sort((a, b) => b.score - a.score)
+          .slice(0, 3 - rankedBooks.length)
+          .map((s) => ({ ...toBook(s.book), matchedHighlightCount: 0 }));
+
+        return [...rankedBooks, ...fallbacks];
+      }
+
+      return rankedBooks;
+    }
+  }
+
+  // Full fallback: keyword search if no highlights had book IDs
+  const words = query.toLowerCase().split(/\s+/).filter((w) => w.length > 2);
+  if (words.length === 0) return [];
 
   const { data, error } = await supabase
     .from("books")
-    .select("*, highlights(quote, tags)")
+    .select("*, highlights(count)")
     .limit(50);
 
   if (error || !data) return [];
 
-  const scored = data.map((b) => {
-    let score = 0;
-    const hlText = (b.highlights || [])
-      .map((h: any) => `${h.quote} ${(h.tags || []).join(" ")}`)
-      .join(" ");
-    const searchText = `${b.title} ${b.author} ${b.description || ""} ${hlText}`.toLowerCase();
-
-    for (const word of words) {
-      if (searchText.includes(word)) score++;
-    }
-
-    // Synonym-expanded tag match on book's highlights
-    for (const h of (b.highlights || []) as any[]) {
-      for (const tag of (h.tags || []) as string[]) {
-        if (expandedTags.has(tag)) {
-          score += 2;
-        }
+  return data
+    .map((b) => {
+      let score = 0;
+      const searchText = `${b.title} ${b.author} ${b.description || ""}`.toLowerCase();
+      for (const word of words) {
+        if (searchText.includes(word)) score++;
       }
-    }
-
-    return { book: b, score };
-  });
-
-  return scored
+      return { book: b, score };
+    })
     .filter((s) => s.score > 0)
     .sort((a, b) => b.score - a.score)
     .slice(0, 3)
-    .map((s) => toBook(s.book));
+    .map((s) => ({ ...toBook(s.book), matchedHighlightCount: 0 }));
 }
 
 function getTopicDescription(tag: string): string {
