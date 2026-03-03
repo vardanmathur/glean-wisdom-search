@@ -116,9 +116,9 @@ const SearchResults = () => {
   });
 
   const { data: recommendedBooks = [] } = useQuery({
-    queryKey: ["recommended", query],
-    queryFn: () => getRecommendedBooks(query),
-    enabled: !!query,
+    queryKey: ["recommended", query, results],
+    queryFn: () => getRecommendedBooks(query, results),
+    enabled: !!query && results.length > 0,
   });
 
   const { data: synthesis = "", isLoading: isSynthesising } = useQuery({
@@ -189,7 +189,7 @@ const SearchResults = () => {
           </h2>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {recommendedBooks.map((b) => (
-              <BookCard key={b.id} book={b} reason={b.description} />
+              <BookCard key={b.id} book={b} reason={b.description} matchedHighlightCount={b.matchedHighlightCount} />
             ))}
           </div>
         </div>

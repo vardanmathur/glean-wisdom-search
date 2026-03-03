@@ -5,9 +5,10 @@ import { BookOpen } from "lucide-react";
 interface BookCardProps {
   book: Book;
   reason?: string;
+  matchedHighlightCount?: number;
 }
 
-const BookCard = ({ book, reason }: BookCardProps) => {
+const BookCard = ({ book, reason, matchedHighlightCount }: BookCardProps) => {
   return (
     <Link
       to={`/book/${encodeURIComponent(book.title)}`}
@@ -23,6 +24,11 @@ const BookCard = ({ book, reason }: BookCardProps) => {
       <div className="min-w-0">
         <h3 className="font-display text-base font-semibold text-foreground truncate">{book.title}</h3>
         <p className="text-sm text-muted-foreground">{book.author}</p>
+        {matchedHighlightCount != null && matchedHighlightCount > 0 && (
+          <p className="text-xs text-primary font-medium mt-1">
+            {matchedHighlightCount} relevant highlight{matchedHighlightCount !== 1 ? "s" : ""} from this book
+          </p>
+        )}
         {reason && (
           <p className="mt-1 text-xs text-muted-foreground line-clamp-2">{reason}</p>
         )}
