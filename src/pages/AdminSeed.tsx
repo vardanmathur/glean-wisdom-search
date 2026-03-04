@@ -3,6 +3,7 @@ import * as XLSX from "xlsx";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import { normaliseAllTags } from "@/lib/normaliseTags";
 
 interface ParsedRow {
   record_id: string;
@@ -21,7 +22,6 @@ interface ParsedRow {
 }
 
 function parseBookField(bookField: string): { title: string; author: string } {
-  // Format: "Title (Author)" or "Title (Author, First)"
   const match = bookField.match(/^(.+?)\s*\(([^)]+)\)\s*$/);
   if (match) {
     return { title: match[1].trim(), author: match[2].trim() };
@@ -34,6 +34,12 @@ const AdminSeed = () => {
   const [progress, setProgress] = useState(0);
   const [status, setStatus] = useState("");
   const [seeding, setSeeding] = useState(false);
+  const [normalising, setNormalising] = useState(false);
+  const [normaliseResult, setNormaliseResult] = useState<{
+    processed: number;
+    updated: number;
+    errors: number;
+  } | null>(null);
 
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -114,6 +120,19 @@ const AdminSeed = () => {
     setSeeding(false);
   };
 
+  const handleNormaliseTags = async () => {
+    setNormalising(true);
+    setNormaliseResult(null);
+    try {
+      const result = await normaliseAllTags();
+      setNormaliseResult(result);
+    } catch (error) {
+      console.error("Normalisation failed:", error);
+    } finally {
+      setNormalising(false);
+    }
+  };
+
   return (
     <div className="container mx-auto max-w-xl px-4 py-12">
       <h1 className="font-display text-2xl text-foreground mb-6">Seed Database</h1>
@@ -144,6 +163,25 @@ const AdminSeed = () => {
 
         {progress === 100 && !seeding && (
           <p className="text-sm text-primary font-medium">{status}</p>
+        )}
+
+        <div className="border-t border-border pt-6">
+          <h2 className="font-display text-lg text-foreground mb-3">Tag Normalisation</h2>
+          <p className="text-sm text-muted-foreground mb-4">
+            Clean up inconsistent capitalisation, spacing, and special characters across all tags in the highlights table.
+          </p>
+          <Button onClick={handleNormaliseTags} disabled={normalising} variant="secondary" className="w-full">
+            {normalising ? "Normalising tags..." : "Normalise All Tags"}
+          </Button>
+        </div>
+
+        {normaliseResult && (
+          <div className="rounded-lg border border-border bg-muted/50 p-4 space-y-1">
+            <p className="text-sm font-medium text-foreground">Normalisation Complete</p>
+            <p className="text-sm text-muted-foreground">Processed: {normaliseResult.processed} highlights</p>
+            <p className="text-sm text-muted-foreground">Updated: {normaliseResult.updated} highlights</p>
+            <p className="text-sm text-muted-foreground">Errors: {normaliseResult.errors}</p>
+          </div>
         )}
       </div>
     </div>
