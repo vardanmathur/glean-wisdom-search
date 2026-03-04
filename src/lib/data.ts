@@ -344,10 +344,11 @@ export async function searchHighlights(query: string): Promise<Highlight[]> {
 }
 
 export async function getAllTopics(): Promise<Topic[]> {
-  // Fetch ALL highlights — only the tags column — no row limit
+  // Fetch ALL highlights — only the tags column — override default 1000 row limit
   const { data, error } = await supabase
     .from("highlights")
-    .select("tags");
+    .select("tags")
+    .limit(10000);
 
   if (error || !data) return [];
 
@@ -373,13 +374,38 @@ export async function getAllTopics(): Promise<Topic[]> {
 }
 
 export async function getHighlightsByTag(tag: string): Promise<Highlight[]> {
+  // First try exact match
   const { data, error } = await supabase
     .from("highlights")
     .select("*, books(title, author, cover_image_url)")
     .contains("tags", [tag]);
 
-  if (error || !data) return [];
-  return data.map(toHighlight);
+  if (error) return [];
+
+  // If exact match found results, return them
+  if (data && data.length > 0) {
+    return data.map(toHighlight);
+  }
+
+  // Otherwise, fetch all and filter with case-insensitive tag matching
+  const { data: allData, error: allError } = await supabase
+    .from("highlights")
+    .select("*, books(title, author, cover_image_url)")
+    .limit(10000);
+
+  if (allError || !allData) return [];
+
+  const tagLower = tag.toLowerCase();
+  return allData
+    .filter((h) =>
+      (h.tags || []).some((t: string) => {
+        const normalised = t.trim().split(" ")
+          .map((w: string) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+          .join(" ");
+        return normalised === tag || t.toLowerCase() === tagLower;
+      })
+    )
+    .map(toHighlight);
 }
 
 export async function getBookByTitle(title: string): Promise<Book | undefined> {
