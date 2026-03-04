@@ -344,36 +344,31 @@ export async function searchHighlights(query: string): Promise<Highlight[]> {
 }
 
 export async function getAllTopics(): Promise<Topic[]> {
+  // Fetch ALL highlights — only the tags column — no row limit
   const { data, error } = await supabase
     .from("highlights")
-    .select("tags, char_length");
+    .select("tags");
 
   if (error || !data) return [];
 
+  // Count occurrences of each tag, normalising to Title Case to merge duplicates
   const tagCounts: Record<string, number> = {};
-  const tagLengths: Record<string, number[]> = {};
   for (const row of data) {
     for (const tag of row.tags || []) {
-      tagCounts[tag] = (tagCounts[tag] || 0) + 1;
-      if (row.char_length) {
-        if (!tagLengths[tag]) tagLengths[tag] = [];
-        tagLengths[tag].push(row.char_length);
-      }
+      const normalisedTag = tag.trim().split(" ")
+        .map((w: string) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+        .join(" ");
+      tagCounts[normalisedTag] = (tagCounts[normalisedTag] || 0) + 1;
     }
   }
 
   return Object.entries(tagCounts)
-    .map(([name, count]) => {
-      const lengths = tagLengths[name] || [];
-      const avg = lengths.length > 0 ? Math.round(lengths.reduce((a, b) => a + b, 0) / lengths.length) : 0;
-      return {
-        id: name.toLowerCase().replace(/\s+/g, "-"),
-        name,
-        description: getTopicDescription(name),
-        highlightCount: count,
-        avgHighlightLength: avg,
-      };
-    })
+    .map(([name, count]) => ({
+      id: name.toLowerCase().replace(/\s+/g, "-"),
+      name,
+      description: getTopicDescription(name),
+      highlightCount: count,
+    }))
     .sort((a, b) => b.highlightCount - a.highlightCount);
 }
 
