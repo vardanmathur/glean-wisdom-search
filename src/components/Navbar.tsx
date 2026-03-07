@@ -1,10 +1,21 @@
 import { Link, useNavigate } from "react-router-dom";
-import { Leaf, Search, Bookmark, User } from "lucide-react";
+import { Leaf, Search, Bookmark, User, LogOut, Settings, BookOpen } from "lucide-react";
 import { useState } from "react";
+import { useAuth } from "@/context/AuthContext";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 const Navbar = () => {
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
+  const { user, signOut } = useAuth();
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -13,6 +24,16 @@ const Navbar = () => {
       setQuery("");
     }
   };
+
+  const handleSignOut = async () => {
+    await signOut();
+    navigate("/");
+  };
+
+  const displayName =
+    user?.user_metadata?.full_name || user?.email || "User";
+  const avatarUrl = user?.user_metadata?.avatar_url;
+  const initial = displayName.charAt(0).toUpperCase();
 
   return (
     <nav className="sticky top-0 z-50 border-b bg-card/80 backdrop-blur-md">
@@ -55,13 +76,48 @@ const Navbar = () => {
           >
             <Bookmark className="h-5 w-5" />
           </Link>
-          <Link
-            to="/auth"
-            className="rounded-lg p-2 text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
-            title="Sign In"
-          >
-            <User className="h-5 w-5" />
-          </Link>
+
+          {user ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="rounded-full focus:outline-none focus:ring-2 focus:ring-primary/30">
+                  <Avatar className="h-8 w-8">
+                    {avatarUrl && <AvatarImage src={avatarUrl} alt={displayName} />}
+                    <AvatarFallback className="bg-primary text-primary-foreground text-sm">
+                      {initial}
+                    </AvatarFallback>
+                  </Avatar>
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuLabel className="text-muted-foreground font-normal text-xs truncate">
+                  {displayName}
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => navigate("/saved")}>
+                  <BookOpen className="mr-2 h-4 w-4" />
+                  My Highlights
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => navigate("/settings")}>
+                  <Settings className="mr-2 h-4 w-4" />
+                  Settings
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleSignOut}>
+                  <LogOut className="mr-2 h-4 w-4" />
+                  Sign Out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : (
+            <Link
+              to="/auth"
+              className="rounded-lg p-2 text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+              title="Sign In"
+            >
+              <User className="h-5 w-5" />
+            </Link>
+          )}
         </div>
       </div>
     </nav>
