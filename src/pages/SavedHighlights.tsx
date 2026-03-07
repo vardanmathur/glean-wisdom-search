@@ -28,6 +28,8 @@ const SavedHighlights = () => {
         tags: row.tags || [],
         bookId: row.book_id || undefined,
         coverImageUrl: row.books?.cover_image_url || undefined,
+        source: row.source || "curated",
+        userId: row.user_id || undefined,
       }));
     },
     enabled: savedIds.length > 0,
