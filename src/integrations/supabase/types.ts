@@ -56,8 +56,12 @@ export type Database = {
           my_notes: string | null
           quote: string
           record_id: string | null
+          reported: boolean | null
+          source: string | null
           stars: boolean | null
           tags: string[] | null
+          user_id: string | null
+          visibility: string | null
         }
         Insert: {
           blogged?: boolean | null
@@ -70,8 +74,12 @@ export type Database = {
           my_notes?: string | null
           quote: string
           record_id?: string | null
+          reported?: boolean | null
+          source?: string | null
           stars?: boolean | null
           tags?: string[] | null
+          user_id?: string | null
+          visibility?: string | null
         }
         Update: {
           blogged?: boolean | null
@@ -84,8 +92,12 @@ export type Database = {
           my_notes?: string | null
           quote?: string
           record_id?: string | null
+          reported?: boolean | null
+          source?: string | null
           stars?: boolean | null
           tags?: string[] | null
+          user_id?: string | null
+          visibility?: string | null
         }
         Relationships: [
           {
@@ -125,6 +137,30 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      user_profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string | null
+          default_visibility: string | null
+          display_name: string | null
+          id: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string | null
+          default_visibility?: string | null
+          display_name?: string | null
+          id: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string | null
+          default_visibility?: string | null
+          display_name?: string | null
+          id?: string
+        }
+        Relationships: []
       }
     }
     Views: {
