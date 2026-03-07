@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Highlight } from "@/lib/data";
 import { useSavedHighlights } from "@/context/SavedHighlightsContext";
 import { useAuth } from "@/context/AuthContext";
@@ -20,6 +21,20 @@ const HighlightCard = ({ highlight, index = 0 }: HighlightCardProps) => {
   const [feedback, setFeedback] = useState<"up" | "down" | null>(null);
   const [showReportConfirm, setShowReportConfirm] = useState(false);
   const [reported, setReported] = useState(false);
+  const [displayName, setDisplayName] = useState<string | null>(highlight.displayName || null);
+
+  useEffect(() => {
+    if (highlight.source === "user" && highlight.userId && !displayName) {
+      supabase
+        .from("user_profiles")
+        .select("display_name")
+        .eq("id", highlight.userId)
+        .single()
+        .then(({ data }) => {
+          if (data?.display_name) setDisplayName(data.display_name);
+        });
+    }
+  }, [highlight.userId, highlight.source, displayName]);
 
   const isOwnHighlight = user && highlight.userId === user.id;
   const canReport = user && !isOwnHighlight && highlight.source !== "private";
