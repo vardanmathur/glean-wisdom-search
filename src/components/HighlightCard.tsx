@@ -111,12 +111,13 @@ const HighlightCard = ({ highlight, index = 0 }: HighlightCardProps) => {
         </div>
       </div>
 
-      {/* Attribution */}
       <div className="mt-2">
-        {highlight.source === "user" && highlight.displayName ? (
+        {highlight.source === "user" && displayName ? (
           <p className="text-xs text-muted-foreground">
-            Added by {highlight.displayName}
+            Added by {displayName}
           </p>
+        ) : highlight.source === "user" ? (
+          <p className="text-xs text-muted-foreground">Added by a reader</p>
         ) : (
           <span className="inline-flex items-center gap-1 text-xs font-medium text-primary/70">
             ✦ Glean Pick
