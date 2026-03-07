@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useSavedHighlights } from "@/context/SavedHighlightsContext";
+import { useAuth } from "@/context/AuthContext";
 import HighlightCard from "@/components/HighlightCard";
 import { Bookmark, Loader2 } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -8,6 +9,7 @@ import type { Highlight } from "@/lib/data";
 
 const SavedHighlights = () => {
   const { savedIds } = useSavedHighlights();
+  const { user, authLoading } = useAuth();
 
   const { data: savedHighlights = [], isLoading } = useQuery({
     queryKey: ["saved-highlights", savedIds],
@@ -30,6 +32,33 @@ const SavedHighlights = () => {
     },
     enabled: savedIds.length > 0,
   });
+
+  if (authLoading) {
+    return (
+      <div className="flex justify-center py-12">
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="container mx-auto max-w-2xl px-4 py-8">
+        <div className="rounded-lg border bg-card p-12 text-center card-shadow">
+          <Bookmark className="h-10 w-10 text-muted-foreground mx-auto mb-4" />
+          <p className="text-foreground font-medium mb-2">
+            Sign in to save highlights and build your personal collection
+          </p>
+          <Link
+            to="/auth"
+            className="inline-flex h-10 items-center rounded-lg bg-primary px-6 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors mt-4"
+          >
+            Sign in with Google
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto max-w-2xl px-4 py-8">
