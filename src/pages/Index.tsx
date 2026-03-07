@@ -1,7 +1,9 @@
 import { useNavigate } from "react-router-dom";
 import { useState } from "react";
-import { Search, Leaf } from "lucide-react";
+import { Search, Leaf, Plus } from "lucide-react";
 import { Link } from "react-router-dom";
+import { useAuth } from "@/context/AuthContext";
+import AddHighlightModal from "@/components/AddHighlightModal";
 
 const exampleQueries = [
   "I'm struggling to motivate my team",
@@ -19,6 +21,8 @@ const featuredTopics = [
 const Index = () => {
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
+  const { user } = useAuth();
+  const [showAddModal, setShowAddModal] = useState(false);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,7 +51,7 @@ const Index = () => {
         </p>
       </div>
 
-      <form onSubmit={handleSearch} className="w-full max-w-xl mb-8">
+      <form onSubmit={handleSearch} className="w-full max-w-xl mb-4">
         <div className="relative">
           <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
           <input
@@ -59,6 +63,16 @@ const Index = () => {
           />
         </div>
       </form>
+
+      {user && (
+        <button
+          onClick={() => setShowAddModal(true)}
+          className="mb-8 inline-flex items-center gap-2 rounded-lg bg-primary/10 border border-primary/20 px-4 py-2 text-sm font-medium text-primary hover:bg-primary/15 transition-colors"
+        >
+          <Plus className="h-4 w-4" />
+          Add a Highlight
+        </button>
+      )}
 
       <div className="flex flex-wrap justify-center gap-2 max-w-xl mb-16">
         {exampleQueries.map((q) => (
@@ -90,6 +104,8 @@ const Index = () => {
       <footer className="mt-auto py-8 text-center text-xs text-muted-foreground">
         Built for Glean — extract meaning from what you've read · Founder: Vardan Mathur · February 2026
       </footer>
+
+      <AddHighlightModal open={showAddModal} onOpenChange={setShowAddModal} />
     </div>
   );
 };

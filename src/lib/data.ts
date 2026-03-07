@@ -32,6 +32,9 @@ export interface Highlight {
   bookId?: string;
   coverImageUrl?: string;
   myNotes?: string;
+  source?: string;
+  userId?: string;
+  displayName?: string;
 }
 
 export interface Book {
@@ -64,6 +67,9 @@ function toHighlight(row: any): Highlight {
     bookId: row.book_id,
     coverImageUrl: row.books?.cover_image_url,
     myNotes: row.my_notes || undefined,
+    source: row.source || "curated",
+    userId: row.user_id || undefined,
+    displayName: row.user_profiles?.display_name || undefined,
   };
 }
 
