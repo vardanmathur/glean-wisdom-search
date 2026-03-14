@@ -400,41 +400,37 @@ export async function getAllTopics(): Promise<Topic[]> {
 }
 
 export async function getHighlightsByTag(tag: string): Promise<Highlight[]> {
-  // DEBUG: Log the exact tag string received
-  console.log(`[getHighlightsByTag] Tag received: "${tag}"`);
-
-  // First try exact match
+  // Exact match via Supabase array contains
   const { data, error } = await supabase
     .from("highlights")
     .select("*, books(title, author, cover_image_url)")
     .contains("tags", [tag]);
 
-  if (error) {
-    console.log(`[getHighlightsByTag] Query error:`, error);
-    return [];
-  }
+  if (error) return [];
 
-  // DEBUG: Log raw result count and first 3 rows
-  console.log(`[getHighlightsByTag] Exact match result count: ${data?.length ?? 0}`);
-  console.log(`[getHighlightsByTag] First 3 rows:`, (data || []).slice(0, 3).map(r => ({ id: r.id, tags: r.tags, quote: r.quote?.slice(0, 50) })));
-
-  // If exact match found results, return them
   if (data && data.length > 0) {
     return data.map(toHighlight);
   }
 
-  // Otherwise, fetch all and filter with case-insensitive tag matching
-  const { data: allData, error: allError } = await supabase
-    .from("highlights")
-    .select("*, books(title, author, cover_image_url)")
-    .limit(10000);
+  // Fallback: paginate all and filter client-side with case-insensitive matching
+  const PAGE_SIZE = 1000;
+  let allData: any[] = [];
+  let from = 0;
+  while (true) {
+    const { data: page, error: pgErr } = await supabase
+      .from("highlights")
+      .select("*, books(title, author, cover_image_url)")
+      .range(from, from + PAGE_SIZE - 1);
+    if (pgErr || !page || page.length === 0) break;
+    allData = allData.concat(page);
+    if (page.length < PAGE_SIZE) break;
+    from += PAGE_SIZE;
+  }
 
-  if (allError || !allData) return [];
-
-  console.log(`[getHighlightsByTag] Fallback: fetched ${allData.length} total rows for client-side filter`);
+  if (allData.length === 0) return [];
 
   const tagLower = tag.toLowerCase();
-  const filtered = allData
+  return allData
     .filter((h) =>
       (h.tags || []).some((t: string) => {
         const normalised = t.trim().split(" ")
@@ -442,11 +438,8 @@ export async function getHighlightsByTag(tag: string): Promise<Highlight[]> {
           .join(" ");
         return normalised === tag || t.toLowerCase() === tagLower;
       })
-    );
-
-  console.log(`[getHighlightsByTag] Fallback filtered count: ${filtered.length}`);
-
-  return filtered.map(toHighlight);
+    )
+    .map(toHighlight);
 }
 
 export async function getBookByTitle(title: string): Promise<Book | undefined> {
