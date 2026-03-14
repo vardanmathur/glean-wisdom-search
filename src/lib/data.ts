@@ -268,12 +268,22 @@ export async function searchHighlights(query: string): Promise<Highlight[]> {
   const words = normalisedQuery.split(/\s+/).filter((w) => w.length > 2);
   if (words.length === 0) return [];
 
-  const { data, error } = await supabase
-    .from("highlights")
-    .select("*, books(title, author, cover_image_url)")
-    .limit(2000);
+  // Paginate to fetch all highlights
+  const PAGE_SIZE = 1000;
+  let data: any[] = [];
+  let from = 0;
+  while (true) {
+    const { data: page, error } = await supabase
+      .from("highlights")
+      .select("*, books(title, author, cover_image_url)")
+      .range(from, from + PAGE_SIZE - 1);
+    if (error || !page || page.length === 0) break;
+    data = data.concat(page);
+    if (page.length < PAGE_SIZE) break;
+    from += PAGE_SIZE;
+  }
 
-  if (error || !data) return [];
+  if (data.length === 0) return [];
 
   const expandedTags = expandQueryTags(words);
 
@@ -350,17 +360,27 @@ export async function searchHighlights(query: string): Promise<Highlight[]> {
 }
 
 export async function getAllTopics(): Promise<Topic[]> {
-  // Fetch ALL highlights — only the tags column — override default 1000 row limit
-  const { data, error } = await supabase
-    .from("highlights")
-    .select("tags")
-    .limit(10000);
+  // Paginate to fetch ALL highlights — Supabase caps at 1000 per request
+  const PAGE_SIZE = 1000;
+  let allRows: { tags: string[] | null }[] = [];
+  let from = 0;
 
-  if (error || !data) return [];
+  while (true) {
+    const { data, error } = await supabase
+      .from("highlights")
+      .select("tags")
+      .range(from, from + PAGE_SIZE - 1);
 
-  // Count occurrences of each tag, normalising to Title Case to merge duplicates
+    if (error || !data || data.length === 0) break;
+    allRows = allRows.concat(data);
+    if (data.length < PAGE_SIZE) break;
+    from += PAGE_SIZE;
+  }
+
+  if (allRows.length === 0) return [];
+
   const tagCounts: Record<string, number> = {};
-  for (const row of data) {
+  for (const row of allRows) {
     for (const tag of row.tags || []) {
       const normalisedTag = tag.trim().split(" ")
         .map((w: string) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
@@ -380,7 +400,7 @@ export async function getAllTopics(): Promise<Topic[]> {
 }
 
 export async function getHighlightsByTag(tag: string): Promise<Highlight[]> {
-  // First try exact match
+  // Exact match via Supabase array contains
   const { data, error } = await supabase
     .from("highlights")
     .select("*, books(title, author, cover_image_url)")
@@ -388,18 +408,26 @@ export async function getHighlightsByTag(tag: string): Promise<Highlight[]> {
 
   if (error) return [];
 
-  // If exact match found results, return them
   if (data && data.length > 0) {
     return data.map(toHighlight);
   }
 
-  // Otherwise, fetch all and filter with case-insensitive tag matching
-  const { data: allData, error: allError } = await supabase
-    .from("highlights")
-    .select("*, books(title, author, cover_image_url)")
-    .limit(10000);
+  // Fallback: paginate all and filter client-side with case-insensitive matching
+  const PAGE_SIZE = 1000;
+  let allData: any[] = [];
+  let from = 0;
+  while (true) {
+    const { data: page, error: pgErr } = await supabase
+      .from("highlights")
+      .select("*, books(title, author, cover_image_url)")
+      .range(from, from + PAGE_SIZE - 1);
+    if (pgErr || !page || page.length === 0) break;
+    allData = allData.concat(page);
+    if (page.length < PAGE_SIZE) break;
+    from += PAGE_SIZE;
+  }
 
-  if (allError || !allData) return [];
+  if (allData.length === 0) return [];
 
   const tagLower = tag.toLowerCase();
   return allData
