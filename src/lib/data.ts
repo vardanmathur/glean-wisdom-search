@@ -349,20 +349,33 @@ export async function searchHighlights(query: string): Promise<Highlight[]> {
   return top20Highlights.slice(0, 10);
 }
 
+async function fetchAllRows<T>(table: string, selectColumns: string): Promise<T[]> {
+  const PAGE_SIZE = 1000;
+  let allRows: T[] = [];
+  let from = 0;
+
+  while (true) {
+    const { data, error } = await supabase
+      .from(table)
+      .select(selectColumns)
+      .range(from, from + PAGE_SIZE - 1);
+
+    if (error || !data || data.length === 0) break;
+    allRows = allRows.concat(data as T[]);
+    if (data.length < PAGE_SIZE) break;
+    from += PAGE_SIZE;
+  }
+
+  return allRows;
+}
+
 export async function getAllTopics(): Promise<Topic[]> {
-  // Fetch ALL highlights — only the tags column — override default 1000 row limit
-  const { data, error } = await supabase
-    .from("highlights")
-    .select("tags")
-    .limit(10000);
+  const data = await fetchAllRows<{ tags: string[] | null }>("highlights", "tags");
 
-  if (error || !data) return [];
+  if (data.length === 0) return [];
 
-  // DEBUG: Log total rows fetched and first 5 rows' raw tags
   console.log(`[getAllTopics] Total highlight rows fetched: ${data.length}`);
-  console.log(`[getAllTopics] Raw tags from first 5 rows:`, data.slice(0, 5).map(r => r.tags));
 
-  // Count occurrences of each tag, normalising to Title Case to merge duplicates
   const tagCounts: Record<string, number> = {};
   for (const row of data) {
     for (const tag of row.tags || []) {
@@ -373,9 +386,6 @@ export async function getAllTopics(): Promise<Topic[]> {
     }
   }
 
-  // DEBUG: Log the final tagCounts object
-  console.log(`[getAllTopics] Final tagCounts:`, JSON.stringify(tagCounts));
-  // DEBUG: Specifically log Change Management count
   console.log(`[getAllTopics] "Change Management" count:`, tagCounts["Change Management"] ?? "NOT FOUND");
 
   return Object.entries(tagCounts)
