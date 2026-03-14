@@ -389,13 +389,23 @@ export async function getAllTopics(): Promise<Topic[]> {
 }
 
 export async function getHighlightsByTag(tag: string): Promise<Highlight[]> {
+  // DEBUG: Log the exact tag string received
+  console.log(`[getHighlightsByTag] Tag received: "${tag}"`);
+
   // First try exact match
   const { data, error } = await supabase
     .from("highlights")
     .select("*, books(title, author, cover_image_url)")
     .contains("tags", [tag]);
 
-  if (error) return [];
+  if (error) {
+    console.log(`[getHighlightsByTag] Query error:`, error);
+    return [];
+  }
+
+  // DEBUG: Log raw result count and first 3 rows
+  console.log(`[getHighlightsByTag] Exact match result count: ${data?.length ?? 0}`);
+  console.log(`[getHighlightsByTag] First 3 rows:`, (data || []).slice(0, 3).map(r => ({ id: r.id, tags: r.tags, quote: r.quote?.slice(0, 50) })));
 
   // If exact match found results, return them
   if (data && data.length > 0) {
@@ -410,8 +420,10 @@ export async function getHighlightsByTag(tag: string): Promise<Highlight[]> {
 
   if (allError || !allData) return [];
 
+  console.log(`[getHighlightsByTag] Fallback: fetched ${allData.length} total rows for client-side filter`);
+
   const tagLower = tag.toLowerCase();
-  return allData
+  const filtered = allData
     .filter((h) =>
       (h.tags || []).some((t: string) => {
         const normalised = t.trim().split(" ")
@@ -419,8 +431,11 @@ export async function getHighlightsByTag(tag: string): Promise<Highlight[]> {
           .join(" ");
         return normalised === tag || t.toLowerCase() === tagLower;
       })
-    )
-    .map(toHighlight);
+    );
+
+  console.log(`[getHighlightsByTag] Fallback filtered count: ${filtered.length}`);
+
+  return filtered.map(toHighlight);
 }
 
 export async function getBookByTitle(title: string): Promise<Book | undefined> {
