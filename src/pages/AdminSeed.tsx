@@ -89,6 +89,13 @@ const AdminSeed = () => {
 
   const handleSeed = async () => {
     if (rows.length === 0) return;
+
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      setStatus("Error: You must be signed in as admin to seed highlights.");
+      return;
+    }
+
     setSeeding(true);
     setProgress(0);
 
@@ -101,6 +108,9 @@ const AdminSeed = () => {
       try {
         const { data, error } = await supabase.functions.invoke("seed-highlights", {
           body: { rows: batch },
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+          },
         });
         if (error) {
           errors.push(`Batch ${i}: ${error.message}`);
