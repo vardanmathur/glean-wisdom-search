@@ -349,32 +349,27 @@ export async function searchHighlights(query: string): Promise<Highlight[]> {
   return top20Highlights.slice(0, 10);
 }
 
-async function fetchAllRows<T>(table: string, selectColumns: string): Promise<T[]> {
+export async function getAllTopics(): Promise<Topic[]> {
+  // Paginate to fetch ALL highlights — Supabase caps at 1000 per request
   const PAGE_SIZE = 1000;
-  let allRows: T[] = [];
+  let allRows: { tags: string[] | null }[] = [];
   let from = 0;
 
   while (true) {
     const { data, error } = await supabase
-      .from(table)
-      .select(selectColumns)
+      .from("highlights")
+      .select("tags")
       .range(from, from + PAGE_SIZE - 1);
 
     if (error || !data || data.length === 0) break;
-    allRows = allRows.concat(data as T[]);
+    allRows = allRows.concat(data);
     if (data.length < PAGE_SIZE) break;
     from += PAGE_SIZE;
   }
 
-  return allRows;
-}
+  if (allRows.length === 0) return [];
 
-export async function getAllTopics(): Promise<Topic[]> {
-  const data = await fetchAllRows<{ tags: string[] | null }>("highlights", "tags");
-
-  if (data.length === 0) return [];
-
-  console.log(`[getAllTopics] Total highlight rows fetched: ${data.length}`);
+  console.log(`[getAllTopics] Total highlight rows fetched: ${allRows.length}`);
 
   const tagCounts: Record<string, number> = {};
   for (const row of data) {
