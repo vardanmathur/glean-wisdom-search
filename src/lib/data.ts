@@ -358,6 +358,10 @@ export async function getAllTopics(): Promise<Topic[]> {
 
   if (error || !data) return [];
 
+  // DEBUG: Log total rows fetched and first 5 rows' raw tags
+  console.log(`[getAllTopics] Total highlight rows fetched: ${data.length}`);
+  console.log(`[getAllTopics] Raw tags from first 5 rows:`, data.slice(0, 5).map(r => r.tags));
+
   // Count occurrences of each tag, normalising to Title Case to merge duplicates
   const tagCounts: Record<string, number> = {};
   for (const row of data) {
@@ -368,6 +372,11 @@ export async function getAllTopics(): Promise<Topic[]> {
       tagCounts[normalisedTag] = (tagCounts[normalisedTag] || 0) + 1;
     }
   }
+
+  // DEBUG: Log the final tagCounts object
+  console.log(`[getAllTopics] Final tagCounts:`, JSON.stringify(tagCounts));
+  // DEBUG: Specifically log Change Management count
+  console.log(`[getAllTopics] "Change Management" count:`, tagCounts["Change Management"] ?? "NOT FOUND");
 
   return Object.entries(tagCounts)
     .map(([name, count]) => ({
