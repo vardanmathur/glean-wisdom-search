@@ -372,7 +372,7 @@ export async function getAllTopics(): Promise<Topic[]> {
   console.log(`[getAllTopics] Total highlight rows fetched: ${allRows.length}`);
 
   const tagCounts: Record<string, number> = {};
-  for (const row of data) {
+  for (const row of allRows) {
     for (const tag of row.tags || []) {
       const normalisedTag = tag.trim().split(" ")
         .map((w: string) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
