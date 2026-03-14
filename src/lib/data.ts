@@ -268,12 +268,22 @@ export async function searchHighlights(query: string): Promise<Highlight[]> {
   const words = normalisedQuery.split(/\s+/).filter((w) => w.length > 2);
   if (words.length === 0) return [];
 
-  const { data, error } = await supabase
-    .from("highlights")
-    .select("*, books(title, author, cover_image_url)")
-    .limit(2000);
+  // Paginate to fetch all highlights
+  const PAGE_SIZE = 1000;
+  let data: any[] = [];
+  let from = 0;
+  while (true) {
+    const { data: page, error } = await supabase
+      .from("highlights")
+      .select("*, books(title, author, cover_image_url)")
+      .range(from, from + PAGE_SIZE - 1);
+    if (error || !page || page.length === 0) break;
+    data = data.concat(page);
+    if (page.length < PAGE_SIZE) break;
+    from += PAGE_SIZE;
+  }
 
-  if (error || !data) return [];
+  if (data.length === 0) return [];
 
   const expandedTags = expandQueryTags(words);
 
