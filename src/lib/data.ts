@@ -379,8 +379,6 @@ export async function getAllTopics(): Promise<Topic[]> {
 
   if (allRows.length === 0) return [];
 
-  console.log(`[getAllTopics] Total highlight rows fetched: ${allRows.length}`);
-
   const tagCounts: Record<string, number> = {};
   for (const row of allRows) {
     for (const tag of row.tags || []) {
@@ -390,8 +388,6 @@ export async function getAllTopics(): Promise<Topic[]> {
       tagCounts[normalisedTag] = (tagCounts[normalisedTag] || 0) + 1;
     }
   }
-
-  console.log(`[getAllTopics] "Change Management" count:`, tagCounts["Change Management"] ?? "NOT FOUND");
 
   return Object.entries(tagCounts)
     .map(([name, count]) => ({
