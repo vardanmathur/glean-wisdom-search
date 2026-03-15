@@ -1,9 +1,13 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import * as XLSX from "xlsx";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { normaliseAllTags } from "@/lib/normaliseTags";
+
+const ADMIN_EMAIL = "vardan@gmail.com";
 
 interface ParsedRow {
   record_id: string;
