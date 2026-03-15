@@ -56,6 +56,11 @@ const AddHighlightModal = ({ open, onOpenChange }: AddHighlightModalProps) => {
   const suggestionsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    if (selectedBookId) {
+      setBookSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
     if (bookTitle.trim().length < 2) {
       setBookSuggestions([]);
       return;
@@ -70,7 +75,7 @@ const AddHighlightModal = ({ open, onOpenChange }: AddHighlightModalProps) => {
       setShowSuggestions(true);
     }, 250);
     return () => clearTimeout(timeout);
-  }, [bookTitle]);
+  }, [bookTitle, selectedBookId]);
 
   const selectBook = (book: BookSuggestion) => {
     setBookTitle(book.title);
