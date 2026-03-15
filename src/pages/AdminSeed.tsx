@@ -47,6 +47,20 @@ const AdminSeed = () => {
     errors: number;
   } | null>(null);
 
+  useEffect(() => {
+    if (!authLoading && (!user || user.email !== ADMIN_EMAIL)) {
+      navigate("/", { replace: true });
+    }
+  }, [user, authLoading, navigate]);
+
+  if (authLoading) {
+    return <div className="container mx-auto max-w-xl px-4 py-12 text-muted-foreground">Loading...</div>;
+  }
+
+  if (!user || user.email !== ADMIN_EMAIL) {
+    return null;
+  }
+
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
