@@ -34,6 +34,8 @@ function parseBookField(bookField: string): { title: string; author: string } {
 }
 
 const AdminSeed = () => {
+  const { user, authLoading } = useAuth();
+  const navigate = useNavigate();
   const [rows, setRows] = useState<ParsedRow[]>([]);
   const [progress, setProgress] = useState(0);
   const [status, setStatus] = useState("");
