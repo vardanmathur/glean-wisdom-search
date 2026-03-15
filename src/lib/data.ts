@@ -275,7 +275,7 @@ export async function searchHighlights(query: string): Promise<Highlight[]> {
   while (true) {
     const { data: page, error } = await supabase
       .from("highlights")
-      .select("*, books(title, author, cover_image_url), user_profiles(display_name)")
+      .select("*, books(title, author, cover_image_url)")
       .range(from, from + PAGE_SIZE - 1);
     if (error || !page || page.length === 0) break;
     data = data.concat(page);
@@ -403,7 +403,7 @@ export async function getHighlightsByTag(tag: string): Promise<Highlight[]> {
   // Exact match via Supabase array contains
   const { data, error } = await supabase
     .from("highlights")
-    .select("*, books(title, author, cover_image_url), user_profiles(display_name)")
+    .select("*, books(title, author, cover_image_url)")
     .contains("tags", [tag]);
 
   if (error) return [];
@@ -419,7 +419,7 @@ export async function getHighlightsByTag(tag: string): Promise<Highlight[]> {
   while (true) {
     const { data: page, error: pgErr } = await supabase
       .from("highlights")
-      .select("*, books(title, author, cover_image_url), user_profiles(display_name)")
+      .select("*, books(title, author, cover_image_url)")
       .range(from, from + PAGE_SIZE - 1);
     if (pgErr || !page || page.length === 0) break;
     allData = allData.concat(page);
@@ -467,7 +467,7 @@ export async function getBookById(id: string): Promise<Book | undefined> {
 export async function getHighlightsByBook(bookId: string): Promise<Highlight[]> {
   const { data, error } = await supabase
     .from("highlights")
-    .select("*, books(title, author, cover_image_url), user_profiles(display_name)")
+    .select("*, books(title, author, cover_image_url)")
     .eq("book_id", bookId);
 
   if (error || !data) return [];
@@ -485,13 +485,13 @@ export async function getAllBooks(): Promise<Book[]> {
   // Fetch avg char_length per book
   const { data: avgData } = await supabase
     .from("highlights")
-    .select("book_id, quote");
+    .select("book_id, char_length");
 
   const bookAvg: Record<string, number[]> = {};
   for (const row of avgData || []) {
-    if (row.book_id && row.quote) {
+    if (row.book_id && row.char_length) {
       if (!bookAvg[row.book_id]) bookAvg[row.book_id] = [];
-      bookAvg[row.book_id].push(row.quote.length);
+      bookAvg[row.book_id].push(row.char_length);
     }
   }
 
