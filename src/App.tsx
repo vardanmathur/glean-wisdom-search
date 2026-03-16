@@ -38,6 +38,7 @@ const App = () => (
               <Route path="/saved" element={<SavedHighlights />} />
               <Route path="/auth" element={<Auth />} />
               <Route path="/admin/seed" element={<AdminSeed />} />
+              <Route path="/privacy" element={<PrivacyPolicy />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>
