@@ -350,7 +350,7 @@ export async function searchHighlights(query: string): Promise<Highlight[]> {
         combinedScore: item.score * (aiScores[i] / 10),
       }));
       combined.sort((a, b) => b.combinedScore - a.combinedScore);
-      return combined.slice(0, 8).map((s) => toHighlight(s.row));
+      return combined.slice(0, 10).map((s) => toHighlight(s.row));
     }
   } catch {
     // AI re-ranking failed — fall back to keyword order
