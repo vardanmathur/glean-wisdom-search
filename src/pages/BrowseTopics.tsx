@@ -1,10 +1,13 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getAllTopics, getHighlightsByTag } from "@/lib/data";
 import { Link, useParams } from "react-router-dom";
 import HighlightCard from "@/components/HighlightCard";
 import SortFilterBar, { SortOption } from "@/components/SortFilterBar";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { ArrowLeft, Leaf, Loader2 } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Separator } from "@/components/ui/separator";
+import { supabase } from "@/integrations/supabase/client";
 
 const BrowseTopics = () => {
   const { tag } = useParams();
@@ -27,6 +30,58 @@ const TopicDetail = ({ tag }: { tag: string }) => {
     queryFn: getAllTopics,
   });
 
+  const [summary, setSummary] = useState<string>("");
+  const [isSummaryLoading, setIsSummaryLoading] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!tag || isLoading || highlights.length === 0 || summary) {
+      return;
+    }
+
+    const fetchSummary = async () => {
+      try {
+        setIsSummaryLoading(true);
+
+        const timeoutPromise = new Promise<null>((resolve) =>
+          setTimeout(() => resolve(null), 5000)
+        );
+
+        const invokePromise = supabase.functions.invoke("generate-topic-summary", {
+          body: {
+            topicName: tag,
+            highlights: highlights.slice(0, 5).map((h) => h.text),
+          },
+        });
+
+        const result = await Promise.race([invokePromise, timeoutPromise]);
+
+        if (cancelled || result === null) {
+          return;
+        }
+
+        // @ts-expect-error result type narrowed by runtime check
+        const { data, error } = result;
+        if (!error && data?.summary && typeof data.summary === "string") {
+          setSummary(data.summary);
+        }
+      } catch {
+        // Silent failure — degrade gracefully
+      } finally {
+        if (!cancelled) {
+          setIsSummaryLoading(false);
+        }
+      }
+    };
+
+    fetchSummary();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [tag, isLoading, highlights, summary]);
+
   const topic = topics.find((t) => t.name === tag);
 
   return (
@@ -38,8 +93,29 @@ const TopicDetail = ({ tag }: { tag: string }) => {
         <ArrowLeft className="h-4 w-4" /> All Topics
       </Link>
 
-      <h1 className="font-display text-3xl text-foreground mb-2">{tag}</h1>
-      {topic && <p className="text-muted-foreground mb-8">{topic.description}</p>}
+      <div className="mb-8">
+        <div className="flex items-center gap-2 mb-2">
+          <Leaf className="h-5 w-5 text-primary" />
+          <h1 className="font-display text-3xl text-foreground">{tag}</h1>
+        </div>
+        {topic && (
+          <p className="text-muted-foreground mb-3">{topic.description}</p>
+        )}
+        {isSummaryLoading && (
+          <div className="space-y-2 mt-3">
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-5/6" />
+            <Skeleton className="h-4 w-2/3" />
+          </div>
+        )}
+        {!isSummaryLoading && summary && (
+          <p className="mt-3 text-base leading-relaxed text-muted-foreground">
+            {summary}
+          </p>
+        )}
+      </div>
+
+      <Separator className="mb-6" />
 
       {isLoading ? (
         <div className="flex justify-center py-12">
