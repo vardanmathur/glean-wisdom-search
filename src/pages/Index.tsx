@@ -4,6 +4,8 @@ import { Search, Leaf, Plus } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import AddHighlightModal from "@/components/AddHighlightModal";
+import { useQuery } from "@tanstack/react-query";
+import { getGleanStats } from "@/lib/data";
 
 const exampleQueries = [
   "I'm struggling to motivate my team",
@@ -23,6 +25,10 @@ const Index = () => {
   const [query, setQuery] = useState("");
   const { user } = useAuth();
   const [showAddModal, setShowAddModal] = useState(false);
+  const { data: stats } = useQuery({
+    queryKey: ["glean-stats"],
+    queryFn: getGleanStats,
+  });
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,6 +55,12 @@ const Index = () => {
         <p className="text-lg text-muted-foreground max-w-md mx-auto">
           Describe what you're going through. We'll surface the most relevant insights from the world's best books.
         </p>
+
+        {stats && (
+          <p className="text-sm text-muted-foreground mt-4">
+            Curated from {stats.bookCount} books · {stats.highlightCount} highlights
+          </p>
+        )}
       </div>
 
       <form onSubmit={handleSearch} className="w-full max-w-xl mb-4">

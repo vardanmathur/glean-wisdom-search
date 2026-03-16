@@ -536,6 +536,21 @@ export async function getRelatedTopics(
     }));
 }
 
+export async function getGleanStats(): Promise<{
+  highlightCount: number;
+  bookCount: number;
+}> {
+  const [highlightsResult, booksResult] = await Promise.all([
+    supabase.from("highlights").select("*", { count: "exact", head: true }),
+    supabase.from("books").select("*", { count: "exact", head: true }),
+  ]);
+
+  return {
+    highlightCount: highlightsResult.count || 0,
+    bookCount: booksResult.count || 0,
+  };
+}
+
 export async function getRecommendedBooks(
   query: string,
   matchedHighlights: Highlight[]

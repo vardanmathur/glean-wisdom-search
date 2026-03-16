@@ -88,6 +88,13 @@ const TopicDetail = ({ tag }: { tag: string }) => {
   }, [tag, isLoading, highlights, summary]);
 
   const topic = topics.find((t) => t.name === tag);
+  const bookCount = useMemo(() => {
+    const ids = new Set<string>();
+    for (const h of highlights) {
+      if (h.bookId) ids.add(h.bookId);
+    }
+    return ids.size;
+  }, [highlights]);
 
   return (
     <div className="container mx-auto max-w-2xl px-4 py-8">
@@ -103,6 +110,11 @@ const TopicDetail = ({ tag }: { tag: string }) => {
           <Leaf className="h-5 w-5 text-primary" />
           <h1 className="font-display text-3xl text-foreground">{tag}</h1>
         </div>
+        {!isLoading && (
+          <p className="text-sm text-muted-foreground">
+            {highlights.length} highlights from {bookCount} books
+          </p>
+        )}
         {topic && (
           <p className="text-muted-foreground mb-3">{topic.description}</p>
         )}
