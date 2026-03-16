@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { getAllTopics, getHighlightsByTag } from "@/lib/data";
+import { getAllTopics, getHighlightsByTag, getRelatedTopics } from "@/lib/data";
 import { Link, useParams } from "react-router-dom";
 import HighlightCard from "@/components/HighlightCard";
 import SortFilterBar, { SortOption } from "@/components/SortFilterBar";
@@ -32,6 +32,11 @@ const TopicDetail = ({ tag }: { tag: string }) => {
 
   const [summary, setSummary] = useState<string>("");
   const [isSummaryLoading, setIsSummaryLoading] = useState(false);
+  const { data: relatedTopics = [] } = useQuery({
+    queryKey: ["related-topics", tag],
+    queryFn: () => getRelatedTopics(tag),
+    enabled: !!tag,
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -122,11 +127,32 @@ const TopicDetail = ({ tag }: { tag: string }) => {
           <Loader2 className="h-6 w-6 animate-spin text-primary" />
         </div>
       ) : (
-        <div className="space-y-4">
-          {highlights.map((h, i) => (
-            <HighlightCard key={h.id} highlight={h} index={i} />
-          ))}
-        </div>
+        <>
+          <div className="space-y-4">
+            {highlights.map((h, i) => (
+              <HighlightCard key={h.id} highlight={h} index={i} />
+            ))}
+          </div>
+
+          {relatedTopics.length >= 2 && (
+            <div className="mt-10">
+              <h2 className="font-display text-xl text-foreground mb-3">
+                Related Topics
+              </h2>
+              <div className="flex flex-wrap gap-2">
+                {relatedTopics.slice(0, 6).map((topic) => (
+                  <Link
+                    key={topic.id}
+                    to={`/topics/${encodeURIComponent(topic.name)}`}
+                    className="rounded-full bg-primary/8 border border-primary/20 px-3 py-1.5 text-xs sm:text-sm font-medium text-primary hover:bg-primary/15 transition-colors"
+                  >
+                    {topic.name}
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

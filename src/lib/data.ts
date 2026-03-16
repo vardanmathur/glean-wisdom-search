@@ -505,6 +505,37 @@ export async function getAllBooks(): Promise<Book[]> {
   });
 }
 
+export async function getRelatedTopics(
+  currentTag: string,
+  limit: number = 6
+): Promise<{ name: string; id: string; coOccurrenceCount: number }[]> {
+  const { data, error } = await supabase
+    .from("highlights")
+    .select("tags")
+    .contains("tags", [currentTag]);
+
+  if (error || !data) return [];
+
+  const coOccurrence: Record<string, number> = {};
+
+  for (const row of data) {
+    for (const tag of row.tags || []) {
+      if (tag !== currentTag) {
+        coOccurrence[tag] = (coOccurrence[tag] || 0) + 1;
+      }
+    }
+  }
+
+  return Object.entries(coOccurrence)
+    .sort(([, a], [, b]) => b - a)
+    .slice(0, limit)
+    .map(([name, count]) => ({
+      name,
+      id: name.toLowerCase().replace(/\s+/g, "-"),
+      coOccurrenceCount: count,
+    }));
+}
+
 export async function getRecommendedBooks(
   query: string,
   matchedHighlights: Highlight[]
