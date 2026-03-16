@@ -46,16 +46,11 @@ export type Database = {
       }
       highlights: {
         Row: {
-          blogged: boolean | null
           book_id: string | null
-          char_length: number | null
           created_at: string
-          highlight_date: string | null
           id: string
-          location: string | null
           my_notes: string | null
           quote: string
-          record_id: string | null
           reported: boolean | null
           source: string | null
           stars: boolean | null
@@ -64,16 +59,11 @@ export type Database = {
           visibility: string | null
         }
         Insert: {
-          blogged?: boolean | null
           book_id?: string | null
-          char_length?: number | null
           created_at?: string
-          highlight_date?: string | null
           id?: string
-          location?: string | null
           my_notes?: string | null
           quote: string
-          record_id?: string | null
           reported?: boolean | null
           source?: string | null
           stars?: boolean | null
@@ -82,16 +72,11 @@ export type Database = {
           visibility?: string | null
         }
         Update: {
-          blogged?: boolean | null
           book_id?: string | null
-          char_length?: number | null
           created_at?: string
-          highlight_date?: string | null
           id?: string
-          location?: string | null
           my_notes?: string | null
           quote?: string
-          record_id?: string | null
           reported?: boolean | null
           source?: string | null
           stars?: boolean | null
@@ -105,6 +90,13 @@ export type Database = {
             columns: ["book_id"]
             isOneToOne: false
             referencedRelation: "books"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "highlights_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
             referencedColumns: ["id"]
           },
         ]

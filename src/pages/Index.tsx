@@ -103,6 +103,8 @@ const Index = () => {
 
       <footer className="mt-auto py-8 text-center text-xs text-muted-foreground">
         Built for Glean — extract meaning from what you've read · Founder: Vardan Mathur · February 2026
+        <span className="mx-1">·</span>
+        <Link to="/privacy" className="underline hover:text-foreground transition-colors">Privacy Policy</Link>
       </footer>
 
       <AddHighlightModal open={showAddModal} onOpenChange={setShowAddModal} />
