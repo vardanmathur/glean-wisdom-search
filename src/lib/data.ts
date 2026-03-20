@@ -310,6 +310,19 @@ export async function searchHighlights(query: string): Promise<Highlight[]> {
       }
     }
 
+    // Bonus for having personal notes — signals this highlight was meaningful enough to annotate
+    if (h.my_notes && h.my_notes.trim().length > 0) {
+      score += 2;
+    }
+
+    // Extra bonus if the notes text matches the search query words
+    if (h.my_notes) {
+      const notesText = h.my_notes.toLowerCase();
+      for (const word of words) {
+        if (notesText.includes(word)) score += 3;
+      }
+    }
+
     return { row: h, score };
   });
 
