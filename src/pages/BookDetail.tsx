@@ -1,8 +1,9 @@
 import { useParams, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { getBookByTitle, getHighlightsByBook } from "@/lib/data";
+import { getAmazonUrl, getBookByTitle, getGoodreadsUrl, getHighlightsByBook } from "@/lib/data";
 import HighlightCard from "@/components/HighlightCard";
-import { BookOpen, ExternalLink, ArrowLeft, Loader2 } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { BookOpen, ExternalLink, ArrowLeft, Loader2, ShoppingCart } from "lucide-react";
 
 const BookDetail = () => {
   const { title } = useParams();
@@ -59,15 +60,42 @@ const BookDetail = () => {
         <div>
           <h1 className="font-display text-3xl text-foreground">{book.title}</h1>
           <p className="text-muted-foreground mt-1">{book.author}</p>
+          <TooltipProvider delayDuration={0}>
+            <div className="mt-2 flex items-center gap-3">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <a
+                    href={getAmazonUrl(book.title, book.author)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center justify-center rounded-md p-1 text-muted-foreground/80 hover:text-teal-600 dark:hover:text-teal-400 transition-colors"
+                    aria-label="Buy on Amazon"
+                  >
+                    <ShoppingCart className="h-4 w-4" />
+                  </a>
+                </TooltipTrigger>
+                <TooltipContent>Buy on Amazon</TooltipContent>
+              </Tooltip>
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <a
+                    href={getGoodreadsUrl(book.title, book.author)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center justify-center rounded-md p-1 text-muted-foreground/80 hover:text-teal-600 dark:hover:text-teal-400 transition-colors"
+                    aria-label="See on Goodreads"
+                  >
+                    <BookOpen className="h-4 w-4" />
+                  </a>
+                </TooltipTrigger>
+                <TooltipContent>See on Goodreads</TooltipContent>
+              </Tooltip>
+            </div>
+          </TooltipProvider>
           {book.description && (
             <p className="text-sm text-muted-foreground mt-3 leading-relaxed">{book.description}</p>
           )}
-          <a
-            href="#"
-            className="inline-flex items-center gap-1.5 mt-4 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
-          >
-            View on Amazon <ExternalLink className="h-3.5 w-3.5" />
-          </a>
         </div>
       </div>
 

@@ -703,3 +703,11 @@ function getTopicDescription(tag: string): string {
   };
   return map[tag] || "Explore wisdom on this topic";
 }
+
+export function getAmazonUrl(title: string, author: string): string {
+  return `https://www.amazon.in/s?k=${encodeURIComponent(`${title} ${author}`)}&tag=vardanmathur-21`;
+}
+
+export function getGoodreadsUrl(title: string, author: string): string {
+  return `https://www.goodreads.com/search?q=${encodeURIComponent(`${title} ${author}`)}`;
+}

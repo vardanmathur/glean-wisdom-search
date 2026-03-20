@@ -1,9 +1,10 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { getAllBooks } from "@/lib/data";
-import BookCard from "@/components/BookCard";
+import { Link } from "react-router-dom";
+import { getAmazonUrl, getAllBooks, getGoodreadsUrl } from "@/lib/data";
 import SortFilterBar, { SortOption } from "@/components/SortFilterBar";
-import { Loader2 } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { BookOpen, Loader2, ShoppingCart } from "lucide-react";
 
 const BrowseBooks = () => {
   const { data: books = [], isLoading } = useQuery({
@@ -31,30 +32,95 @@ const BrowseBooks = () => {
   }, [books, sort]);
 
   return (
-    <div className="container mx-auto max-w-3xl px-4 py-8">
-      <h1 className="font-display text-3xl text-foreground mb-2">Browse by Book</h1>
-      <p className="text-muted-foreground mb-6">
-        Explore highlights from {books.length} book{books.length !== 1 ? "s" : ""}
-      </p>
+    <TooltipProvider delayDuration={0}>
+      <div className="container mx-auto max-w-3xl px-4 py-8">
+        <h1 className="font-display text-3xl text-foreground mb-2">Browse by Book</h1>
+        <p className="text-muted-foreground mb-6">
+          Explore highlights from {books.length} book{books.length !== 1 ? "s" : ""}
+        </p>
 
-      <SortFilterBar sort={sort} onSortChange={setSort} />
+        <SortFilterBar sort={sort} onSortChange={setSort} />
 
-      {isLoading ? (
-        <div className="flex justify-center py-12">
-          <Loader2 className="h-6 w-6 animate-spin text-primary" />
+        {isLoading ? (
+          <div className="flex justify-center py-12">
+            <Loader2 className="h-6 w-6 animate-spin text-primary" />
+          </div>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {sorted.map((book) => {
+              const reason = `${book.highlightCount} highlight${
+                book.highlightCount !== 1 ? "s" : ""
+              }${book.avgHighlightLength ? ` · avg ${book.avgHighlightLength} chars` : ""}`;
+
+              return (
+                <div
+                  key={book.id}
+                  className="group relative flex gap-4 rounded-lg border bg-card p-4 card-shadow hover:card-shadow-hover transition-all duration-300"
+                >
+                  <Link
+                    to={`/book/${encodeURIComponent(book.title)}`}
+                    className="absolute inset-0 z-0 rounded-lg"
+                  />
+
+                  <div className="flex h-20 w-14 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary overflow-hidden relative z-10">
+                    {book.coverImageUrl ? (
+                      <img src={book.coverImageUrl} alt={book.title} className="h-full w-full object-cover" />
+                    ) : (
+                      <BookOpen className="h-6 w-6" />
+                    )}
+                  </div>
+
+                  <div className="min-w-0 relative z-10">
+                    <h3 className="font-display text-base font-semibold text-foreground truncate">{book.title}</h3>
+                    <p className="text-sm text-muted-foreground">{book.author}</p>
+
+                    {reason && (
+                      <p className="mt-1 text-xs text-muted-foreground line-clamp-2">{reason}</p>
+                    )}
+                  </div>
+
+                  <div className="absolute bottom-3 right-3 z-20 flex items-center gap-2 opacity-90 md:opacity-0 md:pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <a
+                          href={getAmazonUrl(book.title, book.author)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center justify-center rounded-md p-1 text-muted-foreground/80 hover:text-teal-600 dark:hover:text-teal-400 transition-colors"
+                          aria-label="Buy on Amazon"
+                        >
+                          <ShoppingCart className="h-4 w-4" />
+                        </a>
+                      </TooltipTrigger>
+                      <TooltipContent>Buy on Amazon</TooltipContent>
+                    </Tooltip>
+
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <a
+                          href={getGoodreadsUrl(book.title, book.author)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center justify-center rounded-md p-1 text-muted-foreground/80 hover:text-teal-600 dark:hover:text-teal-400 transition-colors"
+                          aria-label="See on Goodreads"
+                        >
+                          <BookOpen className="h-4 w-4" />
+                        </a>
+                      </TooltipTrigger>
+                      <TooltipContent>See on Goodreads</TooltipContent>
+                    </Tooltip>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        <div className="mt-6 text-center text-xs text-muted-foreground">
+          As an Amazon Associate I earn from qualifying purchases.
         </div>
-      ) : (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {sorted.map((book) => (
-            <BookCard
-              key={book.id}
-              book={book}
-              reason={`${book.highlightCount} highlight${book.highlightCount !== 1 ? "s" : ""}${book.avgHighlightLength ? ` · avg ${book.avgHighlightLength} chars` : ""}`}
-            />
-          ))}
-        </div>
-      )}
-    </div>
+      </div>
+    </TooltipProvider>
   );
 };
 
