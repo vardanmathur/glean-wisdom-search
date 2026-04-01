@@ -123,7 +123,7 @@ const TopicDetail = ({ tag }: { tag: string }) => {
         )}
         {!isSummaryLoading && summary && (
           <div className="mt-4 border-l-2 border-primary bg-primary/5 rounded-r-md p-4">
-            <p className="text-xs uppercase tracking-wide text-muted-foreground mb-2">AI Synthesis</p>
+            <p className="text-xs uppercase tracking-wide text-muted-foreground mb-2">What this means..</p>
             <p className="text-sm leading-relaxed text-muted-foreground italic">{summary}</p>
           </div>
         )}
