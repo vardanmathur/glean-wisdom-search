@@ -130,6 +130,24 @@ export type Database = {
           },
         ]
       }
+      topic_summaries: {
+        Row: {
+          summary: string
+          topic: string
+          updated_at: string
+        }
+        Insert: {
+          summary: string
+          topic: string
+          updated_at?: string
+        }
+        Update: {
+          summary?: string
+          topic?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       user_profiles: {
         Row: {
           avatar_url: string | null
