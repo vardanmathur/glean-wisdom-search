@@ -4,6 +4,7 @@ import { Search, Leaf, Plus } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import AddHighlightModal from "@/components/AddHighlightModal";
+import InstallPrompt from "@/components/InstallPrompt";
 import { useQuery } from "@tanstack/react-query";
 import { getGleanStats } from "@/lib/data";
 
@@ -85,6 +86,8 @@ const Index = () => {
           Add a Highlight
         </button>
       )}
+
+      <InstallPrompt />
 
       <div className="flex flex-wrap justify-center gap-2 max-w-xl mb-16">
         {exampleQueries.map((q) => (
