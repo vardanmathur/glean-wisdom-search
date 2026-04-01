@@ -110,24 +110,22 @@ const TopicDetail = ({ tag }: { tag: string }) => {
           <h1 className="font-display text-3xl text-foreground">{tag}</h1>
         </div>
         {!isLoading && (
-          <p className="text-sm text-muted-foreground">
-            {highlights.length} highlights from {bookCount} books
+          <p className="text-xs text-muted-foreground/60">
+            {highlights.length} highlights · {bookCount} books
           </p>
         )}
-        {topic && (
-          <p className="text-muted-foreground mb-3">{topic.description}</p>
-        )}
         {isSummaryLoading && (
-          <div className="space-y-2 mt-3">
+          <div className="space-y-2 mt-4">
             <Skeleton className="h-4 w-full" />
             <Skeleton className="h-4 w-5/6" />
             <Skeleton className="h-4 w-2/3" />
           </div>
         )}
         {!isSummaryLoading && summary && (
-          <p className="mt-3 text-base leading-relaxed text-muted-foreground">
-            {summary}
-          </p>
+          <div className="mt-4 border-l-2 border-primary bg-primary/5 rounded-r-md p-4">
+            <p className="text-xs uppercase tracking-wide text-muted-foreground mb-2">AI Synthesis</p>
+            <p className="text-sm leading-relaxed text-muted-foreground italic">{summary}</p>
+          </div>
         )}
       </div>
 
