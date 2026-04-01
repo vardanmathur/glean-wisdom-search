@@ -4,6 +4,7 @@ import { Search, Leaf, Plus } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import AddHighlightModal from "@/components/AddHighlightModal";
+import InstallPrompt from "@/components/InstallPrompt";
 import { useQuery } from "@tanstack/react-query";
 import { getGleanStats } from "@/lib/data";
 
