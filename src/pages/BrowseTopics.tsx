@@ -66,7 +66,6 @@ const TopicDetail = ({ tag }: { tag: string }) => {
           return;
         }
 
-        // @ts-expect-error result type narrowed by runtime check
         const { data, error } = result;
         if (!error && data?.summary && typeof data.summary === "string") {
           setSummary(data.summary);
