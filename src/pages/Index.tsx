@@ -87,6 +87,8 @@ const Index = () => {
         </button>
       )}
 
+      <InstallPrompt />
+
       <div className="flex flex-wrap justify-center gap-2 max-w-xl mb-16">
         {exampleQueries.map((q) => (
           <button
