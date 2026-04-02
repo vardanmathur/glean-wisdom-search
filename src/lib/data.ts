@@ -363,13 +363,14 @@ export async function searchHighlights(query: string): Promise<Highlight[]> {
         combinedScore: item.score * (aiScores[i] / 10),
       }));
       combined.sort((a, b) => b.combinedScore - a.combinedScore);
-      return combined.slice(0, 10).map((s) => toHighlight(s.row));
+      const dynamicLimit = Math.min(keywordRanked.length, 10);
+      return combined.slice(0, dynamicLimit).map((s) => toHighlight(s.row));
     }
   } catch {
     // AI re-ranking failed — fall back to keyword order
   }
 
-  return top20Highlights.slice(0, 10);
+  return top20Highlights.slice(0, Math.min(keywordRanked.length, 10));
 }
 
 export async function getAllTopics(): Promise<Topic[]> {
