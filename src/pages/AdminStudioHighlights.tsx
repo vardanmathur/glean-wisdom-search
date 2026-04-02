@@ -276,8 +276,8 @@ const HighlightRowEditor = ({ highlight, allTags, onSave, feedback }: HighlightR
   const [tags, setTags] = useState<string[]>(highlight.tags ?? []);
   const [notes, setNotes] = useState(highlight.my_notes ?? "");
   const [tagInput, setTagInput] = useState("");
-  const tagsRef = useRef<HTMLDivElement>(null);
-  const notesRef = useRef<HTMLDivElement>(null);
+  const tagsRef = useRef<HTMLTableCellElement>(null);
+  const notesRef = useRef<HTMLTableCellElement>(null);
 
   // Sync when highlight data changes
   useEffect(() => {
