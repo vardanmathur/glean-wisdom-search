@@ -1,5 +1,5 @@
 import { Link, useNavigate } from "react-router-dom";
-import { Leaf, Search, Bookmark, User, LogOut, Settings, BookOpen } from "lucide-react";
+import { Leaf, Search, Bookmark, User, LogOut, Settings, BookOpen, Wrench } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
@@ -94,6 +94,12 @@ const Navbar = () => {
                   {displayName}
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
+                {user.email === "vardan@gmail.com" && (
+                  <DropdownMenuItem onClick={() => navigate("/admin/studio/highlights")}>
+                    <Wrench className="mr-2 h-4 w-4" />
+                    Studio
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem onClick={() => navigate("/saved")}>
                   <BookOpen className="mr-2 h-4 w-4" />
                   My Highlights
