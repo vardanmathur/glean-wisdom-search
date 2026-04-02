@@ -458,7 +458,7 @@ const HighlightRowEditor = ({ highlight, allTags, onSave, feedback }: HighlightR
 
       {/* Feedback */}
       <td className="p-3 text-center">
-        {feedback === "success" && <Check className="h-4 w-4 text-green-500 mx-auto" />}
+        {feedback === "success" && <Check className="h-4 w-4 text-primary mx-auto" />}
         {feedback === "error" && <AlertCircle className="h-4 w-4 text-destructive mx-auto" />}
       </td>
     </tr>

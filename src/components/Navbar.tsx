@@ -94,6 +94,12 @@ const Navbar = () => {
                   {displayName}
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
+                {user.email === "vardan@gmail.com" && (
+                  <DropdownMenuItem onClick={() => navigate("/admin/studio/highlights")}>
+                    <Wrench className="mr-2 h-4 w-4" />
+                    Studio
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem onClick={() => navigate("/saved")}>
                   <BookOpen className="mr-2 h-4 w-4" />
                   My Highlights
