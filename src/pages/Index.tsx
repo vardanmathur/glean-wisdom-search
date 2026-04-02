@@ -78,15 +78,13 @@ const Index = () => {
       </form>
 
     <div className="flex flex-wrap justify-center gap-3 mb-8">
-      {user && (
-        <button
-          onClick={() => setShowAddModal(true)}
-          className="inline-flex items-center gap-2 rounded-lg bg-primary/10 border border-primary/20 px-4 py-2 text-sm font-medium text-primary hover:bg-primary/15 transition-colors"
-        >
-          <Plus className="h-4 w-4" />
-          Build your own / Contribute
-        </button>
-      )}
+      <button
+        onClick={() => user ? setShowAddModal(true) : navigate("/auth")}
+        className="inline-flex items-center gap-2 rounded-lg bg-primary/10 border border-primary/20 px-4 py-2 text-sm font-medium text-primary hover:bg-primary/15 transition-colors"
+      >
+        <Plus className="h-4 w-4" />
+        Build your own / Contribute
+      </button>
       <InstallPrompt />
     </div>
 
