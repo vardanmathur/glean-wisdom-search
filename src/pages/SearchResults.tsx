@@ -107,9 +107,9 @@ const SynthesisCard = ({
         </div>
       ) : (
         <>
-          <p className="text-base leading-relaxed text-foreground whitespace-pre-line">
-            {synthesis}
-          </p>
+          <div className="text-base leading-relaxed text-foreground prose prose-sm max-w-none prose-p:my-2 prose-strong:text-foreground">
+            <ReactMarkdown>{synthesis}</ReactMarkdown>
+          </div>
           <p className="text-xs text-muted-foreground mt-4">
             Based on {highlightCount} curated highlight{highlightCount !== 1 ? "s" : ""}
           </p>
