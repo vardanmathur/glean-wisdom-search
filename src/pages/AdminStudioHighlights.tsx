@@ -1,14 +1,16 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Check, AlertCircle, ChevronLeft, ChevronRight, X } from "lucide-react";
+import { Check, AlertCircle, ChevronLeft, ChevronRight, Pencil, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
+import { Textarea } from "@/components/ui/textarea";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 
 const ADMIN_EMAIL = "vardan@gmail.com";
 const PAGE_SIZE = 20;
@@ -36,9 +38,8 @@ const AdminStudioHighlights = () => {
   const [filterTag, setFilterTag] = useState<string>("all");
   const [filterNoNotes, setFilterNoNotes] = useState(false);
   const [sortBy, setSortBy] = useState<SortOption>("recent");
-
-  // Save feedback state: { [highlightId]: "success" | "error" }
   const [feedback, setFeedback] = useState<Record<string, "success" | "error">>({});
+  const [editingHighlight, setEditingHighlight] = useState<HighlightRow | null>(null);
 
   useEffect(() => {
     if (!authLoading && (!user || user.email !== ADMIN_EMAIL)) {
@@ -46,7 +47,6 @@ const AdminStudioHighlights = () => {
     }
   }, [user, authLoading, navigate]);
 
-  // Fetch all books for filter dropdown
   const { data: books } = useQuery({
     queryKey: ["studio-books"],
     queryFn: async () => {
@@ -56,7 +56,6 @@ const AdminStudioHighlights = () => {
     enabled: user?.email === ADMIN_EMAIL,
   });
 
-  // Fetch all unique tags for filter dropdown
   const { data: allTags } = useQuery({
     queryKey: ["studio-tags"],
     queryFn: async () => {
@@ -68,7 +67,6 @@ const AdminStudioHighlights = () => {
     enabled: user?.email === ADMIN_EMAIL,
   });
 
-  // Fetch highlights with pagination, filters, sorting
   const { data: highlightsData, isLoading } = useQuery({
     queryKey: ["studio-highlights", page, filterBook, filterTag, filterNoNotes, sortBy],
     queryFn: async () => {
@@ -76,15 +74,9 @@ const AdminStudioHighlights = () => {
         .from("highlights")
         .select("id, quote, tags, my_notes, visibility, created_at, book_id, books(title)", { count: "exact" });
 
-      if (filterBook !== "all") {
-        query = query.eq("book_id", filterBook);
-      }
-      if (filterTag !== "all") {
-        query = query.contains("tags", [filterTag]);
-      }
-      if (filterNoNotes) {
-        query = query.or("my_notes.is.null,my_notes.eq.");
-      }
+      if (filterBook !== "all") query = query.eq("book_id", filterBook);
+      if (filterTag !== "all") query = query.contains("tags", [filterTag]);
+      if (filterNoNotes) query = query.or("my_notes.is.null,my_notes.eq.");
 
       switch (sortBy) {
         case "recent":
@@ -99,17 +91,13 @@ const AdminStudioHighlights = () => {
       }
 
       query = query.range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
-
       const { data, count, error } = await query;
       if (error) throw error;
 
       let rows = (data as unknown as HighlightRow[]) ?? [];
-
-      // Client-side sort for no_tags (empty arrays sort is tricky in SQL)
       if (sortBy === "no_tags") {
         rows = [...rows].sort((a, b) => (a.tags?.length ?? 0) - (b.tags?.length ?? 0));
       }
-
       return { rows, total: count ?? 0 };
     },
     enabled: user?.email === ADMIN_EMAIL,
@@ -119,7 +107,6 @@ const AdminStudioHighlights = () => {
   const totalCount = highlightsData?.total ?? 0;
   const totalPages = Math.ceil(totalCount / PAGE_SIZE);
 
-  // Mutation for updating a highlight
   const updateMutation = useMutation({
     mutationFn: async ({ id, updates }: { id: string; updates: Record<string, unknown> }) => {
       const { error } = await supabase.from("highlights").update(updates).eq("id", id);
@@ -143,14 +130,14 @@ const AdminStudioHighlights = () => {
     }), 2000);
   };
 
-  // Reset page when filters change
   useEffect(() => {
     setPage(0);
   }, [filterBook, filterTag, filterNoNotes, sortBy]);
 
-  if (authLoading || !user || user.email !== ADMIN_EMAIL) {
-    return null;
-  }
+  const truncate = (text: string, max: number) =>
+    text.length > max ? text.slice(0, max) + "…" : text;
+
+  if (authLoading || !user || user.email !== ADMIN_EMAIL) return null;
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-7xl">
@@ -160,26 +147,18 @@ const AdminStudioHighlights = () => {
       {/* Filter & Sort Bar */}
       <div className="flex flex-wrap items-center gap-3 mb-6 p-4 rounded-lg border bg-card">
         <Select value={filterBook} onValueChange={setFilterBook}>
-          <SelectTrigger className="w-[200px]">
-            <SelectValue placeholder="Filter by book" />
-          </SelectTrigger>
+          <SelectTrigger className="w-[200px]"><SelectValue placeholder="Filter by book" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All books</SelectItem>
-            {books?.map((b) => (
-              <SelectItem key={b.id} value={b.id}>{b.title}</SelectItem>
-            ))}
+            {books?.map((b) => <SelectItem key={b.id} value={b.id}>{b.title}</SelectItem>)}
           </SelectContent>
         </Select>
 
         <Select value={filterTag} onValueChange={setFilterTag}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="Filter by tag" />
-          </SelectTrigger>
+          <SelectTrigger className="w-[180px]"><SelectValue placeholder="Filter by tag" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All tags</SelectItem>
-            {allTags?.map((t) => (
-              <SelectItem key={t} value={t}>{t}</SelectItem>
-            ))}
+            {allTags?.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
           </SelectContent>
         </Select>
 
@@ -191,9 +170,7 @@ const AdminStudioHighlights = () => {
         <Separator orientation="vertical" className="h-8 hidden sm:block" />
 
         <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortOption)}>
-          <SelectTrigger className="w-[160px]">
-            <SelectValue placeholder="Sort by" />
-          </SelectTrigger>
+          <SelectTrigger className="w-[160px]"><SelectValue placeholder="Sort by" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="recent">Most recent</SelectItem>
             <SelectItem value="no_notes">No notes first</SelectItem>
@@ -230,13 +207,36 @@ const AdminStudioHighlights = () => {
               </tr>
             ) : (
               highlights.map((h) => (
-                <HighlightRowEditor
-                  key={h.id}
-                  highlight={h}
-                  allTags={allTags ?? []}
-                  onSave={(id, updates) => updateMutation.mutate({ id, updates })}
-                  feedback={feedback[h.id]}
-                />
+                <tr key={h.id} className="border-b hover:bg-muted/30 transition-colors">
+                  <td className="p-3 text-foreground leading-relaxed">{truncate(h.quote, 100)}</td>
+                  <td className="p-3 text-muted-foreground">{h.books?.title ?? "—"}</td>
+                  <td className="p-3">
+                    <div className="flex flex-wrap gap-1">
+                      {(h.tags ?? []).length > 0
+                        ? h.tags!.map((tag) => <Badge key={tag} variant="secondary" className="text-xs">{tag}</Badge>)
+                        : <span className="text-xs text-muted-foreground/60 italic">no tags</span>}
+                    </div>
+                  </td>
+                  <td className="p-3 text-xs text-muted-foreground">
+                    {h.my_notes ? truncate(h.my_notes, 50) : <span className="text-muted-foreground/60 italic">no notes</span>}
+                  </td>
+                  <td className="p-3">
+                    <Badge variant={h.visibility === "public" ? "outline" : "secondary"} className="text-xs">
+                      {h.visibility === "public" ? "Public" : "Private"}
+                    </Badge>
+                  </td>
+                  <td className="p-3 text-center">
+                    {feedback[h.id] === "success" ? (
+                      <Check className="h-4 w-4 text-primary mx-auto" />
+                    ) : feedback[h.id] === "error" ? (
+                      <AlertCircle className="h-4 w-4 text-destructive mx-auto" />
+                    ) : (
+                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditingHighlight(h)}>
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                  </td>
+                </tr>
               ))
             )}
           </tbody>
@@ -249,122 +249,104 @@ const AdminStudioHighlights = () => {
           <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(page - 1)}>
             <ChevronLeft className="h-4 w-4 mr-1" /> Prev
           </Button>
-          <span className="text-sm text-muted-foreground">
-            Page {page + 1} of {totalPages}
-          </span>
+          <span className="text-sm text-muted-foreground">Page {page + 1} of {totalPages}</span>
           <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage(page + 1)}>
             Next <ChevronRight className="h-4 w-4 ml-1" />
           </Button>
         </div>
       )}
+
+      {/* Edit Panel */}
+      <EditPanel
+        highlight={editingHighlight}
+        allTags={allTags ?? []}
+        onClose={() => setEditingHighlight(null)}
+        onSave={(id, updates) => {
+          updateMutation.mutate({ id, updates }, {
+            onSuccess: () => setEditingHighlight(null),
+          });
+        }}
+        saving={updateMutation.isPending}
+      />
     </div>
   );
 };
 
-// --- Inline row editor ---
+// --- Slide-out edit panel ---
 
-interface HighlightRowEditorProps {
-  highlight: HighlightRow;
+interface EditPanelProps {
+  highlight: HighlightRow | null;
   allTags: string[];
+  onClose: () => void;
   onSave: (id: string, updates: Record<string, unknown>) => void;
-  feedback?: "success" | "error";
+  saving: boolean;
 }
 
-const HighlightRowEditor = ({ highlight, allTags, onSave, feedback }: HighlightRowEditorProps) => {
-  const [editingTags, setEditingTags] = useState(false);
-  const [editingNotes, setEditingNotes] = useState(false);
-  const [tags, setTags] = useState<string[]>(highlight.tags ?? []);
-  const [notes, setNotes] = useState(highlight.my_notes ?? "");
+const EditPanel = ({ highlight, allTags, onClose, onSave, saving }: EditPanelProps) => {
+  const [quote, setQuote] = useState("");
+  const [tags, setTags] = useState<string[]>([]);
+  const [notes, setNotes] = useState("");
+  const [visibility, setVisibility] = useState("public");
   const [tagInput, setTagInput] = useState("");
-  const tagsRef = useRef<HTMLTableCellElement>(null);
-  const notesRef = useRef<HTMLTableCellElement>(null);
-
-  // Sync when highlight data changes
-  useEffect(() => {
-    setTags(highlight.tags ?? []);
-    setNotes(highlight.my_notes ?? "");
-  }, [highlight.tags, highlight.my_notes]);
-
-  // Click outside handlers
-  useEffect(() => {
-    if (!editingTags) return;
-    const handler = (e: MouseEvent) => {
-      if (tagsRef.current && !tagsRef.current.contains(e.target as Node)) {
-        handleTagsSave();
-      }
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [editingTags, tags]);
 
   useEffect(() => {
-    if (!editingNotes) return;
-    const handler = (e: MouseEvent) => {
-      if (notesRef.current && !notesRef.current.contains(e.target as Node)) {
-        handleNotesSave();
-      }
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [editingNotes, notes]);
-
-  const handleTagsSave = () => {
-    setEditingTags(false);
-    const sorted = [...tags].sort();
-    const original = [...(highlight.tags ?? [])].sort();
-    if (JSON.stringify(sorted) !== JSON.stringify(original)) {
-      onSave(highlight.id, { tags });
+    if (highlight) {
+      setQuote(highlight.quote);
+      setTags(highlight.tags ?? []);
+      setNotes(highlight.my_notes ?? "");
+      setVisibility(highlight.visibility ?? "public");
+      setTagInput("");
     }
-  };
-
-  const handleNotesSave = () => {
-    setEditingNotes(false);
-    if (notes !== (highlight.my_notes ?? "")) {
-      onSave(highlight.id, { my_notes: notes || null });
-    }
-  };
+  }, [highlight]);
 
   const addTag = (tag: string) => {
     const t = tag.trim().toLowerCase();
-    if (t && !tags.includes(t)) {
-      setTags([...tags, t]);
-    }
+    if (t && !tags.includes(t)) setTags([...tags, t]);
     setTagInput("");
   };
 
-  const removeTag = (tag: string) => {
-    setTags(tags.filter((t) => t !== tag));
+  const removeTag = (tag: string) => setTags(tags.filter((t) => t !== tag));
+
+  const filteredSuggestions = allTags
+    .filter((t) => !tags.includes(t) && t.toLowerCase().includes(tagInput.toLowerCase()))
+    .slice(0, 8);
+
+  const handleSave = () => {
+    if (!highlight) return;
+    onSave(highlight.id, {
+      quote,
+      tags,
+      my_notes: notes || null,
+      visibility,
+    });
   };
-
-  const toggleVisibility = () => {
-    const newVis = highlight.visibility === "public" ? "private" : "public";
-    onSave(highlight.id, { visibility: newVis });
-  };
-
-  const truncate = (text: string, max: number) =>
-    text.length > max ? text.slice(0, max) + "…" : text;
-
-  const filteredSuggestions = allTags.filter(
-    (t) => !tags.includes(t) && t.toLowerCase().includes(tagInput.toLowerCase())
-  ).slice(0, 8);
 
   return (
-    <tr className="border-b hover:bg-muted/30 transition-colors">
-      {/* Quote */}
-      <td className="p-3 text-foreground leading-relaxed">
-        {truncate(highlight.quote, 100)}
-      </td>
+    <Sheet open={!!highlight} onOpenChange={(open) => { if (!open) onClose(); }}>
+      <SheetContent side="right" className="w-full sm:w-[480px] sm:max-w-[480px] overflow-y-auto">
+        <SheetHeader>
+          <SheetTitle>Edit Highlight</SheetTitle>
+          <SheetDescription className="text-xs">
+            {highlight?.books?.title ?? "Unknown book"}
+          </SheetDescription>
+        </SheetHeader>
 
-      {/* Book */}
-      <td className="p-3 text-muted-foreground">
-        {highlight.books?.title ?? "—"}
-      </td>
-
-      {/* Tags */}
-      <td className="p-3" ref={tagsRef}>
-        {editingTags ? (
+        <div className="space-y-6 mt-6">
+          {/* Quote */}
           <div className="space-y-2">
-            <div className="flex flex-wrap gap-1">
+            <label className="text-sm font-medium text-foreground">Quote</label>
+            <Textarea
+              value={quote}
+              onChange={(e) => setQuote(e.target.value)}
+              rows={6}
+              className="text-sm leading-relaxed"
+            />
+          </div>
+
+          {/* Tags */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-foreground">Tags</label>
+            <div className="flex flex-wrap gap-1.5 mb-2">
               {tags.map((tag) => (
                 <Badge key={tag} variant="secondary" className="gap-1 cursor-pointer" onClick={() => removeTag(tag)}>
                   {tag}
@@ -374,7 +356,6 @@ const HighlightRowEditor = ({ highlight, allTags, onSave, feedback }: HighlightR
             </div>
             <div className="relative">
               <input
-                autoFocus
                 value={tagInput}
                 onChange={(e) => setTagInput(e.target.value)}
                 onKeyDown={(e) => {
@@ -383,19 +364,16 @@ const HighlightRowEditor = ({ highlight, allTags, onSave, feedback }: HighlightR
                     addTag(tagInput);
                   }
                 }}
-                placeholder="Add tag..."
-                className="h-7 w-full rounded border bg-background px-2 text-xs focus:outline-none focus:ring-1 focus:ring-primary/30"
+                placeholder="Add tag…"
+                className="h-8 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               />
               {tagInput && filteredSuggestions.length > 0 && (
-                <div className="absolute z-10 top-full left-0 mt-1 w-full bg-card border rounded shadow-md max-h-32 overflow-y-auto">
+                <div className="absolute z-10 top-full left-0 mt-1 w-full bg-card border rounded-md shadow-md max-h-40 overflow-y-auto">
                   {filteredSuggestions.map((s) => (
                     <button
                       key={s}
-                      className="block w-full text-left px-2 py-1 text-xs hover:bg-muted transition-colors"
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                        addTag(s);
-                      }}
+                      className="block w-full text-left px-3 py-1.5 text-sm hover:bg-muted transition-colors"
+                      onMouseDown={(e) => { e.preventDefault(); addTag(s); }}
                     >
                       {s}
                     </button>
@@ -404,64 +382,54 @@ const HighlightRowEditor = ({ highlight, allTags, onSave, feedback }: HighlightR
               )}
             </div>
           </div>
-        ) : (
-          <div
-            className="flex flex-wrap gap-1 cursor-pointer min-h-[28px] rounded p-1 hover:bg-muted/50 transition-colors"
-            onClick={() => setEditingTags(true)}
-          >
-            {tags.length > 0 ? (
-              tags.map((tag) => (
-                <Badge key={tag} variant="secondary" className="text-xs">{tag}</Badge>
-              ))
-            ) : (
-              <span className="text-xs text-muted-foreground/60 italic">click to add tags</span>
-            )}
+
+          {/* Notes */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-foreground">Personal Notes</label>
+            <Textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={4}
+              placeholder="Add your notes…"
+              className="text-sm"
+            />
           </div>
-        )}
-      </td>
 
-      {/* Notes */}
-      <td className="p-3" ref={notesRef}>
-        {editingNotes ? (
-          <textarea
-            autoFocus
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            rows={3}
-            className="w-full rounded border bg-background px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary/30 resize-none"
-          />
-        ) : (
-          <div
-            className="cursor-pointer min-h-[28px] rounded p-1 hover:bg-muted/50 transition-colors text-xs"
-            onClick={() => setEditingNotes(true)}
-          >
-            {highlight.my_notes ? (
-              <span className="text-muted-foreground">{truncate(highlight.my_notes, 50)}</span>
-            ) : (
-              <span className="text-muted-foreground/60 italic">click to add notes</span>
-            )}
+          {/* Visibility */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-foreground">Visibility</label>
+            <div className="flex gap-2">
+              <Button
+                variant={visibility === "public" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setVisibility("public")}
+              >
+                Public
+              </Button>
+              <Button
+                variant={visibility === "private" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setVisibility("private")}
+              >
+                Private
+              </Button>
+            </div>
           </div>
-        )}
-      </td>
 
-      {/* Visibility */}
-      <td className="p-3">
-        <Button
-          variant={highlight.visibility === "public" ? "outline" : "secondary"}
-          size="sm"
-          className="text-xs h-7"
-          onClick={toggleVisibility}
-        >
-          {highlight.visibility === "public" ? "Public" : "Private"}
-        </Button>
-      </td>
+          <Separator />
 
-      {/* Feedback */}
-      <td className="p-3 text-center">
-        {feedback === "success" && <Check className="h-4 w-4 text-primary mx-auto" />}
-        {feedback === "error" && <AlertCircle className="h-4 w-4 text-destructive mx-auto" />}
-      </td>
-    </tr>
+          {/* Actions */}
+          <div className="flex gap-3">
+            <Button onClick={handleSave} disabled={saving} className="flex-1">
+              {saving ? "Saving…" : "Save"}
+            </Button>
+            <Button variant="outline" onClick={onClose} className="flex-1">
+              Cancel
+            </Button>
+          </div>
+        </div>
+      </SheetContent>
+    </Sheet>
   );
 };
 
