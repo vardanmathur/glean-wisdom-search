@@ -38,7 +38,7 @@ Write a response using EXACTLY this structure. Use the section labels as shown �
 ---
 
 MY UNDERSTANDING OF YOUR PROBLEM
-[2-3 sentences maximum that show you have genuinely understood their specific situation. Do not paraphrase their question back at them — interpret what is underneath it. What is the real tension or challenge they are facing? Be specific to their words, not generic.]
+[EXACTLY 2 sentences. Never write more than 2 sentences for this section. Show you have genuinely understood their specific situation. Do not paraphrase their question back at them — interpret what is underneath it. What is the real tension or challenge they are facing? Be specific to their words, not generic.]
 
 WHAT THE BOOKS SUGGEST
 [2-3 short paragraphs, each built around one insight drawn DIRECTLY from one of the retrieved highlights. Start each paragraph with the book name in bold followed by a dash and the insight. Format: **Book Title** — insight text. Do not quote the highlight verbatim — synthesise it into your own words and connect it explicitly to their situation. Each paragraph should feel like it was written because of that specific highlight, not despite it.]

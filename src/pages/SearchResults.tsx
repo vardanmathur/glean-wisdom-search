@@ -7,6 +7,7 @@ import BookCard from "@/components/BookCard";
 import { ArrowLeft, Loader2, Leaf } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
+import ReactMarkdown from "react-markdown";
 
 const SECTION_LABELS = [
   "MY UNDERSTANDING OF YOUR PROBLEM",
@@ -95,9 +96,9 @@ const SynthesisCard = ({
               <h3 className="text-xs font-semibold tracking-widest text-primary uppercase mb-2">
                 {section.label}
               </h3>
-              <p className="text-base leading-relaxed text-foreground whitespace-pre-line">
-                {section.content}
-              </p>
+              <div className="text-base leading-relaxed text-foreground prose prose-sm max-w-none prose-p:my-2 prose-strong:text-foreground">
+                <ReactMarkdown>{section.content}</ReactMarkdown>
+              </div>
             </div>
           ))}
           <p className="text-xs text-muted-foreground mt-4">
@@ -106,9 +107,9 @@ const SynthesisCard = ({
         </div>
       ) : (
         <>
-          <p className="text-base leading-relaxed text-foreground whitespace-pre-line">
-            {synthesis}
-          </p>
+          <div className="text-base leading-relaxed text-foreground prose prose-sm max-w-none prose-p:my-2 prose-strong:text-foreground">
+            <ReactMarkdown>{synthesis}</ReactMarkdown>
+          </div>
           <p className="text-xs text-muted-foreground mt-4">
             Based on {highlightCount} curated highlight{highlightCount !== 1 ? "s" : ""}
           </p>
@@ -187,6 +188,8 @@ const SearchResults = () => {
               </div>
             </div>
           )}
+
+          {results.length > 0 && <Separator className="mt-6 mb-6" />}
 
           {results.length === 0 ? (
             <div className="rounded-lg border bg-card p-8 text-center card-shadow">
