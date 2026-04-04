@@ -7,6 +7,7 @@ import BookCard from "@/components/BookCard";
 import { ArrowLeft, Loader2, Leaf } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
+import ReactMarkdown from "react-markdown";
 
 const SECTION_LABELS = [
   "MY UNDERSTANDING OF YOUR PROBLEM",
