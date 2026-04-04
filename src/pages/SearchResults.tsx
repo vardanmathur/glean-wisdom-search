@@ -189,6 +189,8 @@ const SearchResults = () => {
             </div>
           )}
 
+          {results.length > 0 && <Separator className="mt-6 mb-6" />}
+
           {results.length === 0 ? (
             <div className="rounded-lg border bg-card p-8 text-center card-shadow">
               <p className="text-muted-foreground mb-2">No highlights matched your search.</p>
