@@ -173,7 +173,7 @@ const SearchResults = () => {
             <div className="mb-6">
               <p className="text-xs text-muted-foreground mb-1.5">Explore these books</p>
               <div className="flex flex-wrap gap-x-3 gap-y-1">
-                {getUniqueBooks(results).map((book) => (
+                {getUniqueBooks(results).slice(0, 3).map((book) => (
                   <a
                     key={`${book.title}::${book.author}`}
                     href={getAmazonUrl(book.title, book.author)}
