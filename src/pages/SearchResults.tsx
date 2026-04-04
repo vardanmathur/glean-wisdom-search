@@ -1,6 +1,7 @@
 import { useSearchParams, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { searchHighlights, getRecommendedBooks, synthesiseWisdom } from "@/lib/data";
+import { searchHighlights, getRecommendedBooks, synthesiseWisdom, getAmazonUrl } from "@/lib/data";
+import type { Highlight } from "@/lib/data";
 import HighlightCard from "@/components/HighlightCard";
 import BookCard from "@/components/BookCard";
 import { ArrowLeft, Loader2, Leaf } from "lucide-react";
@@ -8,7 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
 
 const SECTION_LABELS = [
-  "WHAT I HEAR YOU SAYING",
+  "MY UNDERSTANDING OF YOUR PROBLEM",
   "WHAT THE BOOKS SUGGEST",
   "ONE THING WORTH TRYING",
   "A BOOK WORTH READING",
