@@ -1,6 +1,7 @@
 import { useSearchParams, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { searchHighlights, getRecommendedBooks, synthesiseWisdom } from "@/lib/data";
+import { searchHighlights, getRecommendedBooks, synthesiseWisdom, getAmazonUrl } from "@/lib/data";
+import type { Highlight } from "@/lib/data";
 import HighlightCard from "@/components/HighlightCard";
 import BookCard from "@/components/BookCard";
 import { ArrowLeft, Loader2, Leaf } from "lucide-react";
@@ -8,7 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
 
 const SECTION_LABELS = [
-  "WHAT I HEAR YOU SAYING",
+  "MY UNDERSTANDING OF YOUR PROBLEM",
   "WHAT THE BOOKS SUGGEST",
   "ONE THING WORTH TRYING",
   "A BOOK WORTH READING",
@@ -34,6 +35,18 @@ function parseSynthesisSections(text: string): { label: string; content: string 
   }
 
   return sections;
+}
+function getUniqueBooks(highlights: Highlight[]): { title: string; author: string }[] {
+  const seen = new Set<string>();
+  const books: { title: string; author: string }[] = [];
+  for (const h of highlights) {
+    const key = `${h.bookTitle}::${h.author}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      books.push({ title: h.bookTitle, author: h.author });
+    }
+  }
+  return books;
 }
 
 const SynthesisCard = ({
@@ -155,6 +168,25 @@ const SearchResults = () => {
             isLoading={isSynthesising}
             highlightCount={results.length}
           />
+
+          {results.length > 0 && (
+            <div className="mb-6">
+              <p className="text-xs text-muted-foreground mb-1.5">Explore these books</p>
+              <div className="flex flex-wrap gap-x-3 gap-y-1">
+                {getUniqueBooks(results).map((book) => (
+                  <a
+                    key={`${book.title}::${book.author}`}
+                    href={getAmazonUrl(book.title, book.author)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-primary/70 hover:text-primary hover:underline transition-colors"
+                  >
+                    {book.title}
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
 
           {results.length === 0 ? (
             <div className="rounded-lg border bg-card p-8 text-center card-shadow">
