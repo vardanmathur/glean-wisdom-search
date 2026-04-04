@@ -96,9 +96,9 @@ const SynthesisCard = ({
               <h3 className="text-xs font-semibold tracking-widest text-primary uppercase mb-2">
                 {section.label}
               </h3>
-              <p className="text-base leading-relaxed text-foreground whitespace-pre-line">
-                {section.content}
-              </p>
+              <div className="text-base leading-relaxed text-foreground prose prose-sm max-w-none prose-p:my-2 prose-strong:text-foreground">
+                <ReactMarkdown>{section.content}</ReactMarkdown>
+              </div>
             </div>
           ))}
           <p className="text-xs text-muted-foreground mt-4">
