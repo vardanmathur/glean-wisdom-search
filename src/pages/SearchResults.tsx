@@ -49,7 +49,7 @@ function getUniqueBooks(highlights: Highlight[]): { title: string; author: strin
   return books;
 }
 
-
+const SynthesisCard = ({
   synthesis,
   isLoading,
   highlightCount,
