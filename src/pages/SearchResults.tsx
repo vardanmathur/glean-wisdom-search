@@ -36,8 +36,20 @@ function parseSynthesisSections(text: string): { label: string; content: string 
 
   return sections;
 }
+function getUniqueBooks(highlights: Highlight[]): { title: string; author: string }[] {
+  const seen = new Set<string>();
+  const books: { title: string; author: string }[] = [];
+  for (const h of highlights) {
+    const key = `${h.bookTitle}::${h.author}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      books.push({ title: h.bookTitle, author: h.author });
+    }
+  }
+  return books;
+}
 
-const SynthesisCard = ({
+
   synthesis,
   isLoading,
   highlightCount,
