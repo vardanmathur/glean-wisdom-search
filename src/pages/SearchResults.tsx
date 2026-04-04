@@ -169,7 +169,25 @@ const SearchResults = () => {
             highlightCount={results.length}
           />
 
-          {results.length === 0 ? (
+          {results.length > 0 && (
+            <div className="mb-6">
+              <p className="text-xs text-muted-foreground mb-1.5">Explore these books</p>
+              <div className="flex flex-wrap gap-x-3 gap-y-1">
+                {getUniqueBooks(results).map((book) => (
+                  <a
+                    key={`${book.title}::${book.author}`}
+                    href={getAmazonUrl(book.title, book.author)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-primary/70 hover:text-primary hover:underline transition-colors"
+                  >
+                    {book.title}
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
+
             <div className="rounded-lg border bg-card p-8 text-center card-shadow">
               <p className="text-muted-foreground mb-2">No highlights matched your search.</p>
               <p className="text-sm text-muted-foreground">
