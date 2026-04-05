@@ -71,7 +71,7 @@ const BrowseBooks = () => {
                   </div>
 
                   <div className="min-w-0">
-                    <h3 className="font-display text-base font-semibold text-foreground truncate">{book.title}</h3>
+                    <h3 className="font-display text-base font-semibold text-foreground truncate group-hover:whitespace-normal group-hover:overflow-visible">{book.title}</h3>
                     <p className="text-sm text-muted-foreground">{book.author}</p>
 
                     {reason && (
