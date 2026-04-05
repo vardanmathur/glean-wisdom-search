@@ -62,7 +62,7 @@ const BrowseBooks = () => {
                     className="absolute inset-0 z-0 rounded-lg"
                   />
 
-                  <div className="flex h-20 w-14 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary overflow-hidden relative z-10">
+                  <div className="flex h-20 w-14 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary overflow-hidden">
                     {book.coverImageUrl ? (
                       <img src={book.coverImageUrl} alt={book.title} className="h-full w-full object-cover" />
                     ) : (
@@ -70,7 +70,7 @@ const BrowseBooks = () => {
                     )}
                   </div>
 
-                  <div className="min-w-0 relative z-10">
+                  <div className="min-w-0">
                     <h3 className="font-display text-base font-semibold text-foreground truncate">{book.title}</h3>
                     <p className="text-sm text-muted-foreground">{book.author}</p>
 
