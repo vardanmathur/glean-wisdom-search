@@ -89,86 +89,105 @@ const HighlightCard = ({ highlight, index = 0 }: HighlightCardProps) => {
         </div>
       )}
 
-      <blockquote className="font-display text-lg leading-relaxed text-foreground italic mb-4">
-        "{highlight.text}"
-      </blockquote>
-
-      {highlight.myNotes && (
-        <p className="text-sm text-muted-foreground bg-muted/50 rounded-md px-3 py-2 mb-4 border-l-2 border-primary/30">
-          <span className="font-medium text-foreground/70">Note:</span> {highlight.myNotes}
-        </p>
-      )}
-
-      <div className="flex items-center justify-between">
-        <div>
-          <Link
-            to={`/book/${encodeURIComponent(highlight.bookTitle)}`}
-            className="text-sm font-medium text-primary hover:underline"
-          >
-            {highlight.bookTitle}
-          </Link>
-          <span className="text-sm text-muted-foreground"> — {highlight.author}</span>
-        </div>
-      </div>
-
-      <div className="mt-2">
-        {highlight.source === "user" && displayName ? (
-          <p className="text-xs text-muted-foreground">
-            Added by {displayName}
-          </p>
-        ) : highlight.source === "user" ? (
-          <p className="text-xs text-muted-foreground">Added by a reader</p>
+      <div className="flex gap-4">
+        {/* Book cover thumbnail */}
+        {highlight.coverImageUrl ? (
+          <img
+            src={highlight.coverImageUrl}
+            alt={highlight.bookTitle}
+            className="h-16 w-12 rounded-md object-cover flex-shrink-0"
+          />
         ) : (
-          <span className="inline-flex items-center gap-1 text-xs font-medium text-primary/70">
-            ✦ Glean Pick
-          </span>
+          <div className="h-16 w-12 rounded-md bg-primary/15 flex items-center justify-center flex-shrink-0">
+            <span className="text-lg font-semibold text-primary">
+              {highlight.bookTitle?.charAt(0) || "?"}
+            </span>
+          </div>
         )}
-      </div>
 
-      <div className="mt-3 flex flex-wrap gap-1.5">
-        {highlight.tags.map((tag) => (
-          <Link
-            key={tag}
-            to={`/topics/${encodeURIComponent(tag)}`}
-            className="rounded-md bg-accent/15 px-2.5 py-0.5 text-xs font-medium text-accent-foreground hover:bg-accent/25 transition-colors"
-          >
-            {tag}
-          </Link>
-        ))}
-      </div>
+        <div className="flex-1 min-w-0">
+          <blockquote className="font-display text-lg leading-relaxed text-foreground italic mb-4">
+            "{highlight.text}"
+          </blockquote>
 
-      <div className="mt-4 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-        <button
-          onClick={() => setFeedback(feedback === "up" ? null : "up")}
-          className={`flex items-center gap-1 rounded-md px-2.5 py-1 text-xs transition-colors ${
-            feedback === "up"
-              ? "bg-primary/10 text-primary"
-              : "text-muted-foreground hover:text-foreground hover:bg-secondary"
-          }`}
-        >
-          <ThumbsUp className="h-3.5 w-3.5" /> Helpful
-        </button>
-        <button
-          onClick={() => setFeedback(feedback === "down" ? null : "down")}
-          className={`flex items-center gap-1 rounded-md px-2.5 py-1 text-xs transition-colors ${
-            feedback === "down"
-              ? "bg-destructive/10 text-destructive"
-              : "text-muted-foreground hover:text-foreground hover:bg-secondary"
-          }`}
-        >
-          <ThumbsDown className="h-3.5 w-3.5" /> Not relevant
-        </button>
-        <button
-          onClick={() => toggleSave(highlight.id)}
-          className={`ml-auto flex items-center gap-1 rounded-md px-2.5 py-1 text-xs transition-colors ${
-            saved
-              ? "bg-primary/10 text-primary"
-              : "text-muted-foreground hover:text-foreground hover:bg-secondary"
-          }`}
-        >
-          <Bookmark className={`h-3.5 w-3.5 ${saved ? "fill-current" : ""}`} />
-          {saved ? "Saved" : "Save"}
-        </button>
+          {highlight.myNotes && (
+            <p className="text-sm text-muted-foreground bg-muted/50 rounded-md px-3 py-2 mb-4 border-l-2 border-primary/30">
+              <span className="font-medium text-foreground/70">Note:</span> {highlight.myNotes}
+            </p>
+          )}
+
+          <div className="flex items-center justify-between">
+            <div>
+              <Link
+                to={`/book/${encodeURIComponent(highlight.bookTitle)}`}
+                className="text-sm font-medium text-primary hover:underline"
+              >
+                {highlight.bookTitle}
+              </Link>
+              <span className="text-sm text-muted-foreground"> — {highlight.author}</span>
+            </div>
+          </div>
+
+          <div className="mt-2">
+            {highlight.source === "user" && displayName ? (
+              <p className="text-xs text-muted-foreground">
+                Added by {displayName}
+              </p>
+            ) : highlight.source === "user" ? (
+              <p className="text-xs text-muted-foreground">Added by a reader</p>
+            ) : (
+              <span className="inline-flex items-center gap-1 text-xs font-medium text-primary/70">
+                ✦ Glean Pick
+              </span>
+            )}
+          </div>
+
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            {highlight.tags.map((tag) => (
+              <Link
+                key={tag}
+                to={`/topics/${encodeURIComponent(tag)}`}
+                className="rounded-md bg-accent/15 px-2.5 py-0.5 text-xs font-medium text-accent-foreground hover:bg-accent/25 transition-colors"
+              >
+                {tag}
+              </Link>
+            ))}
+          </div>
+
+          <div className="mt-4 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button
+              onClick={() => setFeedback(feedback === "up" ? null : "up")}
+              className={`flex items-center gap-1 rounded-md px-2.5 py-1 text-xs transition-colors ${
+                feedback === "up"
+                  ? "bg-primary/10 text-primary"
+                  : "text-muted-foreground hover:text-foreground hover:bg-secondary"
+              }`}
+            >
+              <ThumbsUp className="h-3.5 w-3.5" /> Helpful
+            </button>
+            <button
+              onClick={() => setFeedback(feedback === "down" ? null : "down")}
+              className={`flex items-center gap-1 rounded-md px-2.5 py-1 text-xs transition-colors ${
+                feedback === "down"
+                  ? "bg-destructive/10 text-destructive"
+                  : "text-muted-foreground hover:text-foreground hover:bg-secondary"
+              }`}
+            >
+              <ThumbsDown className="h-3.5 w-3.5" /> Not relevant
+            </button>
+            <button
+              onClick={() => toggleSave(highlight.id)}
+              className={`ml-auto flex items-center gap-1 rounded-md px-2.5 py-1 text-xs transition-colors ${
+                saved
+                  ? "bg-primary/10 text-primary"
+                  : "text-muted-foreground hover:text-foreground hover:bg-secondary"
+              }`}
+            >
+              <Bookmark className={`h-3.5 w-3.5 ${saved ? "fill-current" : ""}`} />
+              {saved ? "Saved" : "Save"}
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );
