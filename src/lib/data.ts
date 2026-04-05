@@ -721,5 +721,5 @@ export function getAmazonUrl(title: string, author: string): string {
 }
 
 export function getGoodreadsUrl(title: string, author: string): string {
-  return `https://www.goodreads.com/search?q=${encodeURIComponent(`${title} ${author}`)}`;
+  return `https://www.goodreads.com/search?q=${encodeURIComponent(`${title}`)}`;
 }
