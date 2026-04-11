@@ -172,7 +172,7 @@ const SearchResults = () => {
 
           {results.length > 0 && (
             <div className="mb-6">
-              <p className="text-xs text-muted-foreground mb-1.5">Explore these books</p>
+              <p className="text-sm text-muted-foreground mb-1.5">Explore these books</p>
               <div className="flex flex-wrap gap-x-3 gap-y-1">
                 {getUniqueBooks(results).slice(0, 3).map((book) => (
                   <a
@@ -180,7 +180,7 @@ const SearchResults = () => {
                     href={getAmazonUrl(book.title, book.author)}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-xs text-primary/70 hover:text-primary hover:underline transition-colors"
+                    className="text-sm text-primary/70 hover:text-primary hover:underline transition-colors"
                   >
                     {book.title}
                   </a>
