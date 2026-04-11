@@ -354,7 +354,7 @@ const AdminStudioHighlights = () => {
               </tr>
             ) : (
               highlights.map((h) => (
-                <tr key={h.id} className="border-b hover:bg-muted/30 transition-colors">
+                <tr key={h.id} className="border-b hover:bg-muted/30 cursor-pointer" onDoubleClick={() => setEditingHighlight(h)}>
                   <td className="p-3 text-foreground leading-relaxed">{truncate(h.quote, 100)}</td>
                   <td className="p-3 text-muted-foreground">{h.books?.title ?? "—"}</td>
                   <td className="p-3">
