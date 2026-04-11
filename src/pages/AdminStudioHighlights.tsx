@@ -307,10 +307,20 @@ const EditPanel = ({ highlight, allTags, onClose, onSave, saving }: EditPanelPro
 
   const removeTag = (tag: string) => setTags(tags.filter((t) => t !== tag));
 
-  const filteredSuggestions = allTags
-    .filter((t) => !tags.includes(t) && t.toLowerCase().includes(tagInput.toLowerCase()))
-    .slice(0, 8);
-
+const input = tagInput.toLowerCase();
+const filteredSuggestions = allTags
+    .filter((t) => !tags.includes(t) && t.toLowerCase().includes(input))
+    .sort((a, b) => {
+      const aLower = a.toLowerCase();
+      const bLower = b.toLowerCase();
+      const aStarts = aLower.startsWith(input);
+      const bStarts = bLower.startsWith(input);
+      if (aStarts && !bStarts) return -1;
+      if (!aStarts && bStarts) return 1;
+      return aLower.localeCompare(bLower);
+    })
+    .slice(0, 20);
+  
   const handleSave = () => {
     if (!highlight) return;
     onSave(highlight.id, {
