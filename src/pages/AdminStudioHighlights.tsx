@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Check, AlertCircle, ChevronLeft, ChevronRight, Pencil, X } from "lucide-react";
+import { Check, AlertCircle, ChevronLeft, ChevronRight, Pencil, X, ChevronDown, Search, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -16,6 +16,7 @@ const ADMIN_EMAIL = "vardan@gmail.com";
 const PAGE_SIZE = 20;
 
 type SortOption = "recent" | "no_notes" | "no_tags";
+type ColumnSortState = { col: string; dir: "asc" | "desc" } | null;
 
 interface HighlightRow {
   id: string;
@@ -28,6 +29,122 @@ interface HighlightRow {
   books: { title: string } | null;
 }
 
+// --- Multi-select tag dropdown ---
+interface MultiTagFilterProps {
+  allTags: string[];
+  selected: string[];
+  onChange: (tags: string[]) => void;
+}
+
+const MultiTagFilter = ({ allTags, selected, onChange }: MultiTagFilterProps) => {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const input = search.toLowerCase();
+  const filtered = allTags
+    .filter((t) => t.toLowerCase().includes(input))
+    .sort((a, b) => {
+      const aStarts = a.toLowerCase().startsWith(input);
+      const bStarts = b.toLowerCase().startsWith(input);
+      if (aStarts && !bStarts) return -1;
+      if (!aStarts && bStarts) return 1;
+      return a.localeCompare(b);
+    });
+
+  const toggle = (tag: string) => {
+    onChange(selected.includes(tag) ? selected.filter((t) => t !== tag) : [...selected, tag]);
+  };
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setOpen(!open)}
+        className="flex h-10 w-[180px] items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+      >
+        <span className="truncate text-muted-foreground">
+          {selected.length === 0 ? "All tags" : `Tags (${selected.length})`}
+        </span>
+        <div className="flex items-center gap-1">
+          {selected.length > 0 && (
+            <X
+              className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground"
+              onClick={(e) => { e.stopPropagation(); onChange([]); }}
+            />
+          )}
+          <ChevronDown className="h-4 w-4 opacity-50" />
+        </div>
+      </button>
+      {open && (
+        <div className="absolute z-50 top-full left-0 mt-1 w-[240px] rounded-md border bg-popover shadow-md">
+          <div className="p-2 border-b">
+            <div className="flex items-center gap-2 rounded-md border px-2">
+              <Search className="h-3.5 w-3.5 text-muted-foreground" />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search tags…"
+                className="h-8 w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+                autoFocus
+              />
+            </div>
+          </div>
+          <div className="max-h-56 overflow-y-auto p-1">
+            {filtered.length === 0 ? (
+              <p className="px-3 py-2 text-sm text-muted-foreground">No tags found</p>
+            ) : (
+              filtered.map((tag) => (
+                <button
+                  key={tag}
+                  className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent transition-colors"
+                  onClick={() => toggle(tag)}
+                >
+                  <Checkbox checked={selected.includes(tag)} className="pointer-events-none" />
+                  <span>{tag}</span>
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// --- Column sort header ---
+interface SortableHeaderProps {
+  label: string;
+  colKey: string;
+  columnSort: ColumnSortState;
+  onSort: (col: string) => void;
+  className?: string;
+}
+
+const SortableHeader = ({ label, colKey, columnSort, onSort, className }: SortableHeaderProps) => {
+  const active = columnSort?.col === colKey;
+  const Icon = active ? (columnSort.dir === "asc" ? ArrowUp : ArrowDown) : ArrowUpDown;
+  return (
+    <th
+      className={`text-left p-3 font-medium cursor-pointer select-none hover:bg-muted/70 transition-colors ${active ? "text-primary" : "text-muted-foreground"} ${className ?? ""}`}
+      onClick={() => onSort(colKey)}
+    >
+      <span className="inline-flex items-center gap-1">
+        {label}
+        <Icon className="h-3.5 w-3.5" />
+      </span>
+    </th>
+  );
+};
+
+// --- Main page ---
 const AdminStudioHighlights = () => {
   const { user, authLoading } = useAuth();
   const navigate = useNavigate();
@@ -35,9 +152,10 @@ const AdminStudioHighlights = () => {
 
   const [page, setPage] = useState(0);
   const [filterBook, setFilterBook] = useState<string>("all");
-  const [filterTag, setFilterTag] = useState<string>("all");
+  const [filterTags, setFilterTags] = useState<string[]>([]);
   const [filterNoNotes, setFilterNoNotes] = useState(false);
   const [sortBy, setSortBy] = useState<SortOption>("recent");
+  const [columnSort, setColumnSort] = useState<ColumnSortState>(null);
   const [feedback, setFeedback] = useState<Record<string, "success" | "error">>({});
   const [editingHighlight, setEditingHighlight] = useState<HighlightRow | null>(null);
 
@@ -68,14 +186,14 @@ const AdminStudioHighlights = () => {
   });
 
   const { data: highlightsData, isLoading } = useQuery({
-    queryKey: ["studio-highlights", page, filterBook, filterTag, filterNoNotes, sortBy],
+    queryKey: ["studio-highlights", page, filterBook, filterTags, filterNoNotes, sortBy],
     queryFn: async () => {
       let query = supabase
         .from("highlights")
         .select("id, quote, tags, my_notes, visibility, created_at, book_id, books(title)", { count: "exact" });
 
       if (filterBook !== "all") query = query.eq("book_id", filterBook);
-      if (filterTag !== "all") query = query.contains("tags", [filterTag]);
+      if (filterTags.length > 0) query = query.contains("tags", filterTags);
       if (filterNoNotes) query = query.or("my_notes.is.null,my_notes.eq.");
 
       switch (sortBy) {
@@ -103,9 +221,44 @@ const AdminStudioHighlights = () => {
     enabled: user?.email === ADMIN_EMAIL,
   });
 
-  const highlights = highlightsData?.rows ?? [];
+  // Apply client-side column sort
+  const applyColumnSort = (rows: HighlightRow[]): HighlightRow[] => {
+    if (!columnSort) return rows;
+    const { col, dir } = columnSort;
+    const mult = dir === "asc" ? 1 : -1;
+    return [...rows].sort((a, b) => {
+      switch (col) {
+        case "quote":
+          return mult * a.quote.localeCompare(b.quote);
+        case "book":
+          return mult * (a.books?.title ?? "").localeCompare(b.books?.title ?? "");
+        case "tags":
+          return mult * ((a.tags?.length ?? 0) - (b.tags?.length ?? 0));
+        case "notes": {
+          if (!a.my_notes && !b.my_notes) return 0;
+          if (!a.my_notes) return 1;
+          if (!b.my_notes) return -1;
+          return mult * a.my_notes.localeCompare(b.my_notes);
+        }
+        case "visibility":
+          return mult * (a.visibility ?? "").localeCompare(b.visibility ?? "");
+        default:
+          return 0;
+      }
+    });
+  };
+
+  const highlights = applyColumnSort(highlightsData?.rows ?? []);
   const totalCount = highlightsData?.total ?? 0;
   const totalPages = Math.ceil(totalCount / PAGE_SIZE);
+
+  const handleColumnSort = (col: string) => {
+    setColumnSort((prev) => {
+      if (!prev || prev.col !== col) return { col, dir: "asc" };
+      if (prev.dir === "asc") return { col, dir: "desc" };
+      return null;
+    });
+  };
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, updates }: { id: string; updates: Record<string, unknown> }) => {
@@ -132,7 +285,7 @@ const AdminStudioHighlights = () => {
 
   useEffect(() => {
     setPage(0);
-  }, [filterBook, filterTag, filterNoNotes, sortBy]);
+  }, [filterBook, filterTags, filterNoNotes, sortBy]);
 
   const truncate = (text: string, max: number) =>
     text.length > max ? text.slice(0, max) + "…" : text;
@@ -154,13 +307,7 @@ const AdminStudioHighlights = () => {
           </SelectContent>
         </Select>
 
-        <Select value={filterTag} onValueChange={setFilterTag}>
-          <SelectTrigger className="w-[180px]"><SelectValue placeholder="Filter by tag" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All tags</SelectItem>
-            {allTags?.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-          </SelectContent>
-        </Select>
+        <MultiTagFilter allTags={allTags ?? []} selected={filterTags} onChange={setFilterTags} />
 
         <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer">
           <Checkbox checked={filterNoNotes} onCheckedChange={(v) => setFilterNoNotes(v === true)} />
@@ -186,11 +333,11 @@ const AdminStudioHighlights = () => {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b bg-muted/50">
-              <th className="text-left p-3 font-medium text-muted-foreground w-[35%]">Quote</th>
-              <th className="text-left p-3 font-medium text-muted-foreground w-[15%]">Book</th>
-              <th className="text-left p-3 font-medium text-muted-foreground w-[20%]">Tags</th>
-              <th className="text-left p-3 font-medium text-muted-foreground w-[15%]">Notes</th>
-              <th className="text-left p-3 font-medium text-muted-foreground w-[10%]">Visibility</th>
+              <SortableHeader label="Quote" colKey="quote" columnSort={columnSort} onSort={handleColumnSort} className="w-[35%]" />
+              <SortableHeader label="Book" colKey="book" columnSort={columnSort} onSort={handleColumnSort} className="w-[15%]" />
+              <SortableHeader label="Tags" colKey="tags" columnSort={columnSort} onSort={handleColumnSort} className="w-[20%]" />
+              <SortableHeader label="Notes" colKey="notes" columnSort={columnSort} onSort={handleColumnSort} className="w-[15%]" />
+              <SortableHeader label="Visibility" colKey="visibility" columnSort={columnSort} onSort={handleColumnSort} className="w-[10%]" />
               <th className="text-center p-3 font-medium text-muted-foreground w-[5%]"></th>
             </tr>
           </thead>
@@ -307,8 +454,8 @@ const EditPanel = ({ highlight, allTags, onClose, onSave, saving }: EditPanelPro
 
   const removeTag = (tag: string) => setTags(tags.filter((t) => t !== tag));
 
-const input = tagInput.toLowerCase();
-const filteredSuggestions = allTags
+  const input = tagInput.toLowerCase();
+  const filteredSuggestions = allTags
     .filter((t) => !tags.includes(t) && t.toLowerCase().includes(input))
     .sort((a, b) => {
       const aLower = a.toLowerCase();
@@ -320,7 +467,7 @@ const filteredSuggestions = allTags
       return aLower.localeCompare(bLower);
     })
     .slice(0, 20);
-  
+
   const handleSave = () => {
     if (!highlight) return;
     onSave(highlight.id, {
@@ -342,18 +489,11 @@ const filteredSuggestions = allTags
         </SheetHeader>
 
         <div className="space-y-6 mt-6">
-          {/* Quote */}
           <div className="space-y-2">
             <label className="text-sm font-medium text-foreground">Quote</label>
-            <Textarea
-              value={quote}
-              onChange={(e) => setQuote(e.target.value)}
-              rows={6}
-              className="text-sm leading-relaxed"
-            />
+            <Textarea value={quote} onChange={(e) => setQuote(e.target.value)} rows={6} className="text-sm leading-relaxed" />
           </div>
 
-          {/* Tags */}
           <div className="space-y-2">
             <label className="text-sm font-medium text-foreground">Tags</label>
             <div className="flex flex-wrap gap-1.5 mb-2">
@@ -393,49 +533,24 @@ const filteredSuggestions = allTags
             </div>
           </div>
 
-          {/* Notes */}
           <div className="space-y-2">
             <label className="text-sm font-medium text-foreground">Personal Notes</label>
-            <Textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              rows={4}
-              placeholder="Add your notes…"
-              className="text-sm"
-            />
+            <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={4} placeholder="Add your notes…" className="text-sm" />
           </div>
 
-          {/* Visibility */}
           <div className="space-y-2">
             <label className="text-sm font-medium text-foreground">Visibility</label>
             <div className="flex gap-2">
-              <Button
-                variant={visibility === "public" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setVisibility("public")}
-              >
-                Public
-              </Button>
-              <Button
-                variant={visibility === "private" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setVisibility("private")}
-              >
-                Private
-              </Button>
+              <Button variant={visibility === "public" ? "default" : "outline"} size="sm" onClick={() => setVisibility("public")}>Public</Button>
+              <Button variant={visibility === "private" ? "default" : "outline"} size="sm" onClick={() => setVisibility("private")}>Private</Button>
             </div>
           </div>
 
           <Separator />
 
-          {/* Actions */}
           <div className="flex gap-3">
-            <Button onClick={handleSave} disabled={saving} className="flex-1">
-              {saving ? "Saving…" : "Save"}
-            </Button>
-            <Button variant="outline" onClick={onClose} className="flex-1">
-              Cancel
-            </Button>
+            <Button onClick={handleSave} disabled={saving} className="flex-1">{saving ? "Saving…" : "Save"}</Button>
+            <Button variant="outline" onClick={onClose} className="flex-1">Cancel</Button>
           </div>
         </div>
       </SheetContent>
