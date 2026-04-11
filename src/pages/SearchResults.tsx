@@ -171,7 +171,7 @@ const SearchResults = () => {
           />
 
           {results.length > 0 && (
-            <div className="mb-6 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
+            <div className="mb-6 rounded-lg border border-teal-200 bg-teal-50 px-4 py-3">
               <p className="text-xs font-semibold tracking-widest text-primary uppercase mb-2">Explore these books</p>
               <div className="flex flex-wrap gap-x-4 gap-y-2">
                 {getUniqueBooks(results).slice(0, 3).map((book) => (
@@ -229,6 +229,9 @@ const SearchResults = () => {
           </div>
         </div>
       )}
+      <div className="mt-8 text-center text-xs text-muted-foreground">
+        As an Amazon Associate I earn from qualifying purchases.
+      </div>
     </div>
   );
 };
