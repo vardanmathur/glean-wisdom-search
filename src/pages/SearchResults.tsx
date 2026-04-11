@@ -171,16 +171,16 @@ const SearchResults = () => {
           />
 
           {results.length > 0 && (
-            <div className="mb-6">
-              <p className="text-sm text-muted-foreground mb-1.5">Explore these books</p>
-              <div className="flex flex-wrap gap-x-3 gap-y-1">
+            <div className="mb-6 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
+              <p className="text-xs font-semibold tracking-widest text-primary uppercase mb-2">Explore these books</p>
+              <div className="flex flex-wrap gap-x-4 gap-y-2">
                 {getUniqueBooks(results).slice(0, 3).map((book) => (
                   <a
                     key={`${book.title}::${book.author}`}
                     href={getAmazonUrl(book.title, book.author)}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-sm text-primary/70 hover:text-primary hover:underline transition-colors"
+                    className="text-sm font-medium text-primary/80 hover:text-primary hover:underline transition-colors"
                   >
                     {book.title}
                   </a>
