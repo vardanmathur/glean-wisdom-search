@@ -64,12 +64,13 @@ serve(async (req) => {
     for (const highlight of batch!) {
       try {
         const embResponse = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/embedding-001:embedContent?key=${GEMINI_API_KEY}`,
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=${GEMINI_API_KEY}`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               content: { parts: [{ text: highlight.quote }] },
+              outputDimensionality: 768,
             }),
           }
         );
