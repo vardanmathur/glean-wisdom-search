@@ -8,6 +8,13 @@ const corsHeaders = {
 
 const BATCH_SIZE = 50;
 
+interface ErrorDetail {
+  highlight_id: string;
+  quote_length: number;
+  error_message: string;
+  http_status: number | null;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -26,7 +33,6 @@ serve(async (req) => {
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
   try {
-    // Get total count of highlights without embeddings
     const { count: remaining, error: countError } = await supabase
       .from("highlights")
       .select("id", { count: "exact", head: true })
@@ -49,7 +55,6 @@ serve(async (req) => {
       });
     }
 
-    // Fetch batch
     const { data: batch, error: fetchError } = await supabase
       .from("highlights")
       .select("id, quote")
@@ -59,7 +64,7 @@ serve(async (req) => {
     if (fetchError) throw fetchError;
 
     let processed = 0;
-    const errors: string[] = [];
+    const errorDetails: ErrorDetail[] = [];
 
     for (const highlight of batch!) {
       try {
@@ -77,8 +82,14 @@ serve(async (req) => {
 
         if (!embResponse.ok) {
           const errText = await embResponse.text();
-          console.error(`Embedding failed for ${highlight.id}: ${errText}`);
-          errors.push(highlight.id);
+          const detail: ErrorDetail = {
+            highlight_id: highlight.id,
+            quote_length: highlight.quote?.length ?? 0,
+            error_message: errText,
+            http_status: embResponse.status,
+          };
+          console.error(`Embedding API failed for ${highlight.id} (quote_length=${detail.quote_length}, status=${embResponse.status}): ${errText}`);
+          errorDetails.push(detail);
           continue;
         }
 
@@ -86,12 +97,17 @@ serve(async (req) => {
         const embedding = embData.embedding?.values;
 
         if (!embedding || embedding.length !== 768) {
-          console.error(`Invalid embedding for ${highlight.id}: got ${embedding?.length ?? 0} dims`);
-          errors.push(highlight.id);
+          const detail: ErrorDetail = {
+            highlight_id: highlight.id,
+            quote_length: highlight.quote?.length ?? 0,
+            error_message: `Invalid embedding dimensions: got ${embedding?.length ?? 0}, expected 768`,
+            http_status: embResponse.status,
+          };
+          console.error(`Invalid embedding for ${highlight.id}: ${detail.error_message}`);
+          errorDetails.push(detail);
           continue;
         }
 
-        // Write embedding as a pgvector-compatible string
         const vectorStr = `[${embedding.join(",")}]`;
         const { error: updateError } = await supabase
           .from("highlights")
@@ -99,15 +115,27 @@ serve(async (req) => {
           .eq("id", highlight.id);
 
         if (updateError) {
-          console.error(`Update failed for ${highlight.id}:`, updateError.message);
-          errors.push(highlight.id);
+          const detail: ErrorDetail = {
+            highlight_id: highlight.id,
+            quote_length: highlight.quote?.length ?? 0,
+            error_message: `DB update failed: ${updateError.message}`,
+            http_status: null,
+          };
+          console.error(`Update failed for ${highlight.id}: ${updateError.message}`);
+          errorDetails.push(detail);
           continue;
         }
 
         processed++;
       } catch (e) {
-        console.error(`Error processing ${highlight.id}:`, e);
-        errors.push(highlight.id);
+        const detail: ErrorDetail = {
+          highlight_id: highlight.id,
+          quote_length: highlight.quote?.length ?? 0,
+          error_message: `Exception: ${e?.message ?? String(e)}`,
+          http_status: null,
+        };
+        console.error(`Error processing ${highlight.id}: ${e}`);
+        errorDetails.push(detail);
       }
     }
 
@@ -117,7 +145,8 @@ serve(async (req) => {
       processed,
       remaining: newRemaining,
       total: totalCount ?? 0,
-      errors: errors.length > 0 ? errors : undefined,
+      errors: errorDetails.length > 0 ? errorDetails.map(d => d.highlight_id) : undefined,
+      error_details: errorDetails.length > 0 ? errorDetails : undefined,
       message: newRemaining > 0
         ? "Batch complete. Call again to process next batch."
         : "All highlights now have embeddings!",
