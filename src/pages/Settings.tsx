@@ -42,6 +42,56 @@ const Settings = () => {
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [deleting, setDeleting] = useState(false);
 
+  // Think! admin section
+  const isAdmin = user?.email === "vardan@gmail.com";
+  const [thinkUsedToday, setThinkUsedToday] = useState<number | null>(null);
+  const [thinkLimit, setThinkLimit] = useState<number>(3);
+  const [thinkLimitInput, setThinkLimitInput] = useState<string>("3");
+  const [thinkSaving, setThinkSaving] = useState(false);
+  const [thinkSavedFlash, setThinkSavedFlash] = useState(false);
+
+  useEffect(() => {
+    if (!user || !isAdmin) return;
+    const today = (() => {
+      const d = new Date();
+      return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+    })();
+    (async () => {
+      const [{ data: cfg }, { data: usage }] = await Promise.all([
+        supabase.from("think_config").select("daily_limit").eq("user_id", user.id).maybeSingle(),
+        supabase.from("think_usage").select("ai_calls_used").eq("user_id", user.id).eq("date", today).maybeSingle(),
+      ]);
+      const limit = cfg?.daily_limit ?? 3;
+      setThinkLimit(limit);
+      setThinkLimitInput(String(limit));
+      setThinkUsedToday(usage?.ai_calls_used ?? 0);
+    })();
+  }, [user, isAdmin]);
+
+  const saveThinkLimit = async () => {
+    if (!user) return;
+    const n = parseInt(thinkLimitInput, 10);
+    if (Number.isNaN(n) || n < 1 || n > 20) {
+      toast.error("Limit must be between 1 and 20");
+      return;
+    }
+    setThinkSaving(true);
+    const { error } = await supabase
+      .from("think_config")
+      .upsert(
+        { user_id: user.id, daily_limit: n, updated_at: new Date().toISOString() },
+        { onConflict: "user_id" },
+      );
+    setThinkSaving(false);
+    if (error) {
+      toast.error("Couldn't save limit");
+      return;
+    }
+    setThinkLimit(n);
+    setThinkSavedFlash(true);
+    setTimeout(() => setThinkSavedFlash(false), 2000);
+  };
+
   // Redirect if not logged in
   useEffect(() => {
     if (!authLoading && !user) {
