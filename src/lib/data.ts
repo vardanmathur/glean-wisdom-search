@@ -642,7 +642,7 @@ export async function getHighlightsByTag(tag: string): Promise<Highlight[]> {
   // Exact match via Supabase array contains
   const { data, error } = await supabase
     .from("highlights")
-    .select("*, books(title, author, cover_image_url), user_profiles(display_name)")
+    .select("id, book_id, quote, tags, my_notes, source, stars, visibility, created_at, user_id, books(title, author, cover_image_url), user_profiles(display_name)")
     .contains("tags", [tag]);
 
   if (error) return [];
