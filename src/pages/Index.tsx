@@ -50,11 +50,11 @@ const Index = () => {
           <Leaf className="h-8 w-8" />
         </div>
         <h1 className="font-display text-4xl sm:text-5xl font-semibold text-foreground leading-tight mb-4">
-          Find wisdom for <br />
-          <span className="text-primary">any challenge</span>
+          What's on <br />
+          <span className="text-primary">your mind?</span>
         </h1>
         <p className="text-lg text-muted-foreground max-w-md mx-auto">
-          Describe what you're going through. We'll surface the most relevant insights from the world's best books.
+          Describe your challenge and I'll find the most relevant wisdom from a curated library — and help you think it through.
         </p>
 
         {stats && (
@@ -71,7 +71,7 @@ const Index = () => {
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="What challenge are you facing today?"
+            placeholder="What can I answer for you today today?"
             className="h-14 w-full rounded-xl border bg-card pl-12 pr-4 text-base font-body text-foreground placeholder:text-muted-foreground card-shadow focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all"
           />
         </div>
@@ -127,7 +127,7 @@ const Index = () => {
       </div>
 
       <footer className="mt-auto py-8 text-center text-xs text-muted-foreground">
-        Built for Glean — extract meaning from what you've read · Founder: Vardan Mathur · February 2026
+        Built for Glean — extract meaning from what you've read · Built by: Vardan Mathur · February 2026
         <span className="mx-1">·</span>
         <Link to="/privacy" className="underline hover:text-foreground transition-colors">Privacy Policy</Link>
       </footer>
