@@ -281,7 +281,7 @@ const SearchResults = () => {
 
           {showRefiningIndicator && (
             <p className="text-xs italic text-primary/80 mb-6 flex items-center gap-1.5">
-              Refining results with semantic search
+              Here's a start — digging deeper into the wisdom library
               <span className="inline-flex gap-0.5">
                 <span className="h-1 w-1 rounded-full bg-primary/60 animate-pulse" />
                 <span
