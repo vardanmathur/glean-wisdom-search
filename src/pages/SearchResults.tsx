@@ -1,6 +1,12 @@
 import { useSearchParams, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { searchHighlightsSemantic, getRecommendedBooks, synthesiseWisdom, getAmazonUrl } from "@/lib/data";
+import {
+  searchHighlights,
+  searchHighlightsSemantic,
+  getRecommendedBooks,
+  synthesiseWisdom,
+  getAmazonUrl,
+} from "@/lib/data";
 import type { Highlight } from "@/lib/data";
 import HighlightCard from "@/components/HighlightCard";
 import BookCard from "@/components/BookCard";
