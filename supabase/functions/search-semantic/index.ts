@@ -13,6 +13,15 @@ const supabase = createClient(
   { auth: { persistSession: false } }
 );
 
+// L2-normalize a vector to unit length (no-op if zero-norm)
+function l2Normalize(v: number[]): number[] {
+  let sum = 0;
+  for (const x of v) sum += x * x;
+  const norm = Math.sqrt(sum);
+  if (norm === 0) return v;
+  return v.map((x) => x / norm);
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -72,11 +81,17 @@ serve(async (req) => {
     }
 
     const embeddingData = await embeddingResponse.json();
-    t1 = Date.now();
-    const queryVector: number[] | undefined =
+    const rawVector: number[] | undefined =
       embeddingData?.embedding?.values || embeddingData?.embedding?.value;
 
-    if (!queryVector || !Array.isArray(queryVector) || queryVector.length === 0) {
+    // Gemini's outputDimensionality=768 returns truncated, non-unit vectors (norm ~0.58).
+    // L2-normalize so cosine scores span the full 0-1 range and match unit-norm stored vectors.
+    const queryVector = rawVector && Array.isArray(rawVector) && rawVector.length > 0
+      ? l2Normalize(rawVector)
+      : undefined;
+    t1 = Date.now();
+
+    if (!queryVector || queryVector.length === 0) {
       console.error("No embedding vector returned:", JSON.stringify(embeddingData).slice(0, 500));
       return new Response(JSON.stringify({ error: "No embedding returned" }), {
         status: 502,
