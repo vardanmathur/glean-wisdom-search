@@ -33,7 +33,25 @@ serve(async (req) => {
   let t3 = t0;
 
   try {
-    const { query, keywordScores } = await req.json();
+    const { query, keywordScores, wordCount: rawWordCount } = await req.json();
+    const wordCount = Number.isFinite(Number(rawWordCount)) && Number(rawWordCount) > 0
+      ? Math.floor(Number(rawWordCount))
+      : 5;
+
+    // Length-adjusted thresholds: shorter queries are intrinsically less specific,
+    // so we lower the bar; longer queries demand precision.
+    let hardFloor: number;
+    let coverageThreshold: number;
+    if (wordCount <= 4) {
+      hardFloor = 0.52;
+      coverageThreshold = 0.56;
+    } else if (wordCount <= 7) {
+      hardFloor = 0.55;
+      coverageThreshold = 0.58;
+    } else {
+      hardFloor = 0.58;
+      coverageThreshold = 0.61;
+    }
 
     if (!query || typeof query !== "string" || !query.trim()) {
       return new Response(
