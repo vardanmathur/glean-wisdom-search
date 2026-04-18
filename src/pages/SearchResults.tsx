@@ -177,6 +177,20 @@ const SearchResults = () => {
   const coverageMessage = semanticReady ? semanticData!.message : null;
   const isPoor = semanticReady && coverage === "poor";
 
+  // Diagnostic: trace what each phase returns so we can spot when semantic falls back silently
+  if (typeof window !== "undefined" && query) {
+    // eslint-disable-next-line no-console
+    console.log("[SearchResults]", {
+      query,
+      keywordReady,
+      semanticReady,
+      semanticCoverage: semanticData?.coverage,
+      semanticHighlights: semanticData?.highlights.length,
+      isPoor,
+      totalFound,
+    });
+  }
+
   // Show Phase 1 keyword results with a "refining" indicator while semantic is still loading
   const showRefiningIndicator =
     keywordReady && !semanticReady && !semError;
