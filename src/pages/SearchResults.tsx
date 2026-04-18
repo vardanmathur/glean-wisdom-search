@@ -261,8 +261,17 @@ const SearchResults = () => {
         </>
       ) : (
         <>
-          {/* Hide the count line entirely while loading to avoid "0 highlights found" flicker */}
-          {(usingSemantic || keywordReady) && (
+          {/* Show count from semantic when ready. While semantic is pending, only show
+              keyword count if it's non-zero — never display "0 highlights found" while
+              semantic might still return poor-coverage suggestions. */}
+          {usingSemantic && (
+            <p className="text-sm text-muted-foreground mb-2">
+              {totalFound <= 10
+                ? `${totalFound} highlight${totalFound !== 1 ? "s" : ""} found`
+                : `10 of ${totalFound} highlights used for synthesis`}
+            </p>
+          )}
+          {!usingSemantic && keywordReady && totalFound > 0 && (
             <p className="text-sm text-muted-foreground mb-2">
               {totalFound <= 10
                 ? `${totalFound} highlight${totalFound !== 1 ? "s" : ""} found`
