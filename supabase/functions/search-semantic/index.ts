@@ -12,12 +12,23 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const t0 = Date.now();
+  let t1 = t0;
+  let t2 = t0;
+  let t3 = t0;
+
   try {
     const { query, keywordScores } = await req.json();
 
     if (!query || typeof query !== "string" || !query.trim()) {
       return new Response(
-        JSON.stringify({ results: [], coverage: "poor", suggestions: [], message: "Empty query" }),
+        JSON.stringify({
+          results: [],
+          coverage: "poor",
+          suggestions: [],
+          message: "Empty query",
+          timings: { embedding_ms: 0, pgvector_ms: 0, scoring_ms: 0, total_ms: 0 },
+        }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -55,6 +66,7 @@ serve(async (req) => {
     }
 
     const embeddingData = await embeddingResponse.json();
+    t1 = Date.now();
     const queryVector: number[] | undefined =
       embeddingData?.embedding?.values || embeddingData?.embedding?.value;
 
@@ -114,8 +126,17 @@ serve(async (req) => {
     } finally {
       await sql.end({ timeout: 5 });
     }
+    t2 = Date.now();
 
     if (!rows || rows.length === 0) {
+      t3 = Date.now();
+      const timings = {
+        embedding_ms: t1 - t0,
+        pgvector_ms: t2 - t1,
+        scoring_ms: t3 - t2,
+        total_ms: t3 - t0,
+      };
+      console.log("[search-semantic] timings (no rows):", timings);
       return new Response(
         JSON.stringify({
           results: [],
@@ -123,6 +144,7 @@ serve(async (req) => {
           suggestions: [],
           message:
             "Glean doesn't have strong coverage on this topic yet. Here are a few loosely related ideas that might still help.",
+          timings,
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
@@ -166,6 +188,15 @@ serve(async (req) => {
     const aboveThreshold = scored.filter((s) => s.final_score >= threshold && s.final_score >= 0.65);
     const capped = aboveThreshold.slice(0, 15).map((s) => ({ ...s, tier: tierFor(s.final_score) }));
 
+    t3 = Date.now();
+    const timings = {
+      embedding_ms: t1 - t0,
+      pgvector_ms: t2 - t1,
+      scoring_ms: t3 - t2,
+      total_ms: t3 - t0,
+    };
+    console.log("[search-semantic] timings:", timings);
+
     // Poor coverage: nothing meets 0.65
     if (capped.length === 0) {
       const suggestions = scored.slice(0, 3).map((s) => ({ ...s, tier: tierFor(s.final_score) }));
@@ -176,6 +207,7 @@ serve(async (req) => {
           suggestions,
           message:
             "Glean doesn't have strong coverage on this topic yet. Here are a few loosely related ideas that might still help.",
+          timings,
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
@@ -186,6 +218,7 @@ serve(async (req) => {
         results: capped,
         coverage: "good",
         message: null,
+        timings,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
