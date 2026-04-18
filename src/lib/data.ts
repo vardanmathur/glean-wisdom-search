@@ -511,9 +511,11 @@ export async function searchHighlightsSemantic(
     console.log(`[search] routing "${query}" (${wordCount} meaningful words) → keyword`);
     const kw = await searchHighlights(query);
 
-    // Quality gate: keyword found enough strong results — return immediately (fast path).
-    if (kw.highlights.length >= 3) {
-      console.log(`[search] keyword returned ${kw.highlights.length} results → fast path`);
+    // Quality gate: kw.totalFound counts highlights with score > 3 — i.e. real
+    // text/tag/notes hits, not the synonym-fallback branch (which returns generic
+    // Life/Success items with totalFound: 0).
+    if (kw.totalFound >= 3) {
+      console.log(`[search] keyword returned ${kw.totalFound} real matches → fast path`);
       return {
         highlights: kw.highlights,
         totalFound: kw.totalFound,
@@ -522,9 +524,18 @@ export async function searchHighlightsSemantic(
       };
     }
 
-    // Too few keyword results — fall through to semantic, which will either find
-    // relevant content or return an honest poor-coverage response.
-    console.log(`[search] keyword returned only ${kw.highlights.length} results → falling through to semantic`);
+    // Too few real keyword matches — return poor coverage directly. Do NOT fall
+    // through to semantic, which is unreliable for short proper-noun-style queries
+    // (e.g. "cryptocurrency trading", "football tactics") where it returns 1 weak
+    // match and falsely reports "good" coverage.
+    console.log(`[search] keyword returned only ${kw.totalFound} real matches → poor coverage`);
+    return {
+      highlights: kw.highlights.slice(0, 3),
+      totalFound: 0,
+      coverage: "poor",
+      message:
+        "This topic isn't well covered in Glean's library yet. Here are some loosely related ideas that might still help:",
+    };
   }
 
   console.log(`[search] routing "${query}" (${wordCount} meaningful words) → semantic`);
