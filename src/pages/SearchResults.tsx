@@ -1,7 +1,6 @@
 import { useSearchParams, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
-  searchHighlights,
   searchHighlightsSemantic,
   getRecommendedBooks,
   synthesiseWisdom,
@@ -10,7 +9,7 @@ import {
 import type { Highlight } from "@/lib/data";
 import HighlightCard from "@/components/HighlightCard";
 import BookCard from "@/components/BookCard";
-import { ArrowLeft, Loader2, Leaf } from "lucide-react";
+import { ArrowLeft, Leaf } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
 import ReactMarkdown from "react-markdown";
@@ -43,6 +42,7 @@ function parseSynthesisSections(text: string): { label: string; content: string 
 
   return sections;
 }
+
 function getUniqueBooks(highlights: Highlight[]): { title: string; author: string }[] {
   const seen = new Set<string>();
   const books: { title: string; author: string }[] = [];
@@ -129,89 +129,60 @@ const SynthesisCard = ({
   );
 };
 
+const SkeletonHighlightCard = () => (
+  <div className="rounded-lg border bg-card p-5 space-y-3">
+    <Skeleton className="h-4 w-full" />
+    <Skeleton className="h-4 w-[92%]" />
+    <Skeleton className="h-4 w-[78%]" />
+    <div className="flex items-center gap-2 pt-2">
+      <Skeleton className="h-10 w-8 rounded" />
+      <div className="space-y-1.5 flex-1">
+        <Skeleton className="h-3 w-32" />
+        <Skeleton className="h-3 w-20" />
+      </div>
+    </div>
+  </div>
+);
+
 const SearchResults = () => {
   const [searchParams] = useSearchParams();
   const query = searchParams.get("q") || "";
 
-  // Phase 1 — fast keyword search (typically <500ms). Renders immediately so users
-  // never see a blank screen for long.
-  const {
-    data: keywordData,
-    isLoading: kwLoading,
-    isFetching: kwFetching,
-  } = useQuery({
-    queryKey: ["search-keyword", query],
-    queryFn: () => searchHighlights(query),
-    enabled: !!query,
-  });
+  const FIVE_MIN = 5 * 60 * 1000;
 
-  // Phase 2 — semantic search runs in PARALLEL with Phase 1 (not gated on it).
-  // When it resolves, it replaces Phase 1 results.
-  const {
-    data: semanticData,
-    isLoading: semLoading,
-    isFetching: semFetching,
-    isError: semError,
-  } = useQuery({
+  // Single source of truth — semantic search (with internal keyword fallback in data.ts)
+  const searchQuery = useQuery({
     queryKey: ["search-semantic", query],
     queryFn: () => searchHighlightsSemantic(query),
     enabled: !!query,
+    staleTime: Infinity,
+    gcTime: FIVE_MIN,
   });
 
-  const keywordReady = !!keywordData && !kwLoading && !kwFetching;
-  const semanticReady = !!semanticData && !semLoading && !semFetching;
+  const data = searchQuery.data;
+  const isLoading = searchQuery.isLoading || (!!query && !data);
+  const results: Highlight[] = data?.highlights ?? [];
+  const coverage = data?.coverage ?? "good";
+  const isPoor = coverage === "poor";
+  const totalFound = data?.totalFound ?? 0;
 
-  // Display priority: semantic > keyword > loading
-  const usingSemantic = semanticReady;
-  const results: Highlight[] = semanticReady
-    ? semanticData!.highlights
-    : keywordReady
-    ? keywordData!.highlights
-    : [];
-  const totalFound = semanticReady
-    ? semanticData!.totalFound
-    : keywordReady
-    ? keywordData!.totalFound
-    : 0;
-  const coverage = semanticReady ? semanticData!.coverage : "good";
-  const coverageMessage = semanticReady ? semanticData!.message : null;
-  const isPoor = semanticReady && coverage === "poor";
-
-  // Diagnostic: trace what each phase returns so we can spot when semantic falls back silently
-  if (typeof window !== "undefined" && query) {
-    // eslint-disable-next-line no-console
-    console.log("[SearchResults]", {
-      query,
-      keywordReady,
-      semanticReady,
-      semanticCoverage: semanticData?.coverage,
-      semanticHighlights: semanticData?.highlights.length,
-      isPoor,
-      totalFound,
-    });
-  }
-
-  // Show Phase 1 keyword results with a "refining" indicator while semantic is still loading
-  const showRefiningIndicator =
-    keywordReady && !semanticReady && !semError;
-
-  // Synthesis only runs after Phase 2 (semantic) results — never on Phase 1 keyword results
+  // Synthesis runs only after search completes successfully with results — never refires
   const { data: synthesis = "", isLoading: isSynthesising } = useQuery({
-    queryKey: ["synthesis", query, semanticData?.highlights.length ?? 0, isPoor],
-    queryFn: () => synthesiseWisdom(query, semanticData!.highlights, isPoor),
-    enabled: !!query && semanticReady && (semanticData?.highlights.length ?? 0) > 0,
+    queryKey: ["synthesis", query, results.length, isPoor],
+    queryFn: () => synthesiseWisdom(query, results, isPoor),
+    enabled: searchQuery.isSuccess && results.length > 0,
+    staleTime: Infinity,
+    gcTime: FIVE_MIN,
   });
 
-  // Recommended books only after Phase 2 completes
+  // Recommended books — only for good coverage with results
   const { data: recommendedBooks = [] } = useQuery({
-    queryKey: ["recommended", query, semanticData?.highlights ?? []],
-    queryFn: () => getRecommendedBooks(query, semanticData!.highlights),
-    enabled:
-      !!query && semanticReady && (semanticData?.highlights.length ?? 0) > 0 && !isPoor,
+    queryKey: ["recommended", query, results.length],
+    queryFn: () => getRecommendedBooks(query, results),
+    enabled: searchQuery.isSuccess && results.length > 0 && !isPoor,
+    staleTime: Infinity,
+    gcTime: FIVE_MIN,
   });
-
-  // Initial loading: nothing has resolved yet
-  const initialLoading = !keywordReady && !semanticReady;
 
   return (
     <div className="container mx-auto max-w-2xl px-4 py-8">
@@ -226,19 +197,23 @@ const SearchResults = () => {
         Results for "{query}"
       </h1>
 
-      {initialLoading ? (
-        <div className="flex flex-col items-center justify-center py-16 gap-4">
-          <Loader2 className="h-6 w-6 animate-spin text-primary" />
-          <p className="text-sm text-muted-foreground animate-pulse">
+      {isLoading ? (
+        <div className="mt-6">
+          <p className="text-sm text-muted-foreground italic mb-4 animate-pulse">
             Finding the most relevant wisdom…
           </p>
+          <div className="space-y-4">
+            <SkeletonHighlightCard />
+            <SkeletonHighlightCard />
+            <SkeletonHighlightCard />
+          </div>
         </div>
       ) : isPoor ? (
         <>
           <div className="rounded-lg border bg-muted/40 p-5 mb-6 mt-4">
             <p className="text-sm text-muted-foreground leading-relaxed">
-              {coverageMessage ||
-                "Glean doesn't have strong coverage on this topic yet. Here are a few loosely related ideas that might still help."}
+              {data?.message ||
+                "This topic isn't well covered in Glean's library yet. Here are some loosely related ideas that might still help:"}
             </p>
           </div>
 
@@ -259,105 +234,65 @@ const SearchResults = () => {
             </div>
           )}
         </>
+      ) : results.length === 0 ? (
+        <div className="rounded-lg border bg-card p-8 text-center card-shadow mt-4">
+          <p className="text-muted-foreground mb-2">No highlights matched your search.</p>
+          <p className="text-sm text-muted-foreground">
+            Try different keywords or{" "}
+            <Link to="/topics" className="text-primary hover:underline">
+              browse by topic
+            </Link>
+            .
+          </p>
+        </div>
       ) : (
         <>
-          {/* Show count from semantic when ready. While semantic is pending, only show
-              keyword count if it's non-zero — never display "0 highlights found" while
-              semantic might still return poor-coverage suggestions. */}
-          {usingSemantic && (
-            <p className="text-sm text-muted-foreground mb-2">
-              {totalFound <= 10
-                ? `${totalFound} highlight${totalFound !== 1 ? "s" : ""} found`
-                : `10 of ${totalFound} highlights used for synthesis`}
+          <p className="text-sm text-muted-foreground mb-6">
+            {totalFound <= 10
+              ? `${totalFound || results.length} highlight${(totalFound || results.length) !== 1 ? "s" : ""} found`
+              : `10 of ${totalFound} highlights used for synthesis`}
+          </p>
+
+          <SynthesisCard
+            synthesis={synthesis}
+            isLoading={isSynthesising}
+            highlightCount={results.length}
+          />
+
+          <div className="mb-6 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
+            <p className="text-xs font-semibold tracking-widest text-primary uppercase mb-2">
+              Explore these books
             </p>
-          )}
-          {!usingSemantic && keywordReady && totalFound > 0 && (
-            <p className="text-sm text-muted-foreground mb-2">
-              {totalFound <= 10
-                ? `${totalFound} highlight${totalFound !== 1 ? "s" : ""} found`
-                : `10 of ${totalFound} highlights used for synthesis`}
-            </p>
-          )}
-
-          {showRefiningIndicator && (
-            <p className="text-xs italic text-primary/80 mb-6 flex items-center gap-1.5">
-              Here's a start — digging deeper into the wisdom library
-              <span className="inline-flex gap-0.5">
-                <span className="h-1 w-1 rounded-full bg-primary/60 animate-pulse" />
-                <span
-                  className="h-1 w-1 rounded-full bg-primary/60 animate-pulse"
-                  style={{ animationDelay: "150ms" }}
-                />
-                <span
-                  className="h-1 w-1 rounded-full bg-primary/60 animate-pulse"
-                  style={{ animationDelay: "300ms" }}
-                />
-              </span>
-            </p>
-          )}
-
-          {!showRefiningIndicator && (usingSemantic || keywordReady) && (
-            <div className="mb-6" />
-          )}
-
-          {/* Synthesis only shown once semantic results are in */}
-          {usingSemantic && (
-            <SynthesisCard
-              synthesis={synthesis}
-              isLoading={isSynthesising}
-              highlightCount={results.length}
-            />
-          )}
-
-          {usingSemantic && results.length > 0 && (
-            <div className="mb-6 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
-              <p className="text-xs font-semibold tracking-widest text-primary uppercase mb-2">Explore these books</p>
-              <div className="flex flex-wrap gap-x-4 gap-y-2">
-                {getUniqueBooks(results).slice(0, 3).map((book) => (
-                  <a
-                    key={`${book.title}::${book.author}`}
-                    href={getAmazonUrl(book.title, book.author)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-sm font-medium text-primary/80 hover:text-primary hover:underline transition-colors"
-                  >
-                    {book.title}
-                  </a>
-                ))}
-              </div>
+            <div className="flex flex-wrap gap-x-4 gap-y-2">
+              {getUniqueBooks(results).slice(0, 3).map((book) => (
+                <a
+                  key={`${book.title}::${book.author}`}
+                  href={getAmazonUrl(book.title, book.author)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm font-medium text-primary/80 hover:text-primary hover:underline transition-colors"
+                >
+                  {book.title}
+                </a>
+              ))}
             </div>
-          )}
+          </div>
 
-          {results.length > 0 && <Separator className="mt-6 mb-6" />}
+          <Separator className="mt-6 mb-6" />
 
-          {results.length === 0 && (usingSemantic || (keywordReady && !semLoading && !semFetching)) ? (
-            <div className="rounded-lg border bg-card p-8 text-center card-shadow">
-              <p className="text-muted-foreground mb-2">No highlights matched your search.</p>
-              <p className="text-sm text-muted-foreground">
-                Try different keywords or{" "}
-                <Link to="/topics" className="text-primary hover:underline">
-                  browse by topic
-                </Link>
-                .
-              </p>
-            </div>
-          ) : results.length > 0 ? (
-            <>
-              <h2 className="font-display text-lg text-foreground mb-4">
-                The wisdom behind this
-              </h2>
-              <div className="space-y-4 mb-12">
-                {results.map((h, i) => (
-                  <div key={h.id}>
-                    <HighlightCard highlight={h} index={i} />
-                    {h.tier === "moderate" && (
-                      <p className="text-xs text-muted-foreground mt-1 ml-1">Loosely related</p>
-                    )}
-                  </div>
-                ))}
+          <h2 className="font-display text-lg text-foreground mb-4">
+            The wisdom behind this
+          </h2>
+          <div className="space-y-4 mb-12">
+            {results.map((h, i) => (
+              <div key={h.id}>
+                <HighlightCard highlight={h} index={i} />
+                {h.tier === "moderate" && (
+                  <p className="text-xs text-muted-foreground mt-1 ml-1">Loosely related</p>
+                )}
               </div>
-            </>
-          ) : null}
+            ))}
+          </div>
         </>
       )}
 
@@ -368,7 +303,12 @@ const SearchResults = () => {
           </h2>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {recommendedBooks.map((b) => (
-              <BookCard key={b.id} book={b} reason={b.description} matchedHighlightCount={b.matchedHighlightCount} />
+              <BookCard
+                key={b.id}
+                book={b}
+                reason={b.description}
+                matchedHighlightCount={b.matchedHighlightCount}
+              />
             ))}
           </div>
         </div>
