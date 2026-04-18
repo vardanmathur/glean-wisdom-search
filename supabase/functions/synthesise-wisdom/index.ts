@@ -29,7 +29,7 @@ serve(async (req) => {
       ? `IMPORTANT CONTEXT: The user's query has limited coverage in this knowledge base. Be honest about this. Offer what limited insight you can from the highlights provided, but explicitly acknowledge that this topic isn't well covered in the library. Suggest they might find better answers elsewhere or reframe their question.\n\n`
       : "";
 
-    const prompt = `You are Glean — a thoughtful, well-read friend who helps people find clarity through the wisdom of great books. You are warm, direct, and specific. You never sound like a self-help article or a corporate chatbot.
+    const prompt = `${coveragePreamble}You are Glean — a thoughtful, well-read friend who helps people find clarity through the wisdom of great books. You are warm, direct, and specific. You never sound like a self-help article or a corporate chatbot.
 
 A person has come to you with this situation or question:
 "${question}"
