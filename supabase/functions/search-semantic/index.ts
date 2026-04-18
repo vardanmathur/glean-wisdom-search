@@ -1,4 +1,3 @@
-import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
@@ -6,6 +5,13 @@ const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+// Module-level Supabase client — reuses HTTP connection across invocations on a warm isolate
+const supabase = createClient(
+  Deno.env.get("SUPABASE_URL")!,
+  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+  { auth: { persistSession: false } }
+);
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -78,55 +84,21 @@ serve(async (req) => {
       });
     }
 
-    // 2. Run pgvector cosine similarity via service role + raw SQL through PostgREST
-    // We use a parameterised raw query via the PG REST endpoint isn't possible directly,
-    // so we leverage the supabase-js client + a small SECURITY-DEFINER-free approach:
-    // call the postgres meta endpoint via fetch using PostgREST RPC isn't available either.
-    // Instead use the pg connection via the `postgres` function endpoint.
-    //
-    // Simplest reliable path: use supabase.rpc-less approach with PostgREST + a view is overkill.
-    // We'll execute via PostgREST by building the query through fetch directly to PG via /rest/v1/rpc
-    // — but no RPC exists. Per user request (no migration), we use the raw SQL through
-    // the Supabase service role using the `pg-meta` style fetch to /pg-meta isn't standard.
-    //
-    // Working solution: connect via the Postgres direct URL (SUPABASE_DB_URL is available as a secret
-    // for db tooling) using the `postgres` deno driver.
-
-    // Use the postgres deno driver via the SUPABASE_DB_URL secret
-    const dbUrl = Deno.env.get("SUPABASE_DB_URL");
-    if (!dbUrl) {
-      console.error("SUPABASE_DB_URL not available");
-      return new Response(JSON.stringify({ error: "Database URL not configured" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    const { default: postgres } = await import("https://deno.land/x/postgresjs@v3.4.4/mod.js");
-    const sql = postgres(dbUrl, { prepare: false, max: 1 });
-
-    const vectorLiteral = `[${queryVector.join(",")}]`;
-
-    let rows: any[] = [];
-    try {
-      rows = await sql`
-        SELECT
-          h.id,
-          h.quote,
-          h.book_id,
-          h.tags,
-          h.my_notes,
-          1 - (h.embedding <=> ${vectorLiteral}::vector) AS vector_score
-        FROM highlights h
-        WHERE h.embedding IS NOT NULL
-          AND (h.visibility = 'public' OR h.visibility IS NULL)
-        ORDER BY h.embedding <=> ${vectorLiteral}::vector
-        LIMIT 50
-      `;
-    } finally {
-      await sql.end({ timeout: 5 });
-    }
+    // 2. Run pgvector cosine similarity via the SECURITY DEFINER RPC.
+    //    Reuses the module-level supabase-js client → no per-request TLS+auth handshake.
+    const { data: rows, error: rpcError } = await supabase.rpc("match_highlights", {
+      query_embedding: queryVector,
+      match_count: 50,
+    });
     t2 = Date.now();
+
+    if (rpcError) {
+      console.error("match_highlights RPC error:", rpcError);
+      return new Response(
+        JSON.stringify({ error: "Vector search failed", details: rpcError.message }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     if (!rows || rows.length === 0) {
       t3 = Date.now();
