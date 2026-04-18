@@ -156,18 +156,11 @@ serve(async (req) => {
       );
     }
 
-    // 3. Hybrid scoring
-    const scoresMap: Record<string, number> = keywordScores && typeof keywordScores === "object" ? keywordScores : {};
-    const maxKeyword = Math.max(0, ...Object.values(scoresMap).map((v) => Number(v) || 0));
-    const hasKeyword = maxKeyword > 0;
-
+    // 3. Pure vector scoring — keyword blending was found to actively hurt natural-language
+    //    queries (semantic top results paraphrase concepts and have zero literal-keyword overlap,
+    //    so blending collapsed their scores while inflating off-topic items with stopword matches).
     const scored = rows.map((r: any) => {
       const vScore = Math.max(0, Math.min(1, Number(r.vector_score) || 0));
-      let finalScore = vScore;
-      if (hasKeyword) {
-        const k = Number(scoresMap[r.id] || 0) / maxKeyword;
-        finalScore = 0.7 * vScore + 0.3 * k;
-      }
       return {
         id: r.id,
         quote: r.quote,
@@ -175,7 +168,7 @@ serve(async (req) => {
         tags: r.tags || [],
         my_notes: r.my_notes,
         vector_score: vScore,
-        final_score: finalScore,
+        final_score: vScore,
       };
     });
 
