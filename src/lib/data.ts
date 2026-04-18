@@ -508,8 +508,11 @@ export async function searchHighlightsSemantic(
   // Reranker is intentionally NOT called here — semantic similarity already ranks well,
   // and skipping rerank saves 1-2s.
   try {
+    // 8s timeout — Gemini embedding + pgvector cosine over the full library can take
+    // 3-5s in normal conditions. A 3s timeout was firing before the edge function returned,
+    // which silently dropped the poor-coverage signal and showed "0 highlights found".
     const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error("semantic timeout")), 3000)
+      setTimeout(() => reject(new Error("semantic timeout")), 8000)
     );
 
     // Kick off both in parallel.
@@ -530,7 +533,10 @@ export async function searchHighlightsSemantic(
     ])) as [{ keywordScores: Record<string, number>; byId: Map<string, any> }, any];
 
     const { data: semData, error: semError } = semResult;
-    if (semError || !semData) return await silentFallback();
+    if (semError || !semData) {
+      console.warn("[semantic] edge function error, falling back to keyword:", semError);
+      return await silentFallback();
+    }
 
     const entry: SemanticCacheEntry = {
       coverage: semData.coverage as "good" | "poor",
@@ -540,8 +546,16 @@ export async function searchHighlightsSemantic(
     };
     semanticResponseCache.set(cacheKey, entry);
 
-    return hydrateSemanticResponse(entry, byId);
-  } catch {
+    const hydrated = hydrateSemanticResponse(entry, byId);
+    console.log("[semantic] response", {
+      query,
+      coverage: hydrated.coverage,
+      totalFound: hydrated.totalFound,
+      highlightsCount: hydrated.highlights.length,
+    });
+    return hydrated;
+  } catch (err) {
+    console.warn("[semantic] timed out or threw, falling back to keyword:", err);
     return await silentFallback();
   }
 }

@@ -177,6 +177,20 @@ const SearchResults = () => {
   const coverageMessage = semanticReady ? semanticData!.message : null;
   const isPoor = semanticReady && coverage === "poor";
 
+  // Diagnostic: trace what each phase returns so we can spot when semantic falls back silently
+  if (typeof window !== "undefined" && query) {
+    // eslint-disable-next-line no-console
+    console.log("[SearchResults]", {
+      query,
+      keywordReady,
+      semanticReady,
+      semanticCoverage: semanticData?.coverage,
+      semanticHighlights: semanticData?.highlights.length,
+      isPoor,
+      totalFound,
+    });
+  }
+
   // Show Phase 1 keyword results with a "refining" indicator while semantic is still loading
   const showRefiningIndicator =
     keywordReady && !semanticReady && !semError;
@@ -247,8 +261,17 @@ const SearchResults = () => {
         </>
       ) : (
         <>
-          {/* Hide the count line entirely while loading to avoid "0 highlights found" flicker */}
-          {(usingSemantic || keywordReady) && (
+          {/* Show count from semantic when ready. While semantic is pending, only show
+              keyword count if it's non-zero — never display "0 highlights found" while
+              semantic might still return poor-coverage suggestions. */}
+          {usingSemantic && (
+            <p className="text-sm text-muted-foreground mb-2">
+              {totalFound <= 10
+                ? `${totalFound} highlight${totalFound !== 1 ? "s" : ""} found`
+                : `10 of ${totalFound} highlights used for synthesis`}
+            </p>
+          )}
+          {!usingSemantic && keywordReady && totalFound > 0 && (
             <p className="text-sm text-muted-foreground mb-2">
               {totalFound <= 10
                 ? `${totalFound} highlight${totalFound !== 1 ? "s" : ""} found`
