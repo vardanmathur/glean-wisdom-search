@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Highlight } from "@/lib/data";
+import { Highlight, getAmazonUrl } from "@/lib/data";
 import { useSavedHighlights } from "@/context/SavedHighlightsContext";
 import { useAuth } from "@/context/AuthContext";
 import { Bookmark, ThumbsUp, ThumbsDown, Flag } from "lucide-react";
@@ -90,20 +90,28 @@ const HighlightCard = ({ highlight, index = 0 }: HighlightCardProps) => {
       )}
 
       <div className="flex gap-4">
-        {/* Book cover thumbnail */}
-        {highlight.coverImageUrl ? (
-          <img
-            src={highlight.coverImageUrl}
-            alt={highlight.bookTitle}
-            className="h-16 w-12 rounded-md object-cover flex-shrink-0"
-          />
-        ) : (
-          <div className="h-16 w-12 rounded-md bg-primary/15 flex items-center justify-center flex-shrink-0">
-            <span className="text-lg font-semibold text-primary">
-              {highlight.bookTitle?.charAt(0) || "?"}
-            </span>
-          </div>
-        )}
+        {/* Book cover thumbnail — links to Amazon affiliate */}
+        <a
+          href={getAmazonUrl(highlight.bookTitle, highlight.author)}
+          target="_blank"
+          rel="noopener noreferrer"
+          title="Find on Amazon"
+          className="flex-shrink-0 hover:opacity-90 transition-opacity"
+        >
+          {highlight.coverImageUrl ? (
+            <img
+              src={highlight.coverImageUrl}
+              alt={highlight.bookTitle}
+              className="h-[70px] w-[53px] rounded-md object-cover"
+            />
+          ) : (
+            <div className="h-[70px] w-[53px] rounded-md bg-primary/15 flex items-center justify-center">
+              <span className="text-lg font-semibold text-primary">
+                {highlight.bookTitle?.charAt(0) || "?"}
+              </span>
+            </div>
+          )}
+        </a>
 
         <div className="flex-1 min-w-0">
           <blockquote className="font-display text-lg leading-relaxed text-foreground italic mb-4">
