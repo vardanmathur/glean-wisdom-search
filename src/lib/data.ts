@@ -325,7 +325,7 @@ export async function searchHighlights(query: string): Promise<Highlight[]> {
   });
 
   const keywordRanked = scored
-    .filter((s) => s.score > 0)
+    .filter((s) => s.score > 2)
     .sort((a, b) => b.score - a.score);
 
   if (keywordRanked.length === 0) {
