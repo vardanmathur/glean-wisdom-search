@@ -54,7 +54,8 @@ const Index = () => {
           <span className="text-primary">your mind?</span>
         </h1>
         <p className="text-lg text-muted-foreground max-w-md mx-auto">
-          Describe your challenge and I'll find the most relevant wisdom from a curated library — and help you think it through.
+          Describe your challenge — I'll surface relevant wisdom <br />
+          and help you think it through.
         </p>
 
         {stats && (
