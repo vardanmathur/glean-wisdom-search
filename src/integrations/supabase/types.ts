@@ -48,6 +48,7 @@ export type Database = {
         Row: {
           book_id: string | null
           created_at: string
+          embedding: string | null
           id: string
           my_notes: string | null
           quote: string
@@ -61,6 +62,7 @@ export type Database = {
         Insert: {
           book_id?: string | null
           created_at?: string
+          embedding?: string | null
           id?: string
           my_notes?: string | null
           quote: string
@@ -74,6 +76,7 @@ export type Database = {
         Update: {
           book_id?: string | null
           created_at?: string
+          embedding?: string | null
           id?: string
           my_notes?: string | null
           quote?: string
