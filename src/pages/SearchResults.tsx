@@ -127,17 +127,21 @@ const SearchResults = () => {
   const [searchParams] = useSearchParams();
   const query = searchParams.get("q") || "";
 
-  const { data: searchData, isLoading } = useQuery({
+  const { data: searchData, isLoading, isFetching } = useQuery({
     queryKey: ["search-semantic", query],
     queryFn: () => searchHighlightsSemantic(query),
     enabled: !!query,
   });
 
-  const results = searchData?.highlights ?? [];
-  const totalFound = searchData?.totalFound ?? 0;
-  const coverage = searchData?.coverage ?? "good";
-  const coverageMessage = searchData?.message ?? null;
-  const isPoor = coverage === "poor";
+  // Only treat data as ready once the query has resolved for THIS query string.
+  // This prevents a flicker of "0 highlights found" while loading or while
+  // stale data from a previous query is still in cache.
+  const dataReady = !!searchData && !isLoading && !isFetching;
+  const results = dataReady ? searchData!.highlights : [];
+  const totalFound = dataReady ? searchData!.totalFound : 0;
+  const coverage = dataReady ? searchData!.coverage : "good";
+  const coverageMessage = dataReady ? searchData!.message : null;
+  const isPoor = dataReady && coverage === "poor";
 
   const { data: recommendedBooks = [] } = useQuery({
     queryKey: ["recommended", query, results],
@@ -164,9 +168,12 @@ const SearchResults = () => {
         Results for "{query}"
       </h1>
 
-      {isLoading ? (
-        <div className="flex items-center justify-center py-12">
+      {!dataReady ? (
+        <div className="flex flex-col items-center justify-center py-16 gap-4">
           <Loader2 className="h-6 w-6 animate-spin text-primary" />
+          <p className="text-sm text-muted-foreground animate-pulse">
+            Finding the most relevant wisdom…
+          </p>
         </div>
       ) : isPoor ? (
         <>
