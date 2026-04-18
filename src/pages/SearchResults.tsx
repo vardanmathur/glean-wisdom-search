@@ -168,9 +168,12 @@ const SearchResults = () => {
         Results for "{query}"
       </h1>
 
-      {isLoading ? (
-        <div className="flex items-center justify-center py-12">
+      {!dataReady ? (
+        <div className="flex flex-col items-center justify-center py-16 gap-4">
           <Loader2 className="h-6 w-6 animate-spin text-primary" />
+          <p className="text-sm text-muted-foreground animate-pulse">
+            Finding the most relevant wisdom…
+          </p>
         </div>
       ) : isPoor ? (
         <>
