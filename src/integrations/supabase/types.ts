@@ -180,7 +180,17 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      match_highlights: {
+        Args: { match_count?: number; query_embedding: string }
+        Returns: {
+          book_id: string
+          id: string
+          my_notes: string
+          quote: string
+          tags: string[]
+          vector_score: number
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never
