@@ -308,6 +308,45 @@ const Settings = () => {
         </div>
       </section>
 
+      {/* Think! — admin only */}
+      {isAdmin && (
+        <section className="mb-10">
+          <h2 className="font-display text-lg text-foreground mb-4">Think!</h2>
+          <div className="rounded-lg border bg-card p-5 card-shadow space-y-4">
+            <div className="text-sm text-muted-foreground">
+              {thinkUsedToday !== null
+                ? <>{thinkUsedToday} of {thinkLimit} thinking credits used today</>
+                : "Loading…"}
+            </div>
+            <Separator />
+            <div>
+              <Label htmlFor="thinkLimit" className="text-sm">Daily credit limit</Label>
+              <div className="relative mt-1.5 flex items-center gap-2">
+                <Input
+                  id="thinkLimit"
+                  type="number"
+                  min={1}
+                  max={20}
+                  value={thinkLimitInput}
+                  onChange={(e) => setThinkLimitInput(e.target.value)}
+                  className="max-w-[120px]"
+                  disabled={thinkSaving}
+                />
+                <Button onClick={saveThinkLimit} disabled={thinkSaving} size="sm">
+                  {thinkSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
+                </Button>
+                {thinkSavedFlash && (
+                  <span className="inline-flex items-center gap-1 text-xs text-primary">
+                    <Check className="h-3.5 w-3.5" /> Saved
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1.5">Range: 1–20</p>
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* Account */}
       <section className="mb-10">
         <h2 className="font-display text-lg text-foreground mb-4">Account</h2>
