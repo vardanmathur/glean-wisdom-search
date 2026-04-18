@@ -278,7 +278,7 @@ export async function searchHighlights(
   while (true) {
     const { data: page, error } = await supabase
       .from("highlights")
-      .select("*, books(title, author, cover_image_url), user_profiles(display_name)")
+      .select("id, book_id, quote, tags, my_notes, source, stars, visibility, created_at, user_id, books(title, author, cover_image_url), user_profiles(display_name)")
       .range(from, from + PAGE_SIZE - 1);
     if (error || !page || page.length === 0) break;
     data = data.concat(page);
@@ -426,7 +426,7 @@ async function computeKeywordScores(query: string): Promise<{
   while (true) {
     const { data: page, error } = await supabase
       .from("highlights")
-      .select("*, books(title, author, cover_image_url), user_profiles(display_name)")
+      .select("id, book_id, quote, tags, my_notes, source, stars, visibility, created_at, user_id, books(title, author, cover_image_url), user_profiles(display_name)")
       .range(from, from + PAGE_SIZE - 1);
     if (error || !page || page.length === 0) break;
     data = data.concat(page);
@@ -642,7 +642,7 @@ export async function getHighlightsByTag(tag: string): Promise<Highlight[]> {
   // Exact match via Supabase array contains
   const { data, error } = await supabase
     .from("highlights")
-    .select("*, books(title, author, cover_image_url), user_profiles(display_name)")
+    .select("id, book_id, quote, tags, my_notes, source, stars, visibility, created_at, user_id, books(title, author, cover_image_url), user_profiles(display_name)")
     .contains("tags", [tag]);
 
   if (error) return [];
@@ -658,7 +658,7 @@ export async function getHighlightsByTag(tag: string): Promise<Highlight[]> {
   while (true) {
     const { data: page, error: pgErr } = await supabase
       .from("highlights")
-      .select("*, books(title, author, cover_image_url), user_profiles(display_name)")
+      .select("id, book_id, quote, tags, my_notes, source, stars, visibility, created_at, user_id, books(title, author, cover_image_url), user_profiles(display_name)")
       .range(from, from + PAGE_SIZE - 1);
     if (pgErr || !page || page.length === 0) break;
     allData = allData.concat(page);
@@ -706,7 +706,7 @@ export async function getBookById(id: string): Promise<Book | undefined> {
 export async function getHighlightsByBook(bookId: string): Promise<Highlight[]> {
   const { data, error } = await supabase
     .from("highlights")
-    .select("*, books(title, author, cover_image_url), user_profiles(display_name)")
+    .select("id, book_id, quote, tags, my_notes, source, stars, visibility, created_at, user_id, books(title, author, cover_image_url), user_profiles(display_name)")
     .eq("book_id", bookId);
 
   if (error || !data) return [];
