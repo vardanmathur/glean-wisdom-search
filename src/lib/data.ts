@@ -426,7 +426,7 @@ async function computeKeywordScores(query: string): Promise<{
   while (true) {
     const { data: page, error } = await supabase
       .from("highlights")
-      .select("*, books(title, author, cover_image_url), user_profiles(display_name)")
+      .select("id, book_id, quote, tags, my_notes, source, stars, visibility, created_at, user_id, books(title, author, cover_image_url), user_profiles(display_name)")
       .range(from, from + PAGE_SIZE - 1);
     if (error || !page || page.length === 0) break;
     data = data.concat(page);
