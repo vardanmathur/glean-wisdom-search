@@ -1,6 +1,12 @@
 import { useSearchParams, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { searchHighlightsSemantic, getRecommendedBooks, synthesiseWisdom, getAmazonUrl } from "@/lib/data";
+import {
+  searchHighlights,
+  searchHighlightsSemantic,
+  getRecommendedBooks,
+  synthesiseWisdom,
+  getAmazonUrl,
+} from "@/lib/data";
 import type { Highlight } from "@/lib/data";
 import HighlightCard from "@/components/HighlightCard";
 import BookCard from "@/components/BookCard";
@@ -127,33 +133,71 @@ const SearchResults = () => {
   const [searchParams] = useSearchParams();
   const query = searchParams.get("q") || "";
 
-  const { data: searchData, isLoading, isFetching } = useQuery({
+  // Phase 1 — fast keyword search (typically <500ms). Renders immediately so users
+  // never see a blank screen for long.
+  const {
+    data: keywordData,
+    isLoading: kwLoading,
+    isFetching: kwFetching,
+  } = useQuery({
+    queryKey: ["search-keyword", query],
+    queryFn: () => searchHighlights(query),
+    enabled: !!query,
+  });
+
+  // Phase 2 — semantic search runs in PARALLEL with Phase 1 (not gated on it).
+  // When it resolves, it replaces Phase 1 results.
+  const {
+    data: semanticData,
+    isLoading: semLoading,
+    isFetching: semFetching,
+    isError: semError,
+  } = useQuery({
     queryKey: ["search-semantic", query],
     queryFn: () => searchHighlightsSemantic(query),
     enabled: !!query,
   });
 
-  // Only treat data as ready once the query has resolved for THIS query string.
-  // This prevents a flicker of "0 highlights found" while loading or while
-  // stale data from a previous query is still in cache.
-  const dataReady = !!searchData && !isLoading && !isFetching;
-  const results = dataReady ? searchData!.highlights : [];
-  const totalFound = dataReady ? searchData!.totalFound : 0;
-  const coverage = dataReady ? searchData!.coverage : "good";
-  const coverageMessage = dataReady ? searchData!.message : null;
-  const isPoor = dataReady && coverage === "poor";
+  const keywordReady = !!keywordData && !kwLoading && !kwFetching;
+  const semanticReady = !!semanticData && !semLoading && !semFetching;
 
-  const { data: recommendedBooks = [] } = useQuery({
-    queryKey: ["recommended", query, results],
-    queryFn: () => getRecommendedBooks(query, results),
-    enabled: !!query && results.length > 0 && !isPoor,
-  });
+  // Display priority: semantic > keyword > loading
+  const usingSemantic = semanticReady;
+  const results: Highlight[] = semanticReady
+    ? semanticData!.highlights
+    : keywordReady
+    ? keywordData!.highlights
+    : [];
+  const totalFound = semanticReady
+    ? semanticData!.totalFound
+    : keywordReady
+    ? keywordData!.totalFound
+    : 0;
+  const coverage = semanticReady ? semanticData!.coverage : "good";
+  const coverageMessage = semanticReady ? semanticData!.message : null;
+  const isPoor = semanticReady && coverage === "poor";
 
+  // Show Phase 1 keyword results with a "refining" indicator while semantic is still loading
+  const showRefiningIndicator =
+    keywordReady && !semanticReady && !semError;
+
+  // Synthesis only runs after Phase 2 (semantic) results — never on Phase 1 keyword results
   const { data: synthesis = "", isLoading: isSynthesising } = useQuery({
-    queryKey: ["synthesis", query, results.length, isPoor],
-    queryFn: () => synthesiseWisdom(query, results, isPoor),
-    enabled: !!query && results.length > 0,
+    queryKey: ["synthesis", query, semanticData?.highlights.length ?? 0, isPoor],
+    queryFn: () => synthesiseWisdom(query, semanticData!.highlights, isPoor),
+    enabled: !!query && semanticReady && (semanticData?.highlights.length ?? 0) > 0,
   });
+
+  // Recommended books only after Phase 2 completes
+  const { data: recommendedBooks = [] } = useQuery({
+    queryKey: ["recommended", query, semanticData?.highlights ?? []],
+    queryFn: () => getRecommendedBooks(query, semanticData!.highlights),
+    enabled:
+      !!query && semanticReady && (semanticData?.highlights.length ?? 0) > 0 && !isPoor,
+  });
+
+  // Initial loading: nothing has resolved yet
+  const initialLoading = !keywordReady && !semanticReady;
 
   return (
     <div className="container mx-auto max-w-2xl px-4 py-8">
@@ -168,7 +212,7 @@ const SearchResults = () => {
         Results for "{query}"
       </h1>
 
-      {!dataReady ? (
+      {initialLoading ? (
         <div className="flex flex-col items-center justify-center py-16 gap-4">
           <Loader2 className="h-6 w-6 animate-spin text-primary" />
           <p className="text-sm text-muted-foreground animate-pulse">
@@ -203,20 +247,47 @@ const SearchResults = () => {
         </>
       ) : (
         <>
-          <p className="text-sm text-muted-foreground mb-8">
-            {totalFound <= 10
-              ? `${totalFound} highlight${totalFound !== 1 ? "s" : ""} found`
-              : `10 of ${totalFound} highlights used for synthesis`}
-          </p>
+          {/* Hide the count line entirely while loading to avoid "0 highlights found" flicker */}
+          {(usingSemantic || keywordReady) && (
+            <p className="text-sm text-muted-foreground mb-2">
+              {totalFound <= 10
+                ? `${totalFound} highlight${totalFound !== 1 ? "s" : ""} found`
+                : `10 of ${totalFound} highlights used for synthesis`}
+            </p>
+          )}
 
-          <SynthesisCard
-            synthesis={synthesis}
-            isLoading={isSynthesising}
-            highlightCount={results.length}
-          />
+          {showRefiningIndicator && (
+            <p className="text-xs italic text-primary/80 mb-6 flex items-center gap-1.5">
+              Refining results with semantic search
+              <span className="inline-flex gap-0.5">
+                <span className="h-1 w-1 rounded-full bg-primary/60 animate-pulse" />
+                <span
+                  className="h-1 w-1 rounded-full bg-primary/60 animate-pulse"
+                  style={{ animationDelay: "150ms" }}
+                />
+                <span
+                  className="h-1 w-1 rounded-full bg-primary/60 animate-pulse"
+                  style={{ animationDelay: "300ms" }}
+                />
+              </span>
+            </p>
+          )}
 
-          {results.length > 0 && (
-            <div className="mb-6 rounded-lg border border-teal-200 bg-teal-50 px-4 py-3">
+          {!showRefiningIndicator && (usingSemantic || keywordReady) && (
+            <div className="mb-6" />
+          )}
+
+          {/* Synthesis only shown once semantic results are in */}
+          {usingSemantic && (
+            <SynthesisCard
+              synthesis={synthesis}
+              isLoading={isSynthesising}
+              highlightCount={results.length}
+            />
+          )}
+
+          {usingSemantic && results.length > 0 && (
+            <div className="mb-6 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
               <p className="text-xs font-semibold tracking-widest text-primary uppercase mb-2">Explore these books</p>
               <div className="flex flex-wrap gap-x-4 gap-y-2">
                 {getUniqueBooks(results).slice(0, 3).map((book) => (
@@ -236,7 +307,7 @@ const SearchResults = () => {
 
           {results.length > 0 && <Separator className="mt-6 mb-6" />}
 
-          {results.length === 0 ? (
+          {results.length === 0 && (usingSemantic || (keywordReady && !semLoading && !semFetching)) ? (
             <div className="rounded-lg border bg-card p-8 text-center card-shadow">
               <p className="text-muted-foreground mb-2">No highlights matched your search.</p>
               <p className="text-sm text-muted-foreground">
@@ -247,7 +318,7 @@ const SearchResults = () => {
                 .
               </p>
             </div>
-          ) : (
+          ) : results.length > 0 ? (
             <>
               <h2 className="font-display text-lg text-foreground mb-4">
                 The wisdom behind this
@@ -263,7 +334,7 @@ const SearchResults = () => {
                 ))}
               </div>
             </>
-          )}
+          ) : null}
         </>
       )}
 
