@@ -184,7 +184,7 @@ serve(async (req) => {
     };
     console.log("[search-semantic] timings:", timings);
 
-    // Poor coverage: nothing meets 0.65
+    // Poor coverage: nothing meets 0.50
     if (capped.length === 0) {
       const suggestions = scored.slice(0, 3).map((s) => ({ ...s, tier: tierFor(s.final_score) }));
       return new Response(
