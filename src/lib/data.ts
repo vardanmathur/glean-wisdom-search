@@ -473,13 +473,34 @@ export async function searchHighlightsSemantic(
 ): Promise<{
   highlights: Highlight[];
   totalFound: number;
-  coverage: "good" | "poor";
+  coverage: "good" | "poor" | "none";
   message: string | null;
   timings?: SemanticTimings;
 }> {
   if (!query.trim()) {
     return { highlights: [], totalFound: 0, coverage: "good", message: null };
   }
+
+  // Query-length-based routing: short queries → keyword search, long natural-language → semantic.
+  // Stopwords are stripped by normaliseQuery; "meaningful" = words with length > 2.
+  const normalisedQuery = normaliseQuery(query);
+  const meaningfulWords = normalisedQuery.split(/\s+/).filter((w) => w.length > 2);
+  const wordCount = meaningfulWords.length;
+
+  if (wordCount <= 2) {
+    console.log(`[search] routing "${query}" (${wordCount} meaningful words) → keyword`);
+    const kw = await searchHighlights(query);
+    return {
+      highlights: kw.highlights,
+      totalFound: kw.totalFound,
+      // Keyword-routed empty results should NOT show poor-coverage card — that's reserved
+      // for semantic queries where the topic genuinely isn't in the library.
+      coverage: kw.highlights.length === 0 ? "none" : "good",
+      message: null,
+    };
+  }
+
+  console.log(`[search] routing "${query}" (${wordCount} meaningful words) → semantic`);
 
   const silentFallback = async () => {
     const fb = await searchHighlights(query);
@@ -512,7 +533,7 @@ export async function searchHighlightsSemantic(
     const semanticPromise = (async () => {
       const { keywordScores } = await keywordPromise;
       return supabase.functions.invoke("search-semantic", {
-        body: { query, keywordScores },
+        body: { query, keywordScores, wordCount },
       });
     })();
 

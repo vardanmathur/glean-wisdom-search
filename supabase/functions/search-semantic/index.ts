@@ -33,7 +33,25 @@ serve(async (req) => {
   let t3 = t0;
 
   try {
-    const { query, keywordScores } = await req.json();
+    const { query, keywordScores, wordCount: rawWordCount } = await req.json();
+    const wordCount = Number.isFinite(Number(rawWordCount)) && Number(rawWordCount) > 0
+      ? Math.floor(Number(rawWordCount))
+      : 5;
+
+    // Length-adjusted thresholds: shorter queries are intrinsically less specific,
+    // so we lower the bar; longer queries demand precision.
+    let hardFloor: number;
+    let coverageThreshold: number;
+    if (wordCount <= 4) {
+      hardFloor = 0.52;
+      coverageThreshold = 0.56;
+    } else if (wordCount <= 7) {
+      hardFloor = 0.55;
+      coverageThreshold = 0.58;
+    } else {
+      hardFloor = 0.58;
+      coverageThreshold = 0.61;
+    }
 
     if (!query || typeof query !== "string" || !query.trim()) {
       return new Response(
@@ -163,7 +181,7 @@ serve(async (req) => {
     scored.sort((a, b) => b.final_score - a.final_score);
 
     const topScore = scored[0]?.final_score || 0;
-    const threshold = Math.max(topScore * 0.8, 0.5);
+    const threshold = Math.max(topScore * 0.8, coverageThreshold);
 
     const tierFor = (s: number): "strong" | "good" | "moderate" | "excluded" => {
       if (s >= 0.67) return "strong";
@@ -172,7 +190,7 @@ serve(async (req) => {
       return "excluded";
     };
 
-    const aboveThreshold = scored.filter((s) => s.final_score >= threshold && s.final_score >= 0.50);
+    const aboveThreshold = scored.filter((s) => s.final_score >= threshold && s.final_score >= hardFloor);
     const capped = aboveThreshold.slice(0, 15).map((s) => ({ ...s, tier: tierFor(s.final_score) }));
 
     t3 = Date.now();
@@ -182,7 +200,7 @@ serve(async (req) => {
       scoring_ms: t3 - t2,
       total_ms: t3 - t0,
     };
-    console.log("[search-semantic] timings:", timings);
+    console.log("[search-semantic] timings:", timings, "wordCount:", wordCount, "hardFloor:", hardFloor, "coverageThreshold:", coverageThreshold);
 
     // Poor coverage: nothing meets 0.50
     if (capped.length === 0) {
