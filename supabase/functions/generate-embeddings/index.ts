@@ -131,7 +131,7 @@ serve(async (req) => {
         const detail: ErrorDetail = {
           highlight_id: highlight.id,
           quote_length: highlight.quote?.length ?? 0,
-          error_message: `Exception: ${e?.message ?? String(e)}`,
+          error_message: `Exception: ${e instanceof Error ? e.message : String(e)}`,
           http_status: null,
         };
         console.error(`Error processing ${highlight.id}: ${e}`);
