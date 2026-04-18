@@ -123,11 +123,14 @@ const SearchResults = () => {
   const [searchParams] = useSearchParams();
   const query = searchParams.get("q") || "";
 
-  const { data: results = [], isLoading } = useQuery({
+  const { data: searchData, isLoading } = useQuery({
     queryKey: ["search", query],
     queryFn: () => searchHighlights(query),
     enabled: !!query,
   });
+
+  const results = searchData?.highlights ?? [];
+  const totalFound = searchData?.totalFound ?? 0;
 
   const { data: recommendedBooks = [] } = useQuery({
     queryKey: ["recommended", query, results],
@@ -161,7 +164,9 @@ const SearchResults = () => {
       ) : (
         <>
           <p className="text-sm text-muted-foreground mb-8">
-            {results.length} highlight{results.length !== 1 ? "s" : ""} found
+            {totalFound <= 10
+              ? `${totalFound} highlight${totalFound !== 1 ? "s" : ""} found`
+              : `10 of ${totalFound} highlights used for synthesis`}
           </p>
 
           <SynthesisCard

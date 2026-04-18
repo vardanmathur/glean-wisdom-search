@@ -17,6 +17,7 @@ import BrowseBooks from "./pages/BrowseBooks";
 import AdminSeed from "./pages/AdminSeed";
 import AdminStudioHighlights from "./pages/AdminStudioHighlights";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
+import Settings from "./pages/Settings";
 
 const queryClient = new QueryClient();
 
@@ -41,6 +42,7 @@ const App = () => (
               <Route path="/admin/seed" element={<AdminSeed />} />
               <Route path="/admin/studio/highlights" element={<AdminStudioHighlights />} />
               <Route path="/privacy" element={<PrivacyPolicy />} />
+              <Route path="/settings" element={<Settings />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>
