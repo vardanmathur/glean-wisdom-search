@@ -4,7 +4,6 @@ import {
   searchHighlightsSemantic,
   getRecommendedBooks,
   synthesiseWisdom,
-  getAmazonUrl,
 } from "@/lib/data";
 import type { Highlight } from "@/lib/data";
 import HighlightCard from "@/components/HighlightCard";
