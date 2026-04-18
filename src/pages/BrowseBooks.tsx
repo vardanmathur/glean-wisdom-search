@@ -46,7 +46,7 @@ const BrowseBooks = () => {
             <Loader2 className="h-6 w-6 animate-spin text-primary" />
           </div>
         ) : (
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 w-full overflow-hidden">
             {sorted.map((book) => {
               const reason = `${book.highlightCount} highlight${
                 book.highlightCount !== 1 ? "s" : ""
@@ -70,9 +70,9 @@ const BrowseBooks = () => {
                     )}
                   </div>
 
-                  <div className="min-w-0 relative z-10">
+                  <div className="min-w-0 relative z-10 overflow-hidden">
                 <Tooltip>
-                  <TooltipTrigger className="w-full text-left">
+                  <TooltipTrigger className="w-full text-left block max-w-full overflow-hidden">
                     <h3 className="font-display text-base font-semibold text-foreground truncate cursor-default">{book.title}</h3>
                   </TooltipTrigger>
                   <TooltipContent>{book.title} by {book.author}</TooltipContent>
