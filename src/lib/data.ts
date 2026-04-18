@@ -92,7 +92,7 @@ const normaliseQuery = (q: string): string => {
   return q
     .toLowerCase()
     .replace(/[^a-z0-9\s]/g, " ")
-    .replace(/\b(i|me|my|we|our|you|your|am|is|are|was|were|be|been|being|have|has|had|do|does|did|will|would|could|should|can|may|might|a|an|the|and|or|but|in|on|at|to|for|of|with|about|how|what|why|when|who|so|very|really|just|feel|feeling|felt|im|ive|dont|cant|wont|its)\b/g, " ")
+    .replace(/\b(i|me|my|we|our|you|your|am|is|are|was|were|be|been|being|have|has|had|do|does|did|will|would|could|should|can|may|might|a|an|the|and|or|but|in|on|at|to|for|of|with|about|how|what|why|when|who|so|very|really|just|feel|feeling|felt|im|ive|dont|cant|wont|its|out|don|know|like|want|need|good|make|take|get|got|let|put|set)\b/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 };
@@ -468,6 +468,26 @@ async function computeKeywordScores(query: string): Promise<{
   return { keywordScores, byId: new Map<string, any>(data.map((h) => [h.id, h])) };
 }
 
+// Lightweight hydration fetch for the semantic path — pulls highlight rows with joined
+// book/profile data so semantic results (id + score) can be turned into full Highlights.
+// No keyword scoring loop.
+async function fetchHighlightsById(): Promise<{ byId: Map<string, any> }> {
+  const PAGE_SIZE = 1000;
+  let data: any[] = [];
+  let from = 0;
+  while (true) {
+    const { data: page, error } = await supabase
+      .from("highlights")
+      .select("id, book_id, quote, tags, my_notes, source, stars, visibility, created_at, user_id, books(title, author, cover_image_url), user_profiles(display_name)")
+      .range(from, from + PAGE_SIZE - 1);
+    if (error || !page || page.length === 0) break;
+    data = data.concat(page);
+    if (page.length < PAGE_SIZE) break;
+    from += PAGE_SIZE;
+  }
+  return { byId: new Map<string, any>(data.map((h) => [h.id, h])) };
+}
+
 export async function searchHighlightsSemantic(
   query: string
 ): Promise<{
@@ -524,7 +544,7 @@ export async function searchHighlightsSemantic(
 
   if (cached) {
     try {
-      const { byId } = await computeKeywordScores(query);
+      const { byId } = await fetchHighlightsById();
       return hydrateSemanticResponse(cached, byId);
     } catch {
       return await silentFallback();
@@ -536,20 +556,19 @@ export async function searchHighlightsSemantic(
       setTimeout(() => reject(new Error("semantic timeout")), 8000)
     );
 
-    const keywordPromise = computeKeywordScores(query);
-    const semanticPromise = (async () => {
-      const { keywordScores } = await keywordPromise;
-      return supabase.functions.invoke("search-semantic", {
-        body: { query, keywordScores, wordCount },
-      });
-    })();
+    // Pure vector scoring — no keyword blending. Fetch rows in parallel only for hydration
+    // (book title/author/cover lookup); no scoring loop.
+    const hydrationPromise = fetchHighlightsById();
+    const semanticPromise = supabase.functions.invoke("search-semantic", {
+      body: { query, wordCount },
+    });
 
     const [{ byId }, semResult] = (await Promise.race([
-      Promise.all([keywordPromise, semanticPromise]),
+      Promise.all([hydrationPromise, semanticPromise]),
       timeoutPromise.then(() => {
         throw new Error("semantic timeout");
       }),
-    ])) as [{ keywordScores: Record<string, number>; byId: Map<string, any> }, any];
+    ])) as [{ byId: Map<string, any> }, any];
 
     const { data: semData, error: semError } = semResult;
     if (semError || !semData) {

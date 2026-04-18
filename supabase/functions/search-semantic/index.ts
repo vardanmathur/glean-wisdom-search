@@ -33,24 +33,25 @@ serve(async (req) => {
   let t3 = t0;
 
   try {
-    const { query, keywordScores, wordCount: rawWordCount } = await req.json();
+    const { query, wordCount: rawWordCount } = await req.json();
     const wordCount = Number.isFinite(Number(rawWordCount)) && Number(rawWordCount) > 0
       ? Math.floor(Number(rawWordCount))
       : 5;
 
     // Length-adjusted thresholds: shorter queries are intrinsically less specific,
-    // so we lower the bar; longer queries demand precision.
+    // so we lower the bar; longer queries demand precision. Tuned for Gemini-768
+    // truncated embeddings whose cosine range compresses around 0.5–0.7.
     let hardFloor: number;
     let coverageThreshold: number;
     if (wordCount <= 4) {
       hardFloor = 0.52;
       coverageThreshold = 0.56;
     } else if (wordCount <= 7) {
-      hardFloor = 0.55;
-      coverageThreshold = 0.58;
+      hardFloor = 0.52;
+      coverageThreshold = 0.55;
     } else {
-      hardFloor = 0.58;
-      coverageThreshold = 0.61;
+      hardFloor = 0.55;
+      coverageThreshold = 0.57;
     }
 
     if (!query || typeof query !== "string" || !query.trim()) {
@@ -155,18 +156,11 @@ serve(async (req) => {
       );
     }
 
-    // 3. Hybrid scoring
-    const scoresMap: Record<string, number> = keywordScores && typeof keywordScores === "object" ? keywordScores : {};
-    const maxKeyword = Math.max(0, ...Object.values(scoresMap).map((v) => Number(v) || 0));
-    const hasKeyword = maxKeyword > 0;
-
+    // 3. Pure vector scoring — keyword blending was found to actively hurt natural-language
+    //    queries (semantic top results paraphrase concepts and have zero literal-keyword overlap,
+    //    so blending collapsed their scores while inflating off-topic items with stopword matches).
     const scored = rows.map((r: any) => {
       const vScore = Math.max(0, Math.min(1, Number(r.vector_score) || 0));
-      let finalScore = vScore;
-      if (hasKeyword) {
-        const k = Number(scoresMap[r.id] || 0) / maxKeyword;
-        finalScore = 0.7 * vScore + 0.3 * k;
-      }
       return {
         id: r.id,
         quote: r.quote,
@@ -174,7 +168,7 @@ serve(async (req) => {
         tags: r.tags || [],
         my_notes: r.my_notes,
         vector_score: vScore,
-        final_score: finalScore,
+        final_score: vScore,
       };
     });
 
