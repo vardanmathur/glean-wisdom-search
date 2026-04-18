@@ -636,7 +636,7 @@ function hydrateSemanticResponse(
     };
   }
 
-  const totalFound = entry.results.filter((r) => r.final_score > 0.65).length;
+  const totalFound = entry.results.length;
   const hydrated = entry.results
     .map((r) => {
       const row = byId.get(r.id);
