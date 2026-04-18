@@ -12,7 +12,73 @@ serve(async (req) => {
   }
 
   try {
-    const { question, highlights, coveragePoor } = await req.json();
+    const body = await req.json();
+    const { mode, messages, thinkPrompt } = body;
+
+    // ============================================================
+    // THINK! BRANCH — used by /think page (Forge & Opponent modes)
+    // ============================================================
+    if (mode === "forge" || mode === "opponent") {
+      if (!thinkPrompt || typeof thinkPrompt !== "string") {
+        return new Response(
+          JSON.stringify({ error: "thinkPrompt is required for Think! modes" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+      if (!Array.isArray(messages) || messages.length === 0) {
+        return new Response(
+          JSON.stringify({ error: "messages array is required for Think! modes" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+
+      const chatMessages = [
+        { role: "system", content: thinkPrompt },
+        ...messages,
+      ];
+
+      const aiResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${Deno.env.get("LOVABLE_API_KEY")}`,
+        },
+        body: JSON.stringify({
+          model: "google/gemini-2.5-flash",
+          max_tokens: 350,
+          messages: chatMessages,
+        }),
+      });
+
+      if (!aiResp.ok) {
+        const errText = await aiResp.text();
+        console.error("AI gateway error (think):", aiResp.status, errText);
+        if (aiResp.status === 429) {
+          return new Response(JSON.stringify({ error: "Rate limit exceeded. Try again in a moment." }), {
+            status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        if (aiResp.status === 402) {
+          return new Response(JSON.stringify({ error: "AI credits exhausted. Add funds in Settings." }), {
+            status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        return new Response(JSON.stringify({ error: "AI gateway error" }), {
+          status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const data = await aiResp.json();
+      const response = data.choices?.[0]?.message?.content || "";
+      return new Response(JSON.stringify({ response }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // ============================================================
+    // DEFAULT BRANCH — existing search synthesis (UNCHANGED)
+    // ============================================================
+    const { question, highlights, coveragePoor } = body;
 
     if (!highlights || highlights.length === 0) {
       return new Response(JSON.stringify({ synthesis: "" }), {
@@ -96,7 +162,7 @@ Tone rules:
     });
   } catch (error) {
     console.error("Error in synthesise-wisdom:", error);
-    return new Response(JSON.stringify({ synthesis: "" }), {
+    return new Response(JSON.stringify({ synthesis: "", error: String(error) }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }

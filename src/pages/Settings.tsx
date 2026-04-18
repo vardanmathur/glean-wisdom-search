@@ -42,6 +42,56 @@ const Settings = () => {
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [deleting, setDeleting] = useState(false);
 
+  // Think! admin section
+  const isAdmin = user?.email === "vardan@gmail.com";
+  const [thinkUsedToday, setThinkUsedToday] = useState<number | null>(null);
+  const [thinkLimit, setThinkLimit] = useState<number>(3);
+  const [thinkLimitInput, setThinkLimitInput] = useState<string>("3");
+  const [thinkSaving, setThinkSaving] = useState(false);
+  const [thinkSavedFlash, setThinkSavedFlash] = useState(false);
+
+  useEffect(() => {
+    if (!user || !isAdmin) return;
+    const today = (() => {
+      const d = new Date();
+      return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+    })();
+    (async () => {
+      const [{ data: cfg }, { data: usage }] = await Promise.all([
+        supabase.from("think_config").select("daily_limit").eq("user_id", user.id).maybeSingle(),
+        supabase.from("think_usage").select("ai_calls_used").eq("user_id", user.id).eq("date", today).maybeSingle(),
+      ]);
+      const limit = cfg?.daily_limit ?? 3;
+      setThinkLimit(limit);
+      setThinkLimitInput(String(limit));
+      setThinkUsedToday(usage?.ai_calls_used ?? 0);
+    })();
+  }, [user, isAdmin]);
+
+  const saveThinkLimit = async () => {
+    if (!user) return;
+    const n = parseInt(thinkLimitInput, 10);
+    if (Number.isNaN(n) || n < 1 || n > 20) {
+      toast.error("Limit must be between 1 and 20");
+      return;
+    }
+    setThinkSaving(true);
+    const { error } = await supabase
+      .from("think_config")
+      .upsert(
+        { user_id: user.id, daily_limit: n, updated_at: new Date().toISOString() },
+        { onConflict: "user_id" },
+      );
+    setThinkSaving(false);
+    if (error) {
+      toast.error("Couldn't save limit");
+      return;
+    }
+    setThinkLimit(n);
+    setThinkSavedFlash(true);
+    setTimeout(() => setThinkSavedFlash(false), 2000);
+  };
+
   // Redirect if not logged in
   useEffect(() => {
     if (!authLoading && !user) {
@@ -257,6 +307,45 @@ const Settings = () => {
           )}
         </div>
       </section>
+
+      {/* Think! — admin only */}
+      {isAdmin && (
+        <section className="mb-10">
+          <h2 className="font-display text-lg text-foreground mb-4">Think!</h2>
+          <div className="rounded-lg border bg-card p-5 card-shadow space-y-4">
+            <div className="text-sm text-muted-foreground">
+              {thinkUsedToday !== null
+                ? <>{thinkUsedToday} of {thinkLimit} thinking credits used today</>
+                : "Loading…"}
+            </div>
+            <Separator />
+            <div>
+              <Label htmlFor="thinkLimit" className="text-sm">Daily credit limit</Label>
+              <div className="relative mt-1.5 flex items-center gap-2">
+                <Input
+                  id="thinkLimit"
+                  type="number"
+                  min={1}
+                  max={20}
+                  value={thinkLimitInput}
+                  onChange={(e) => setThinkLimitInput(e.target.value)}
+                  className="max-w-[120px]"
+                  disabled={thinkSaving}
+                />
+                <Button onClick={saveThinkLimit} disabled={thinkSaving} size="sm">
+                  {thinkSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
+                </Button>
+                {thinkSavedFlash && (
+                  <span className="inline-flex items-center gap-1 text-xs text-primary">
+                    <Check className="h-3.5 w-3.5" /> Saved
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1.5">Range: 1–20</p>
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* Account */}
       <section className="mb-10">

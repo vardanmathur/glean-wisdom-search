@@ -133,6 +133,84 @@ export type Database = {
           },
         ]
       }
+      think_config: {
+        Row: {
+          created_at: string
+          daily_limit: number
+          id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          daily_limit?: number
+          id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          daily_limit?: number
+          id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      think_sessions: {
+        Row: {
+          ai_response: string | null
+          created_at: string
+          highlight_ids: string[] | null
+          id: string
+          mode: string
+          promoted: boolean
+          user_id: string
+          user_input: string | null
+        }
+        Insert: {
+          ai_response?: string | null
+          created_at?: string
+          highlight_ids?: string[] | null
+          id?: string
+          mode: string
+          promoted?: boolean
+          user_id: string
+          user_input?: string | null
+        }
+        Update: {
+          ai_response?: string | null
+          created_at?: string
+          highlight_ids?: string[] | null
+          id?: string
+          mode?: string
+          promoted?: boolean
+          user_id?: string
+          user_input?: string | null
+        }
+        Relationships: []
+      }
+      think_usage: {
+        Row: {
+          ai_calls_used: number
+          date: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          ai_calls_used?: number
+          date: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          ai_calls_used?: number
+          date?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       topic_summaries: {
         Row: {
           summary: string

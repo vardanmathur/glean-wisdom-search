@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { useState } from "react";
-import { Search, Leaf, Plus } from "lucide-react";
+import { Search, Leaf, Plus, Brain } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import AddHighlightModal from "@/components/AddHighlightModal";
@@ -65,15 +65,28 @@ const Index = () => {
       </div>
 
       <form onSubmit={handleSearch} className="w-full max-w-xl mb-4">
-        <div className="relative">
-          <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
-          <input
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="What challenge are you facing today?"
-            className="h-14 w-full rounded-xl border bg-card pl-12 pr-4 text-base font-body text-foreground placeholder:text-muted-foreground card-shadow focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all"
-          />
+        <div className="flex gap-2 items-stretch">
+          <div className="relative flex-1">
+            <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
+            <input
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="What challenge are you facing today?"
+              className="h-14 w-full rounded-xl border bg-card pl-12 pr-4 text-base font-body text-foreground placeholder:text-muted-foreground card-shadow focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all"
+            />
+          </div>
+          {user?.email === "vardan@gmail.com" && (
+            <button
+              type="button"
+              onClick={() => navigate("/think")}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-primary/40 bg-card px-4 text-sm font-medium text-primary hover:bg-primary/5 transition-colors card-shadow"
+              aria-label="Open Think!"
+            >
+              <Brain className="h-4 w-4" />
+              Think!
+            </button>
+          )}
         </div>
       </form>
 
