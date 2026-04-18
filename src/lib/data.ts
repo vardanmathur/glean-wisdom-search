@@ -395,11 +395,13 @@ export async function searchHighlights(
 // tokens sorted). Resets on page refresh. Note: actual embedding happens server-side in the
 // edge function; this cache stores the FULL semantic response so a cache hit skips both the
 // keyword scoring AND the network round-trip to the edge function entirely.
+type SemanticTimings = { embedding_ms: number; pgvector_ms: number; scoring_ms: number; total_ms: number };
 type SemanticCacheEntry = {
   coverage: "good" | "poor";
   message: string | null;
   results: any[];
   suggestions: any[];
+  timings?: SemanticTimings;
 };
 const semanticResponseCache = new Map<string, SemanticCacheEntry>();
 
@@ -473,6 +475,7 @@ export async function searchHighlightsSemantic(
   totalFound: number;
   coverage: "good" | "poor";
   message: string | null;
+  timings?: SemanticTimings;
 }> {
   if (!query.trim()) {
     return { highlights: [], totalFound: 0, coverage: "good", message: null };
@@ -491,9 +494,6 @@ export async function searchHighlightsSemantic(
   const cacheKey = semanticCacheKey(query);
   const cached = semanticResponseCache.get(cacheKey);
 
-  // Cache hit: we still need byId for hydration, but we skip the edge function network call.
-  // Keyword scoring is also skipped since the cached semantic response was already computed
-  // with hybrid scoring baked in.
   if (cached) {
     try {
       const { byId } = await computeKeywordScores(query);
@@ -503,22 +503,13 @@ export async function searchHighlightsSemantic(
     }
   }
 
-  // Run keyword scoring (client-side) and the semantic edge function call (network)
-  // CONCURRENTLY — they are independent. Saves ~200-300ms over sequential execution.
-  // Reranker is intentionally NOT called here — semantic similarity already ranks well,
-  // and skipping rerank saves 1-2s.
   try {
-    // 8s timeout — Gemini embedding + pgvector cosine over the full library can take
-    // 3-5s in normal conditions. A 3s timeout was firing before the edge function returned,
-    // which silently dropped the poor-coverage signal and showed "0 highlights found".
     const timeoutPromise = new Promise<never>((_, reject) =>
       setTimeout(() => reject(new Error("semantic timeout")), 8000)
     );
 
-    // Kick off both in parallel.
     const keywordPromise = computeKeywordScores(query);
     const semanticPromise = (async () => {
-      // Wait for keyword scores so we can pass them to the edge function for hybrid scoring.
       const { keywordScores } = await keywordPromise;
       return supabase.functions.invoke("search-semantic", {
         body: { query, keywordScores },
@@ -543,17 +534,15 @@ export async function searchHighlightsSemantic(
       message: (semData.message as string | null) ?? null,
       results: (semData.results || []) as any[],
       suggestions: (semData.suggestions || []) as any[],
+      timings: semData.timings as SemanticTimings | undefined,
     };
     semanticResponseCache.set(cacheKey, entry);
 
-    const hydrated = hydrateSemanticResponse(entry, byId);
-    console.log("[semantic] response", {
-      query,
-      coverage: hydrated.coverage,
-      totalFound: hydrated.totalFound,
-      highlightsCount: hydrated.highlights.length,
-    });
-    return hydrated;
+    if (semData.timings) {
+      console.log("[semantic] edge timings:", semData.timings);
+    }
+
+    return hydrateSemanticResponse(entry, byId);
   } catch (err) {
     console.warn("[semantic] timed out or threw, falling back to keyword:", err);
     return await silentFallback();
@@ -568,6 +557,7 @@ function hydrateSemanticResponse(
   totalFound: number;
   coverage: "good" | "poor";
   message: string | null;
+  timings?: SemanticTimings;
 } {
   if (entry.coverage === "poor") {
     const hydrated = entry.suggestions
@@ -579,7 +569,13 @@ function hydrateSemanticResponse(
         return h;
       })
       .filter((h): h is Highlight => h !== null);
-    return { highlights: hydrated, totalFound: 0, coverage: "poor", message: entry.message };
+    return {
+      highlights: hydrated,
+      totalFound: 0,
+      coverage: "poor",
+      message: entry.message,
+      timings: entry.timings,
+    };
   }
 
   const totalFound = entry.results.filter((r) => r.final_score > 0.65).length;
@@ -598,6 +594,7 @@ function hydrateSemanticResponse(
     totalFound,
     coverage: "good",
     message: entry.message,
+    timings: entry.timings,
   };
 }
 
