@@ -490,14 +490,21 @@ export async function searchHighlightsSemantic(
   if (wordCount <= 2) {
     console.log(`[search] routing "${query}" (${wordCount} meaningful words) → keyword`);
     const kw = await searchHighlights(query);
-    return {
-      highlights: kw.highlights,
-      totalFound: kw.totalFound,
-      // Keyword-routed empty results should NOT show poor-coverage card — that's reserved
-      // for semantic queries where the topic genuinely isn't in the library.
-      coverage: kw.highlights.length === 0 ? "none" : "good",
-      message: null,
-    };
+
+    // Quality gate: keyword found enough strong results — return immediately (fast path).
+    if (kw.highlights.length >= 3) {
+      console.log(`[search] keyword returned ${kw.highlights.length} results → fast path`);
+      return {
+        highlights: kw.highlights,
+        totalFound: kw.totalFound,
+        coverage: "good",
+        message: null,
+      };
+    }
+
+    // Too few keyword results — fall through to semantic, which will either find
+    // relevant content or return an honest poor-coverage response.
+    console.log(`[search] keyword returned only ${kw.highlights.length} results → falling through to semantic`);
   }
 
   console.log(`[search] routing "${query}" (${wordCount} meaningful words) → semantic`);
