@@ -119,7 +119,8 @@ serve(async (req) => {
           continue;
         }
 
-        const vectorStr = `[${embedding.join(",")}]`;
+        const normalized = l2Normalize(embedding);
+        const vectorStr = `[${normalized.join(",")}]`;
         const { error: updateError } = await supabase
           .from("highlights")
           .update({ embedding: vectorStr })
