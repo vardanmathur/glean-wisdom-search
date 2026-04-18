@@ -1,3 +1,4 @@
+// Glean data layer — search, scoring, synonym map, book and topic fetching
 import { supabase } from "@/integrations/supabase/client";
 
 // AI-powered wisdom synthesis via edge function
