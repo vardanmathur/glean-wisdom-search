@@ -259,12 +259,14 @@ function expandQueryTags(words: string[]): Set<string> {
 }
 
 // Search highlights using semantic keyword matching
-export async function searchHighlights(query: string): Promise<Highlight[]> {
-  if (!query.trim()) return [];
+export async function searchHighlights(
+  query: string
+): Promise<{ highlights: Highlight[]; totalFound: number }> {
+  if (!query.trim()) return { highlights: [], totalFound: 0 };
 
   const normalisedQuery = normaliseQuery(query);
   const words = normalisedQuery.split(/\s+/).filter((w) => w.length > 2);
-  if (words.length === 0) return [];
+  if (words.length === 0) return { highlights: [], totalFound: 0 };
 
   // Paginate to fetch all highlights
   const PAGE_SIZE = 1000;
@@ -281,7 +283,7 @@ export async function searchHighlights(query: string): Promise<Highlight[]> {
     from += PAGE_SIZE;
   }
 
-  if (data.length === 0) return [];
+  if (data.length === 0) return { highlights: [], totalFound: 0 };
 
   const expandedTags = expandQueryTags(words);
 
@@ -328,13 +330,16 @@ export async function searchHighlights(query: string): Promise<Highlight[]> {
     .filter((s) => s.score > 2)
     .sort((a, b) => b.score - a.score);
 
+  const totalFound = keywordRanked.length;
+
   if (keywordRanked.length === 0) {
-    return data
+    const fallback = data
       .filter(h => (h.tags || []).some((t: string) =>
         ["Life", "Success", "Habits", "Purpose", "Motivation"].includes(t)
       ))
       .slice(0, 5)
       .map(toHighlight);
+    return { highlights: fallback, totalFound: 0 };
   }
 
   // Take top 20 for AI semantic re-ranking
@@ -362,13 +367,19 @@ export async function searchHighlights(query: string): Promise<Highlight[]> {
       }));
       combined.sort((a, b) => b.combinedScore - a.combinedScore);
       const dynamicLimit = Math.min(keywordRanked.length, 10);
-      return combined.slice(0, dynamicLimit).map((s) => toHighlight(s.row));
+      return {
+        highlights: combined.slice(0, dynamicLimit).map((s) => toHighlight(s.row)),
+        totalFound,
+      };
     }
   } catch {
     // AI re-ranking failed — fall back to keyword order
   }
 
-  return top20Highlights.slice(0, Math.min(keywordRanked.length, 10));
+  return {
+    highlights: top20Highlights.slice(0, Math.min(keywordRanked.length, 10)),
+    totalFound,
+  };
 }
 
 export async function getAllTopics(): Promise<Topic[]> {

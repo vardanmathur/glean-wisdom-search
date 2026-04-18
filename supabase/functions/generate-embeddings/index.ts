@@ -131,7 +131,7 @@ serve(async (req) => {
         const detail: ErrorDetail = {
           highlight_id: highlight.id,
           quote_length: highlight.quote?.length ?? 0,
-          error_message: `Exception: ${e?.message ?? String(e)}`,
+          error_message: `Exception: ${e instanceof Error ? e.message : String(e)}`,
           http_status: null,
         };
         console.error(`Error processing ${highlight.id}: ${e}`);
@@ -155,7 +155,7 @@ serve(async (req) => {
     });
   } catch (error) {
     console.error("generate-embeddings error:", error);
-    return new Response(JSON.stringify({ error: error.message }), {
+    return new Response(JSON.stringify({ error: error instanceof Error ? error.message : String(error) }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
