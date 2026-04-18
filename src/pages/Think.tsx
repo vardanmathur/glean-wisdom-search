@@ -11,7 +11,7 @@ const ADMIN_EMAIL = "vardan@gmail.com";
 const DEFAULT_DAILY_LIMIT = 3;
 
 const FORGE_PROMPT =
-  "You are a sharp thinking partner. The user has read 2-3 book highlights and written a principle they believe connects them. In maximum 150 words: give one observation about their principle, add one dimension they may have missed, end with one question that pushes their thinking further. No preamble. No praise. Be warm but intellectually honest.";
+  "You are a warm thinking partner. The user has read a book highlight and shared what it means to them personally right now. In maximum 150 words: reflect back what you hear in their response, add one dimension or question that deepens their thinking, and end with one gentle challenge. No preamble. Be warm and intellectually honest.";
 
 const OPPONENT_PROMPT_EARLY =
   "You are a sharp but warm sparring partner. The user is arguing against a book highlight. Push back on the user's argument specifically — not the original highlight. Find the weakness in what they wrote. Keep each response under 120 words.";
@@ -60,6 +60,56 @@ const Think = () => {
     setCreditsUsed(usage?.ai_calls_used ?? 0);
   }, [user]);
 
+  // ===== Fetch a single forge highlight (random tag, short, curated) =====
+  const fetchForgeHighlight = useCallback(async (): Promise<ForgeHighlight | null> => {
+    // Get distinct tags from public, curated highlights
+    const { data: tagSample, error: tagErr } = await supabase
+      .from("highlights")
+      .select("tags")
+      .eq("source", "curated")
+      .or("visibility.eq.public,visibility.is.null")
+      .not("tags", "is", null)
+      .limit(500);
+    if (tagErr) throw tagErr;
+
+    const allTags = new Set<string>();
+    (tagSample || []).forEach((r: any) => {
+      (r.tags || []).forEach((t: string) => t && allTags.add(t));
+    });
+    const tagArr = Array.from(allTags);
+
+    // Try up to 3 random tags
+    for (let attempt = 0; attempt < 3 && tagArr.length > 0; attempt++) {
+      const tag = tagArr[Math.floor(Math.random() * tagArr.length)];
+      const { data: rows } = await supabase
+        .from("highlights")
+        .select("id, quote, book_id")
+        .eq("source", "curated")
+        .or("visibility.eq.public,visibility.is.null")
+        .contains("tags", [tag])
+        .limit(50);
+      const short = (rows || []).filter((r: any) => r.quote && r.quote.length < 250);
+      if (short.length >= 1) {
+        const pick = short[Math.floor(Math.random() * short.length)];
+        const enriched = await enrichWithBooks([pick]);
+        return enriched[0] || null;
+      }
+    }
+
+    // Fallback: any random short curated
+    const { data: rows } = await supabase
+      .from("highlights")
+      .select("id, quote, book_id")
+      .eq("source", "curated")
+      .or("visibility.eq.public,visibility.is.null")
+      .limit(200);
+    const short = (rows || []).filter((r: any) => r.quote && r.quote.length < 250);
+    if (short.length === 0) return null;
+    const pick = short[Math.floor(Math.random() * short.length)];
+    const enriched = await enrichWithBooks([pick]);
+    return enriched[0] || null;
+  }, []);
+
   // ===== Fetch highlights for given mode =====
   const fetchForRandomMode = useCallback(async () => {
     setLoadError(null);
@@ -70,57 +120,11 @@ const Think = () => {
 
     try {
       if (chosen === "forge") {
-        // Get all distinct tags from public, curated, short highlights
-        const { data: tagSample, error: tagErr } = await supabase
-          .from("highlights")
-          .select("tags")
-          .eq("source", "curated")
-          .or("visibility.eq.public,visibility.is.null")
-          .not("tags", "is", null)
-          .limit(500);
-        if (tagErr) throw tagErr;
-
-        const allTags = new Set<string>();
-        (tagSample || []).forEach((r: any) => {
-          (r.tags || []).forEach((t: string) => t && allTags.add(t));
-        });
-        const tagArr = Array.from(allTags);
-
-        let picked: ForgeHighlight[] = [];
-        for (let attempt = 0; attempt < 3 && picked.length < 2 && tagArr.length > 0; attempt++) {
-          const tag = tagArr[Math.floor(Math.random() * tagArr.length)];
-          const { data: rows } = await supabase
-            .from("highlights")
-            .select("id, quote, book_id")
-            .eq("source", "curated")
-            .or("visibility.eq.public,visibility.is.null")
-            .contains("tags", [tag])
-            .limit(50);
-          const short = (rows || []).filter((r: any) => r.quote && r.quote.length < 250);
-          if (short.length >= 2) {
-            const shuffled = short.sort(() => Math.random() - 0.5).slice(0, 3);
-            picked = await enrichWithBooks(shuffled);
-            break;
-          }
-        }
-
-        // Fallback: any 2-3 short curated
-        if (picked.length < 2) {
-          const { data: rows } = await supabase
-            .from("highlights")
-            .select("id, quote, book_id")
-            .eq("source", "curated")
-            .or("visibility.eq.public,visibility.is.null")
-            .limit(200);
-          const short = (rows || []).filter((r: any) => r.quote && r.quote.length < 250);
-          const shuffled = short.sort(() => Math.random() - 0.5).slice(0, 3);
-          picked = await enrichWithBooks(shuffled);
-        }
-
-        if (picked.length < 2) {
+        const single = await fetchForgeHighlight();
+        if (!single) {
           setLoadError("Couldn't load highlights. Try shuffling.");
         } else {
-          setForgeHighlights(picked);
+          setForgeHighlights([single]);
         }
       } else {
         const { data: rows } = await supabase
@@ -141,7 +145,25 @@ const Think = () => {
       console.error(e);
       setLoadError("Couldn't load highlights. Try shuffling.");
     }
-  }, []);
+  }, [fetchForgeHighlight]);
+
+  // ===== Skip handler for Forge — refetch a new highlight, no credit cost =====
+  const handleForgeSkip = useCallback(async (): Promise<boolean> => {
+    setLoadError(null);
+    try {
+      const single = await fetchForgeHighlight();
+      if (!single) {
+        setLoadError("Couldn't load highlights. Try shuffling.");
+        return false;
+      }
+      setForgeHighlights([single]);
+      return true;
+    } catch (e) {
+      console.error(e);
+      setLoadError("Couldn't load highlights. Try shuffling.");
+      return false;
+    }
+  }, [fetchForgeHighlight]);
 
   const enrichWithBooks = async (rows: any[]): Promise<ForgeHighlight[]> => {
     const bookIds = Array.from(new Set(rows.map((r) => r.book_id).filter(Boolean)));
@@ -232,10 +254,9 @@ const Think = () => {
 
   // ===== Forge submit =====
   const handleForgeSubmit = async (input: string) => {
-    const highlightsBlock = forgeHighlights
-      .map((h, i) => `${i + 1}. "${h.quote}"${h.bookTitle ? ` — ${h.bookTitle}` : ""}`)
-      .join("\n");
-    const userContent = `Highlights:\n${highlightsBlock}\n\nMy principle that connects them: ${input}`;
+    const h = forgeHighlights[0];
+    const highlightLine = h ? `"${h.quote}"${h.bookTitle ? ` — ${h.bookTitle}${h.author ? `, ${h.author}` : ""}` : ""}` : "";
+    const userContent = `Highlight:\n${highlightLine}\n\nWhat this means to me right now: ${input}`;
 
     const result = await callAi({
       mode: "forge",
@@ -342,11 +363,12 @@ const Think = () => {
         </div>
       ) : loadError ? (
         <p className="text-sm text-muted-foreground">{loadError}</p>
-      ) : mode === "forge" && forgeHighlights.length >= 2 ? (
+      ) : mode === "forge" && forgeHighlights.length >= 1 ? (
         <ForgeMode
           highlights={forgeHighlights}
           onSubmit={handleForgeSubmit}
           onComplete={startNewSession}
+          onSkip={handleForgeSkip}
           disabled={limitReached}
         />
       ) : mode === "opponent" && opponentHighlight ? (

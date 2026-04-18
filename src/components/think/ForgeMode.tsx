@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
@@ -14,17 +15,21 @@ interface ForgeModeProps {
   highlights: ForgeHighlight[];
   onSubmit: (input: string) => Promise<{ ok: boolean; response?: string; error?: string }>;
   onComplete: () => void;
+  onSkip: () => Promise<boolean>;
   disabled?: boolean;
 }
 
-const FORGE_PROMPT = "What single principle connects these ideas?";
+const FORGE_PROMPT = "What does this mean to you right now?";
 
-const ForgeMode = ({ highlights, onSubmit, onComplete, disabled }: ForgeModeProps) => {
+const ForgeMode = ({ highlights, onSubmit, onComplete, onSkip, disabled }: ForgeModeProps) => {
   const [input, setInput] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [skipping, setSkipping] = useState(false);
   const [response, setResponse] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
+
+  const highlight = highlights[0];
 
   const handleSubmit = async () => {
     if (!input.trim() || submitting || disabled) return;
@@ -40,19 +45,45 @@ const ForgeMode = ({ highlights, onSubmit, onComplete, disabled }: ForgeModeProp
     }
   };
 
+  const handleSkip = async () => {
+    if (skipping || submitting || done) return;
+    setSkipping(true);
+    setError(null);
+    setInput("");
+    await onSkip();
+    setSkipping(false);
+  };
+
   return (
     <div className="space-y-6">
       <div className="space-y-3">
-        {highlights.map((h, i) => (
-          <div key={h.id} className="rounded-lg border bg-card p-4 card-shadow">
-            <p className="font-body text-foreground leading-relaxed">"{h.quote}"</p>
-            {(h.bookTitle || h.author) && (
+        {skipping ? (
+          <div className="rounded-lg border bg-card p-6 card-shadow flex items-center justify-center">
+            <Loader2 className="h-5 w-5 animate-spin text-primary" />
+          </div>
+        ) : highlight ? (
+          <div className="rounded-lg border bg-card p-4 card-shadow">
+            <p className="font-body text-foreground leading-relaxed">"{highlight.quote}"</p>
+            {(highlight.bookTitle || highlight.author) && (
               <p className="text-xs text-muted-foreground mt-2">
-                — {h.bookTitle}{h.author ? `, ${h.author}` : ""}
+                — {highlight.bookTitle}{highlight.author ? `, ${highlight.author}` : ""}
               </p>
             )}
           </div>
-        ))}
+        ) : null}
+
+        {!done && (
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={handleSkip}
+              disabled={skipping || submitting}
+              className="text-xs text-muted-foreground hover:text-primary transition-colors underline-offset-2 hover:underline disabled:opacity-50"
+            >
+              {skipping ? "Loading…" : "Skip — show me something else"}
+            </button>
+          </div>
+        )}
       </div>
 
       <div>
@@ -62,14 +93,14 @@ const ForgeMode = ({ highlights, onSubmit, onComplete, disabled }: ForgeModeProp
           onChange={(e) => setInput(e.target.value)}
           placeholder="Take your time…"
           className="min-h-[140px] text-base"
-          disabled={done || submitting}
+          disabled={done || submitting || skipping}
         />
       </div>
 
       {!done && (
         <Button
           onClick={handleSubmit}
-          disabled={submitting || !input.trim() || disabled}
+          disabled={submitting || skipping || !input.trim() || disabled}
           className="w-full sm:w-auto"
         >
           {submitting ? (
@@ -90,9 +121,17 @@ const ForgeMode = ({ highlights, onSubmit, onComplete, disabled }: ForgeModeProp
       )}
 
       {done && (
-        <div className="pt-4 border-t">
-          <p className="text-sm text-muted-foreground mb-3">That's a wrap for this session.</p>
-          <Button variant="outline" onClick={onComplete}>Start a new session</Button>
+        <div className="pt-4 border-t space-y-3">
+          <p className="text-sm text-muted-foreground">That's a wrap for this session.</p>
+          <div className="flex flex-wrap items-center gap-4">
+            <Button onClick={onComplete}>Start a new session</Button>
+            <Link
+              to="/"
+              className="text-sm text-muted-foreground hover:text-primary transition-colors underline-offset-2 hover:underline"
+            >
+              That's enough for today
+            </Link>
+          </div>
         </div>
       )}
     </div>
