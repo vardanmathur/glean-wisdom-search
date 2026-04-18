@@ -706,7 +706,7 @@ export async function getBookById(id: string): Promise<Book | undefined> {
 export async function getHighlightsByBook(bookId: string): Promise<Highlight[]> {
   const { data, error } = await supabase
     .from("highlights")
-    .select("*, books(title, author, cover_image_url), user_profiles(display_name)")
+    .select("id, book_id, quote, tags, my_notes, source, stars, visibility, created_at, user_id, books(title, author, cover_image_url), user_profiles(display_name)")
     .eq("book_id", bookId);
 
   if (error || !data) return [];
