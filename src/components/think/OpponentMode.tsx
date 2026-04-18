@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Loader2 } from "lucide-react";
 
 export interface OpponentHighlight {
@@ -10,10 +11,22 @@ export interface OpponentHighlight {
   author?: string | null;
 }
 
+export interface OpponentPersona {
+  key: string;
+  label: string;
+  defaultName: string;
+  description: string;
+  systemPrompt: string;
+}
+
 type Msg = { role: "user" | "assistant"; content: string };
 
 interface OpponentModeProps {
   highlight: OpponentHighlight;
+  personas: OpponentPersona[];
+  selectedPersona: OpponentPersona | null;
+  personaName: string;
+  onPersonaConfirm: (persona: OpponentPersona, name: string) => void;
   onSubmit: (messages: Msg[]) => Promise<{ ok: boolean; response?: string; error?: string }>;
   onAllComplete: (history: Msg[]) => void;
   onComplete: () => void;
@@ -23,7 +36,21 @@ interface OpponentModeProps {
 const OPPONENT_PROMPT = "Write the strongest case against this";
 const MAX_EXCHANGES = 3;
 
-const OpponentMode = ({ highlight, onSubmit, onAllComplete, onComplete, disabled }: OpponentModeProps) => {
+const OpponentMode = ({
+  highlight,
+  personas,
+  selectedPersona,
+  personaName,
+  onPersonaConfirm,
+  onSubmit,
+  onAllComplete,
+  onComplete,
+  disabled,
+}: OpponentModeProps) => {
+  // Local picker state — only used until persona is confirmed
+  const [pickerPersona, setPickerPersona] = useState<OpponentPersona | null>(null);
+  const [nameInput, setNameInput] = useState("");
+
   const [history, setHistory] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -31,6 +58,77 @@ const OpponentMode = ({ highlight, onSubmit, onAllComplete, onComplete, disabled
 
   const exchangesDone = history.filter((m) => m.role === "assistant").length;
   const sessionComplete = exchangesDone >= MAX_EXCHANGES;
+
+  // ===== Persona picker screen =====
+  if (!selectedPersona) {
+    if (!pickerPersona) {
+      return (
+        <div className="space-y-6">
+          <div>
+            <h2 className="font-display text-xl text-foreground mb-1">Choose your sparring partner</h2>
+            <p className="text-sm text-muted-foreground">Each persona challenges you differently.</p>
+          </div>
+          <div className="grid gap-3">
+            {personas.map((p) => (
+              <button
+                key={p.key}
+                onClick={() => {
+                  setPickerPersona(p);
+                  setNameInput(p.defaultName);
+                }}
+                className="text-left rounded-lg border bg-card p-4 hover:border-primary hover:bg-primary/5 transition-colors card-shadow"
+              >
+                <div className="font-display text-base text-foreground">
+                  {p.label} <span className="text-muted-foreground">— "{p.defaultName}"</span>
+                </div>
+                <p className="text-sm text-muted-foreground mt-1">{p.description}</p>
+              </button>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    // Name editor for chosen persona
+    return (
+      <div className="space-y-6">
+        <div>
+          <h2 className="font-display text-xl text-foreground mb-1">{pickerPersona.label}</h2>
+          <p className="text-sm text-muted-foreground">{pickerPersona.description}</p>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-foreground mb-2">
+            What's your sparring partner's name today?
+          </label>
+          <Input
+            value={nameInput}
+            onChange={(e) => setNameInput(e.target.value)}
+            placeholder={pickerPersona.defaultName}
+            className="text-base"
+          />
+        </div>
+        <div className="flex items-center gap-3">
+          <Button
+            onClick={() => {
+              const finalName = nameInput.trim() || pickerPersona.defaultName;
+              onPersonaConfirm(pickerPersona, finalName);
+            }}
+          >
+            Confirm
+          </Button>
+          <button
+            onClick={() => {
+              setPickerPersona(null);
+              setNameInput("");
+            }}
+            className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
+            ← Pick a different persona
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const handleSubmit = async () => {
     if (!input.trim() || submitting || sessionComplete || disabled) return;
@@ -40,14 +138,11 @@ const OpponentMode = ({ highlight, onSubmit, onAllComplete, onComplete, disabled
     const userMsg: Msg = { role: "user", content: input.trim() };
     const nextHistory = [...history, userMsg];
 
-    // Prepend highlight context as the first user message implicitly via system in edge fn.
-    // But to keep AI grounded, include the highlight as the opening user turn:
     const contextHeader: Msg = {
       role: "user",
       content: `The book highlight under debate is:\n"${highlight.quote}"${highlight.bookTitle ? ` — ${highlight.bookTitle}` : ""}\n\nMy argument against it: ${userMsg.content}`,
     };
 
-    // For round 1, send the contextual header. For later rounds, send raw history.
     const messagesForApi: Msg[] = history.length === 0
       ? [contextHeader]
       : [
@@ -77,6 +172,8 @@ const OpponentMode = ({ highlight, onSubmit, onAllComplete, onComplete, disabled
     }
   };
 
+  const displayName = personaName || selectedPersona.defaultName;
+
   return (
     <div className="space-y-6">
       <div className="rounded-lg border bg-card p-4 card-shadow">
@@ -92,6 +189,7 @@ const OpponentMode = ({ highlight, onSubmit, onAllComplete, onComplete, disabled
       <div className="space-y-4">
         {history.map((m, i) => {
           const isUser = m.role === "user";
+          const isFinal = !isUser && i === history.length - 1 && history.filter((x) => x.role === "assistant").length >= MAX_EXCHANGES;
           return (
             <div
               key={i}
@@ -102,7 +200,7 @@ const OpponentMode = ({ highlight, onSubmit, onAllComplete, onComplete, disabled
               }
             >
               <div className={`text-xs uppercase tracking-wider mb-2 ${isUser ? "text-muted-foreground" : "text-primary"}`}>
-                {isUser ? "You" : "Sparring partner"}
+                {isUser ? "You:" : isFinal ? "Takeaway:" : `${displayName} says:`}
               </div>
               <p className="font-body text-foreground leading-relaxed whitespace-pre-wrap">{m.content}</p>
             </div>
