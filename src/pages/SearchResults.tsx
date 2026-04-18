@@ -4,7 +4,6 @@ import {
   searchHighlightsSemantic,
   getRecommendedBooks,
   synthesiseWisdom,
-  getAmazonUrl,
 } from "@/lib/data";
 import type { Highlight } from "@/lib/data";
 import HighlightCard from "@/components/HighlightCard";
@@ -43,14 +42,16 @@ function parseSynthesisSections(text: string): { label: string; content: string 
   return sections;
 }
 
-function getUniqueBooks(highlights: Highlight[]): { title: string; author: string }[] {
+function getUniqueBooks(
+  highlights: Highlight[]
+): { title: string; author: string; coverImageUrl?: string }[] {
   const seen = new Set<string>();
-  const books: { title: string; author: string }[] = [];
+  const books: { title: string; author: string; coverImageUrl?: string }[] = [];
   for (const h of highlights) {
     const key = `${h.bookTitle}::${h.author}`;
     if (!seen.has(key)) {
       seen.add(key);
-      books.push({ title: h.bookTitle, author: h.author });
+      books.push({ title: h.bookTitle, author: h.author, coverImageUrl: h.coverImageUrl });
     }
   }
   return books;
@@ -259,21 +260,34 @@ const SearchResults = () => {
             highlightCount={results.length}
           />
 
-          <div className="mb-6 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
-            <p className="text-xs font-semibold tracking-widest text-primary uppercase mb-2">
+          <div className="mb-6 rounded-lg border border-primary/20 bg-primary/5 px-4 py-4">
+            <p className="text-xs font-semibold tracking-widest text-primary uppercase mb-3">
               Explore these books
             </p>
-            <div className="flex flex-wrap gap-x-4 gap-y-2">
+            <div className="flex flex-wrap gap-5">
               {getUniqueBooks(results).slice(0, 3).map((book) => (
-                <a
+                <Link
                   key={`${book.title}::${book.author}`}
-                  href={getAmazonUrl(book.title, book.author)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-sm font-medium text-primary/80 hover:text-primary hover:underline transition-colors"
+                  to={`/book/${encodeURIComponent(book.title)}`}
+                  className="group flex flex-col items-center w-20 hover:opacity-90 transition-opacity"
                 >
-                  {book.title}
-                </a>
+                  {book.coverImageUrl ? (
+                    <img
+                      src={book.coverImageUrl}
+                      alt={book.title}
+                      className="h-[88px] w-16 rounded-md object-cover shadow-sm"
+                    />
+                  ) : (
+                    <div className="h-[88px] w-16 rounded-md bg-primary/15 flex items-center justify-center shadow-sm">
+                      <span className="text-xl font-semibold text-primary">
+                        {book.title?.charAt(0) || "?"}
+                      </span>
+                    </div>
+                  )}
+                  <span className="mt-2 text-xs font-medium text-primary/80 group-hover:text-primary text-center line-clamp-2 leading-tight">
+                    {book.title}
+                  </span>
+                </Link>
               ))}
             </div>
           </div>
