@@ -8,6 +8,17 @@ const corsHeaders = {
 
 const BATCH_SIZE = 50;
 
+// L2-normalize a vector to unit length. Gemini's outputDimensionality=768
+// returns truncated, non-unit vectors — normalizing makes cosine scores span
+// the full 0-1 range so semantic search thresholds work as intended.
+function l2Normalize(v: number[]): number[] {
+  let sum = 0;
+  for (const x of v) sum += x * x;
+  const norm = Math.sqrt(sum);
+  if (norm === 0) return v;
+  return v.map((x) => x / norm);
+}
+
 interface ErrorDetail {
   highlight_id: string;
   quote_length: number;
