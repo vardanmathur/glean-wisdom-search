@@ -163,16 +163,16 @@ serve(async (req) => {
     scored.sort((a, b) => b.final_score - a.final_score);
 
     const topScore = scored[0]?.final_score || 0;
-    const threshold = Math.max(topScore * 0.8, 0.6);
+    const threshold = Math.max(topScore * 0.8, 0.5);
 
     const tierFor = (s: number): "strong" | "good" | "moderate" | "excluded" => {
-      if (s >= 0.85) return "strong";
-      if (s >= 0.75) return "good";
-      if (s >= 0.65) return "moderate";
+      if (s >= 0.67) return "strong";
+      if (s >= 0.62) return "good";
+      if (s >= 0.50) return "moderate";
       return "excluded";
     };
 
-    const aboveThreshold = scored.filter((s) => s.final_score >= threshold && s.final_score >= 0.65);
+    const aboveThreshold = scored.filter((s) => s.final_score >= threshold && s.final_score >= 0.50);
     const capped = aboveThreshold.slice(0, 15).map((s) => ({ ...s, tier: tierFor(s.final_score) }));
 
     t3 = Date.now();
