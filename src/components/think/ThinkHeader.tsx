@@ -6,9 +6,19 @@ interface ThinkHeaderProps {
   dailyLimit: number | null;
   onShuffle: () => void;
   shuffling?: boolean;
+  personaName?: string | null;
+  shuffleLabel?: string;
 }
 
-const ThinkHeader = ({ modeName, creditsUsed, dailyLimit, onShuffle, shuffling }: ThinkHeaderProps) => {
+const ThinkHeader = ({
+  modeName,
+  creditsUsed,
+  dailyLimit,
+  onShuffle,
+  shuffling,
+  personaName,
+  shuffleLabel = "Shuffle",
+}: ThinkHeaderProps) => {
   const remaining = creditsUsed !== null && dailyLimit !== null ? Math.max(0, dailyLimit - creditsUsed) : null;
 
   return (
@@ -16,16 +26,19 @@ const ThinkHeader = ({ modeName, creditsUsed, dailyLimit, onShuffle, shuffling }
       <div className="flex items-start justify-between gap-3">
         <div>
           <div className="text-xs uppercase tracking-wider text-muted-foreground mb-1">Today's mode</div>
-          <h1 className="font-display text-2xl text-foreground">{modeName}</h1>
+          <h1 className="font-display text-2xl text-foreground">
+            {modeName}
+            {personaName ? <span className="text-muted-foreground"> · {personaName}</span> : null}
+          </h1>
         </div>
         <button
           onClick={onShuffle}
           disabled={shuffling}
           className="inline-flex items-center gap-1.5 rounded-md border border-primary/30 px-3 py-1.5 text-sm text-primary hover:bg-primary/5 transition-colors disabled:opacity-50"
-          aria-label="Shuffle to a new mode"
+          aria-label={shuffleLabel}
         >
           {shuffling ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Shuffle className="h-3.5 w-3.5" />}
-          Shuffle
+          {shuffleLabel}
         </button>
       </div>
       <p className="text-xs text-muted-foreground mt-3">
