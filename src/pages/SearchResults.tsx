@@ -1,6 +1,6 @@
 import { useSearchParams, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { searchHighlights, getRecommendedBooks, synthesiseWisdom, getAmazonUrl } from "@/lib/data";
+import { searchHighlightsSemantic, getRecommendedBooks, synthesiseWisdom, getAmazonUrl } from "@/lib/data";
 import type { Highlight } from "@/lib/data";
 import HighlightCard from "@/components/HighlightCard";
 import BookCard from "@/components/BookCard";
@@ -101,18 +101,22 @@ const SynthesisCard = ({
               </div>
             </div>
           ))}
-          <p className="text-xs text-muted-foreground mt-4">
-            Based on {highlightCount} curated highlight{highlightCount !== 1 ? "s" : ""}
-          </p>
+          {highlightCount > 0 && (
+            <p className="text-xs text-muted-foreground mt-4">
+              Based on {highlightCount} curated highlight{highlightCount !== 1 ? "s" : ""}
+            </p>
+          )}
         </div>
       ) : (
         <>
           <div className="text-base leading-relaxed text-foreground prose prose-sm max-w-none prose-p:my-2 prose-strong:text-foreground">
             <ReactMarkdown>{synthesis}</ReactMarkdown>
           </div>
-          <p className="text-xs text-muted-foreground mt-4">
-            Based on {highlightCount} curated highlight{highlightCount !== 1 ? "s" : ""}
-          </p>
+          {highlightCount > 0 && (
+            <p className="text-xs text-muted-foreground mt-4">
+              Based on {highlightCount} curated highlight{highlightCount !== 1 ? "s" : ""}
+            </p>
+          )}
         </>
       )}
     </div>
@@ -124,23 +128,26 @@ const SearchResults = () => {
   const query = searchParams.get("q") || "";
 
   const { data: searchData, isLoading } = useQuery({
-    queryKey: ["search", query],
-    queryFn: () => searchHighlights(query),
+    queryKey: ["search-semantic", query],
+    queryFn: () => searchHighlightsSemantic(query),
     enabled: !!query,
   });
 
   const results = searchData?.highlights ?? [];
   const totalFound = searchData?.totalFound ?? 0;
+  const coverage = searchData?.coverage ?? "good";
+  const coverageMessage = searchData?.message ?? null;
+  const isPoor = coverage === "poor";
 
   const { data: recommendedBooks = [] } = useQuery({
     queryKey: ["recommended", query, results],
     queryFn: () => getRecommendedBooks(query, results),
-    enabled: !!query && results.length > 0,
+    enabled: !!query && results.length > 0 && !isPoor,
   });
 
   const { data: synthesis = "", isLoading: isSynthesising } = useQuery({
-    queryKey: ["synthesis", query, results.length],
-    queryFn: () => synthesiseWisdom(query, results),
+    queryKey: ["synthesis", query, results.length, isPoor],
+    queryFn: () => synthesiseWisdom(query, results, isPoor),
     enabled: !!query && results.length > 0,
   });
 
@@ -161,6 +168,32 @@ const SearchResults = () => {
         <div className="flex items-center justify-center py-12">
           <Loader2 className="h-6 w-6 animate-spin text-primary" />
         </div>
+      ) : isPoor ? (
+        <>
+          <div className="rounded-lg border bg-muted/40 p-5 mb-6 mt-4">
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              {coverageMessage ||
+                "Glean doesn't have strong coverage on this topic yet. Here are a few loosely related ideas that might still help."}
+            </p>
+          </div>
+
+          <SynthesisCard
+            synthesis={synthesis}
+            isLoading={isSynthesising}
+            highlightCount={0}
+          />
+
+          {results.length > 0 && (
+            <div className="space-y-4 mb-12 opacity-80">
+              {results.map((h, i) => (
+                <div key={h.id}>
+                  <HighlightCard highlight={h} index={i} />
+                  <p className="text-xs text-muted-foreground mt-1 ml-1">Loosely related</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
       ) : (
         <>
           <p className="text-sm text-muted-foreground mb-8">
@@ -214,7 +247,12 @@ const SearchResults = () => {
               </h2>
               <div className="space-y-4 mb-12">
                 {results.map((h, i) => (
-                  <HighlightCard key={h.id} highlight={h} index={i} />
+                  <div key={h.id}>
+                    <HighlightCard highlight={h} index={i} />
+                    {h.tier === "moderate" && (
+                      <p className="text-xs text-muted-foreground mt-1 ml-1">Loosely related</p>
+                    )}
+                  </div>
                 ))}
               </div>
             </>
@@ -222,7 +260,7 @@ const SearchResults = () => {
         </>
       )}
 
-      {recommendedBooks.length > 0 && (
+      {recommendedBooks.length > 0 && !isPoor && (
         <div>
           <h2 className="font-display text-xl text-foreground mb-4">
             Books to go deeper
