@@ -363,11 +363,12 @@ const Think = () => {
         </div>
       ) : loadError ? (
         <p className="text-sm text-muted-foreground">{loadError}</p>
-      ) : mode === "forge" && forgeHighlights.length >= 2 ? (
+      ) : mode === "forge" && forgeHighlights.length >= 1 ? (
         <ForgeMode
           highlights={forgeHighlights}
           onSubmit={handleForgeSubmit}
           onComplete={startNewSession}
+          onSkip={handleForgeSkip}
           disabled={limitReached}
         />
       ) : mode === "opponent" && opponentHighlight ? (
