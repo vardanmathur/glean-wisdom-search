@@ -37,6 +37,7 @@ export interface Highlight {
   source?: string;
   userId?: string;
   displayName?: string;
+  tier?: "strong" | "good" | "moderate" | "excluded";
 }
 
 export interface Book {
