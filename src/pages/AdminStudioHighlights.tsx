@@ -15,7 +15,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "
 const ADMIN_EMAIL = "vardan@gmail.com";
 const PAGE_SIZE = 20;
 
-type SortOption = "recent" | "no_notes" | "no_tags";
+type SortOption = "recent" | "oldest" | "no_notes" | "no_tags";
 type ColumnSortState = { col: string; dir: "asc" | "desc" } | null;
 
 interface HighlightRow {
@@ -200,6 +200,9 @@ const AdminStudioHighlights = () => {
         case "recent":
           query = query.order("created_at", { ascending: false });
           break;
+        case "oldest":
+          query = query.order("created_at", { ascending: true });
+          break;
         case "no_notes":
           query = query.order("my_notes", { ascending: true, nullsFirst: true }).order("created_at", { ascending: false });
           break;
@@ -320,6 +323,7 @@ const AdminStudioHighlights = () => {
           <SelectTrigger className="w-[160px]"><SelectValue placeholder="Sort by" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="recent">Most recent</SelectItem>
+            <SelectItem value="oldest">Oldest first</SelectItem>
             <SelectItem value="no_notes">No notes first</SelectItem>
             <SelectItem value="no_tags">No tags first</SelectItem>
           </SelectContent>
