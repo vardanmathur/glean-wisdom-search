@@ -49,9 +49,8 @@ const Index = () => {
         <div className="inline-flex items-center gap-2 text-primary mb-6">
           <Leaf className="h-8 w-8" />
         </div>
-        <h1 className="font-display text-4xl sm:text-5xl font-semibold text-foreground leading-tight mb-4">
-          What's on <br />
-          <span className="text-primary">your mind?</span>
+        <h1 className="font-display text-4xl sm:text-5xl font-semibold text-foreground leading-tight mb-4 text-balance">
+          What's on <span className="text-primary">your mind?</span>
         </h1>
         <p className="text-lg text-muted-foreground max-w-md mx-auto">
           Describe your challenge — I'll surface relevant wisdom <br />
