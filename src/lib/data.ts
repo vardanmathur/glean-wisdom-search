@@ -468,6 +468,26 @@ async function computeKeywordScores(query: string): Promise<{
   return { keywordScores, byId: new Map<string, any>(data.map((h) => [h.id, h])) };
 }
 
+// Lightweight hydration fetch for the semantic path — pulls highlight rows with joined
+// book/profile data so semantic results (id + score) can be turned into full Highlights.
+// No keyword scoring loop.
+async function fetchHighlightsById(): Promise<{ byId: Map<string, any> }> {
+  const PAGE_SIZE = 1000;
+  let data: any[] = [];
+  let from = 0;
+  while (true) {
+    const { data: page, error } = await supabase
+      .from("highlights")
+      .select("id, book_id, quote, tags, my_notes, source, stars, visibility, created_at, user_id, books(title, author, cover_image_url), user_profiles(display_name)")
+      .range(from, from + PAGE_SIZE - 1);
+    if (error || !page || page.length === 0) break;
+    data = data.concat(page);
+    if (page.length < PAGE_SIZE) break;
+    from += PAGE_SIZE;
+  }
+  return { byId: new Map<string, any>(data.map((h) => [h.id, h])) };
+}
+
 export async function searchHighlightsSemantic(
   query: string
 ): Promise<{
