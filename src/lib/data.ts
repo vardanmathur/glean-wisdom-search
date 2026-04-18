@@ -4,13 +4,14 @@ import { supabase } from "@/integrations/supabase/client";
 // AI-powered wisdom synthesis via edge function
 export async function synthesiseWisdom(
   question: string,
-  highlights: Highlight[]
+  highlights: Highlight[],
+  coveragePoor: boolean = false
 ): Promise<string> {
   if (highlights.length === 0) return "";
 
   try {
     const { data, error } = await supabase.functions.invoke("synthesise-wisdom", {
-      body: { question, highlights },
+      body: { question, highlights, coveragePoor },
     });
 
     if (error) {
@@ -36,6 +37,7 @@ export interface Highlight {
   source?: string;
   userId?: string;
   displayName?: string;
+  tier?: "strong" | "good" | "moderate" | "excluded";
 }
 
 export interface Book {
@@ -382,6 +384,155 @@ export async function searchHighlights(
     highlights: top20Highlights.slice(0, Math.min(keywordRanked.length, 10)),
     totalFound,
   };
+}
+
+// ============================================================
+// Semantic search — pgvector-backed via search-semantic edge function
+// Falls back silently to keyword searchHighlights on any failure or timeout.
+// ============================================================
+export async function searchHighlightsSemantic(
+  query: string
+): Promise<{
+  highlights: Highlight[];
+  totalFound: number;
+  coverage: "good" | "poor";
+  message: string | null;
+}> {
+  if (!query.trim()) {
+    return { highlights: [], totalFound: 0, coverage: "good", message: null };
+  }
+
+  // Step 1: keyword scores map (also used to hydrate semantic results + as silent fallback source)
+  const normalisedQuery = normaliseQuery(query);
+  const words = normalisedQuery.split(/\s+/).filter((w) => w.length > 2);
+
+  const PAGE_SIZE = 1000;
+  let data: any[] = [];
+  let from = 0;
+  while (true) {
+    const { data: page, error } = await supabase
+      .from("highlights")
+      .select("*, books(title, author, cover_image_url), user_profiles(display_name)")
+      .range(from, from + PAGE_SIZE - 1);
+    if (error || !page || page.length === 0) break;
+    data = data.concat(page);
+    if (page.length < PAGE_SIZE) break;
+    from += PAGE_SIZE;
+  }
+
+  const keywordScores: Record<string, number> = {};
+  if (words.length > 0) {
+    const expandedTags = expandQueryTags(words);
+    for (const h of data) {
+      let score = 0;
+      const text = `${h.quote} ${h.books?.title || ""} ${h.books?.author || ""}`.toLowerCase();
+      const tags: string[] = h.tags || [];
+      for (const word of words) {
+        if (text.includes(word)) score += 1;
+      }
+      for (const tag of tags) {
+        for (const word of words) {
+          if (tag.toLowerCase().includes(word) || word.includes(tag.toLowerCase())) {
+            score += 3;
+          }
+        }
+      }
+      for (const tag of tags) {
+        if (expandedTags.has(tag)) score += 2;
+      }
+      if (h.my_notes && h.my_notes.trim().length > 0) score += 2;
+      if (h.my_notes) {
+        const notes = h.my_notes.toLowerCase();
+        for (const word of words) {
+          if (notes.includes(word)) score += 3;
+        }
+      }
+      if (score > 0) keywordScores[h.id] = score;
+    }
+  }
+
+  const byId = new Map<string, any>(data.map((h) => [h.id, h]));
+
+  const silentFallback = async () => {
+    const fb = await searchHighlights(query);
+    return {
+      highlights: fb.highlights,
+      totalFound: fb.totalFound,
+      coverage: "good" as const,
+      message: null,
+    };
+  };
+
+  // Step 2: call semantic edge function with 3s timeout
+  try {
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("semantic timeout")), 3000)
+    );
+    const semanticPromise = supabase.functions.invoke("search-semantic", {
+      body: { query, keywordScores },
+    });
+
+    const result = (await Promise.race([semanticPromise, timeoutPromise])) as any;
+    const { data: semData, error: semError } = result;
+    if (semError || !semData) return await silentFallback();
+
+    const coverage = semData.coverage as "good" | "poor";
+    const message = (semData.message as string | null) ?? null;
+
+    if (coverage === "poor") {
+      const suggestions = (semData.suggestions || []) as any[];
+      const hydrated = suggestions
+        .map((s) => {
+          const row = byId.get(s.id);
+          if (!row) return null;
+          const h = toHighlight(row);
+          h.tier = s.tier;
+          return h;
+        })
+        .filter((h): h is Highlight => h !== null);
+      return { highlights: hydrated, totalFound: 0, coverage: "poor", message };
+    }
+
+    const results = (semData.results || []) as any[];
+    const totalFound = results.filter((r) => r.final_score > 0.65).length;
+    const hydrated = results
+      .map((r) => {
+        const row = byId.get(r.id);
+        if (!row) return null;
+        const h = toHighlight(row);
+        h.tier = r.tier;
+        return h;
+      })
+      .filter((h): h is Highlight => h !== null);
+
+    if (hydrated.length === 0) return await silentFallback();
+
+    // Step 3: rerank top results (skip on poor coverage, already handled above)
+    try {
+      const top = hydrated.slice(0, 20);
+      const { data: rerankData, error: rerankError } = await supabase.functions.invoke(
+        "rerank-highlights",
+        { body: { query, highlights: top } }
+      );
+      const aiScores: number[] = rerankData?.scores || [];
+      if (!rerankError && aiScores.length === top.length) {
+        const combined = top.map((h, i) => ({ h, s: aiScores[i] }));
+        combined.sort((a, b) => b.s - a.s);
+        return {
+          highlights: combined.slice(0, 10).map((c) => c.h),
+          totalFound,
+          coverage: "good",
+          message,
+        };
+      }
+    } catch {
+      // rerank failed — use semantic order
+    }
+
+    return { highlights: hydrated.slice(0, 10), totalFound, coverage: "good", message };
+  } catch {
+    return await silentFallback();
+  }
 }
 
 export async function getAllTopics(): Promise<Topic[]> {

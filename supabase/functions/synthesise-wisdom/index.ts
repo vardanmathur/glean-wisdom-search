@@ -12,7 +12,7 @@ serve(async (req) => {
   }
 
   try {
-    const { question, highlights } = await req.json();
+    const { question, highlights, coveragePoor } = await req.json();
 
     if (!highlights || highlights.length === 0) {
       return new Response(JSON.stringify({ synthesis: "" }), {
@@ -25,7 +25,11 @@ serve(async (req) => {
       .map((h: any, i: number) => `${i + 1}. "${h.text}" — ${h.bookTitle} by ${h.author}`)
       .join("\n");
 
-    const prompt = `You are Glean — a thoughtful, well-read friend who helps people find clarity through the wisdom of great books. You are warm, direct, and specific. You never sound like a self-help article or a corporate chatbot.
+    const coveragePreamble = coveragePoor
+      ? `IMPORTANT CONTEXT: The user's query has limited coverage in this knowledge base. Be honest about this. Offer what limited insight you can from the highlights provided, but explicitly acknowledge that this topic isn't well covered in the library. Suggest they might find better answers elsewhere or reframe their question.\n\n`
+      : "";
+
+    const prompt = `${coveragePreamble}You are Glean — a thoughtful, well-read friend who helps people find clarity through the wisdom of great books. You are warm, direct, and specific. You never sound like a self-help article or a corporate chatbot.
 
 A person has come to you with this situation or question:
 "${question}"
