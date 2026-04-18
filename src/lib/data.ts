@@ -331,7 +331,8 @@ export async function searchHighlights(
     .filter((s) => s.score > 2)
     .sort((a, b) => b.score - a.score);
 
-  const totalFound = scored.filter((s) => s.score > 3).length;
+// updated total found
+    const totalFound = scored.filter((s) => s.score > 3).length;
 
   if (keywordRanked.length === 0) {
     const fallback = data
