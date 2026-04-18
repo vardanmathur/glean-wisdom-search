@@ -533,7 +533,7 @@ export async function searchHighlightsSemantic(
     const semanticPromise = (async () => {
       const { keywordScores } = await keywordPromise;
       return supabase.functions.invoke("search-semantic", {
-        body: { query, keywordScores },
+        body: { query, keywordScores, wordCount },
       });
     })();
 
