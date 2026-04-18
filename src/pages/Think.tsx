@@ -254,10 +254,9 @@ const Think = () => {
 
   // ===== Forge submit =====
   const handleForgeSubmit = async (input: string) => {
-    const highlightsBlock = forgeHighlights
-      .map((h, i) => `${i + 1}. "${h.quote}"${h.bookTitle ? ` — ${h.bookTitle}` : ""}`)
-      .join("\n");
-    const userContent = `Highlights:\n${highlightsBlock}\n\nMy principle that connects them: ${input}`;
+    const h = forgeHighlights[0];
+    const highlightLine = h ? `"${h.quote}"${h.bookTitle ? ` — ${h.bookTitle}${h.author ? `, ${h.author}` : ""}` : ""}` : "";
+    const userContent = `Highlight:\n${highlightLine}\n\nWhat this means to me right now: ${input}`;
 
     const result = await callAi({
       mode: "forge",
