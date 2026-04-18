@@ -92,7 +92,7 @@ const normaliseQuery = (q: string): string => {
   return q
     .toLowerCase()
     .replace(/[^a-z0-9\s]/g, " ")
-    .replace(/\b(i|me|my|we|our|you|your|am|is|are|was|were|be|been|being|have|has|had|do|does|did|will|would|could|should|can|may|might|a|an|the|and|or|but|in|on|at|to|for|of|with|about|how|what|why|when|who|so|very|really|just|feel|feeling|felt|im|ive|dont|cant|wont|its)\b/g, " ")
+    .replace(/\b(i|me|my|we|our|you|your|am|is|are|was|were|be|been|being|have|has|had|do|does|did|will|would|could|should|can|may|might|a|an|the|and|or|but|in|on|at|to|for|of|with|about|how|what|why|when|who|so|very|really|just|feel|feeling|felt|im|ive|dont|cant|wont|its|out|don|know|like|want|need|good|make|take|get|got|let|put|set)\b/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 };
@@ -524,7 +524,7 @@ export async function searchHighlightsSemantic(
 
   if (cached) {
     try {
-      const { byId } = await computeKeywordScores(query);
+      const { byId } = await fetchHighlightsById();
       return hydrateSemanticResponse(cached, byId);
     } catch {
       return await silentFallback();
@@ -536,20 +536,19 @@ export async function searchHighlightsSemantic(
       setTimeout(() => reject(new Error("semantic timeout")), 8000)
     );
 
-    const keywordPromise = computeKeywordScores(query);
-    const semanticPromise = (async () => {
-      const { keywordScores } = await keywordPromise;
-      return supabase.functions.invoke("search-semantic", {
-        body: { query, keywordScores, wordCount },
-      });
-    })();
+    // Pure vector scoring — no keyword blending. Fetch rows in parallel only for hydration
+    // (book title/author/cover lookup); no scoring loop.
+    const hydrationPromise = fetchHighlightsById();
+    const semanticPromise = supabase.functions.invoke("search-semantic", {
+      body: { query, wordCount },
+    });
 
     const [{ byId }, semResult] = (await Promise.race([
-      Promise.all([keywordPromise, semanticPromise]),
+      Promise.all([hydrationPromise, semanticPromise]),
       timeoutPromise.then(() => {
         throw new Error("semantic timeout");
       }),
-    ])) as [{ keywordScores: Record<string, number>; byId: Map<string, any> }, any];
+    ])) as [{ byId: Map<string, any> }, any];
 
     const { data: semData, error: semError } = semResult;
     if (semError || !semData) {
