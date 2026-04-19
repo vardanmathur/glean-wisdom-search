@@ -1,0 +1,1 @@
+ALTER TABLE public.kindle_import_staging ADD COLUMN IF NOT EXISTS client_id text;
