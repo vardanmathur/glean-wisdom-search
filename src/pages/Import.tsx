@@ -1449,36 +1449,54 @@ const Import = () => {
                 Books needing author information
               </h2>
               <p className="text-sm text-muted-foreground mb-4">
-                Add author names so these books are correctly attributed in your library.
+                Fix garbled book titles and add author names so these books are correctly attributed in your library.
               </p>
-              <div className="space-y-3">
+              <div className="space-y-5">
                 {booksMissingAuthor.map((title) => (
-                  <div key={title} className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                    <div className="flex items-center gap-2 sm:w-1/2">
-                      <BookOpen className="h-4 w-4 text-muted-foreground shrink-0" />
-                      <span className="truncate text-sm font-medium text-foreground">{title}</span>
+                  <div key={title} className="space-y-2 rounded-md border border-border/60 bg-background/40 p-3">
+                    <div className="flex items-start gap-2">
+                      <BookOpen className="mt-2 h-4 w-4 text-muted-foreground shrink-0" />
+                      <div className="flex-1">
+                        <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                          Book title
+                        </label>
+                        <Input
+                          value={titleEdits[title] ?? title}
+                          onChange={(e) => setTitleEdits((prev) => ({ ...prev, [title]: e.target.value }))}
+                          onBlur={() => {
+                            const v = titleEdits[title];
+                            if (v && v.trim() && v.trim() !== title) setTitleForBook(title, v);
+                          }}
+                          placeholder="Book title"
+                        />
+                      </div>
                     </div>
-                    <div className="flex flex-1 gap-2">
-                      <Input
-                        placeholder="Author name (First Last)"
-                        value={authorEdits[title] ?? ""}
-                        onChange={(e) => setAuthorEdits((prev) => ({ ...prev, [title]: e.target.value }))}
-                        onBlur={() => {
-                          const v = authorEdits[title];
-                          if (v && v.trim()) setAuthorForBook(title, v);
-                        }}
-                      />
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          const v = authorEdits[title];
-                          if (v && v.trim()) setAuthorForBook(title, v);
-                        }}
-                        disabled={!authorEdits[title]?.trim()}
-                      >
-                        Save
-                      </Button>
+                    <div className="pl-6">
+                      <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                        Author
+                      </label>
+                      <div className="flex gap-2">
+                        <Input
+                          placeholder="Author name (First Last)"
+                          value={authorEdits[title] ?? ""}
+                          onChange={(e) => setAuthorEdits((prev) => ({ ...prev, [title]: e.target.value }))}
+                          onBlur={() => {
+                            const v = authorEdits[title];
+                            if (v && v.trim()) setAuthorForBook(title, v);
+                          }}
+                        />
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            const v = authorEdits[title];
+                            if (v && v.trim()) setAuthorForBook(title, v);
+                          }}
+                          disabled={!authorEdits[title]?.trim()}
+                        >
+                          Save
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 ))}
