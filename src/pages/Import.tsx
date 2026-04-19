@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo } from "react";
+import { useState, useRef, useMemo, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { supabase } from "@/integrations/supabase/client";
@@ -7,7 +7,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ChevronDown, Upload, FileText, ArrowLeft, AlertCircle, Loader2, CheckCircle2, BookOpen } from "lucide-react";
+import { ChevronDown, Upload, FileText, ArrowLeft, AlertCircle, Loader2, CheckCircle2, BookOpen, Undo2 } from "lucide-react";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
 
@@ -74,24 +74,69 @@ function parseKindleDate(raw: string): Date | null {
   }
 }
 
+// Reverses "Last, First" → "First Last". Returns null if input doesn't look like a comma-name.
+function reverseIfCommaName(s: string): string | null {
+  const trimmed = s.trim();
+  if (!trimmed.includes(",")) return null;
+  const parts = trimmed.split(",", 2).map((p) => p.trim());
+  if (parts.length !== 2 || !parts[0] || !parts[1]) return null;
+  // Sanity: each part should look name-like (letters, spaces, hyphens, dots, apostrophes)
+  const nameRe = /^[\p{L}][\p{L}\s.\-']*$/u;
+  if (!nameRe.test(parts[0]) || !nameRe.test(parts[1])) return null;
+  return `${parts[1]} ${parts[0]}`;
+}
+
 function parseTitleAndAuthor(rawTitle: string): { title: string; author: string | null; unknown: boolean } {
   const t = rawTitle.trim();
+
+  // Pattern 1: "Title (Author)" or "Title (Last, First)"
   const p1 = t.match(/^(.+?)\s*\(([^()]+)\)\s*$/);
   if (p1) {
     const inside = p1[2].trim();
-    if (inside.includes(",")) {
-      const [last, first] = inside.split(",", 2).map((s) => s.trim());
-      if (last && first) {
-        return { title: p1[1].trim(), author: `${first} ${last}`, unknown: false };
-      }
-    } else if (inside.length > 0) {
+    const reversed = reverseIfCommaName(inside);
+    if (reversed) {
+      return { title: p1[1].trim(), author: reversed, unknown: false };
+    }
+    if (inside.length > 0) {
       return { title: p1[1].trim(), author: inside, unknown: false };
     }
   }
+
+  // Pattern 2: "Title by Author"
   const p2 = t.match(/^(.+?)\s+by\s+(.+)$/i);
   if (p2) {
-    return { title: p2[1].trim(), author: p2[2].trim(), unknown: false };
+    const authorPart = p2[2].trim();
+    const reversed = reverseIfCommaName(authorPart);
+    return { title: p2[1].trim(), author: reversed ?? authorPart, unknown: false };
   }
+
+  // Pattern 3: dash- or colon-separated "Title - Last, First" or "Last, First - Title"
+  // Try splitting on " - " or " : " (with spaces, to avoid breaking hyphenated titles)
+  for (const sep of [" - ", " — ", " : "]) {
+    const idx = t.lastIndexOf(sep);
+    if (idx > 0) {
+      const left = t.slice(0, idx).trim();
+      const right = t.slice(idx + sep.length).trim();
+      // Try right side as comma-name
+      const rightReversed = reverseIfCommaName(right);
+      if (rightReversed) {
+        return { title: left, author: rightReversed, unknown: false };
+      }
+      // Try left side as comma-name (author prefix)
+      const leftReversed = reverseIfCommaName(left);
+      if (leftReversed) {
+        return { title: right, author: leftReversed, unknown: false };
+      }
+    }
+  }
+
+  // Pattern 4: bare "Last, First" with no title context — treat as unknown title,
+  // but at least don't store the comma-form verbatim if it's clearly a name.
+  const bareReversed = reverseIfCommaName(t);
+  if (bareReversed) {
+    return { title: t, author: bareReversed, unknown: false };
+  }
+
   return { title: t, author: null, unknown: true };
 }
 
@@ -382,6 +427,8 @@ const Import = () => {
   const [stagedRows, setStagedRows] = useState<StagedRow[]>([]);
   const [matchLookup, setMatchLookup] = useState<Record<string, MatchSource>>({});
   const [authorEdits, setAuthorEdits] = useState<Record<string, string>>({}); // book_title -> author
+  const [titleEdits, setTitleEdits] = useState<Record<string, string>>({}); // current_title -> draft_new_title
+  const [reviewSnapshot, setReviewSnapshot] = useState<string[] | null>(null); // staged-row IDs originally flagged near_duplicate
   const [importing, setImporting] = useState(false);
   const [importProgress, setImportProgress] = useState({ done: 0, total: 0 });
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
@@ -409,6 +456,25 @@ const Import = () => {
 
   const allReviewResolved = reviewItems.length === 0;
   const allAuthorsFilled = booksMissingAuthor.length === 0;
+
+  // Snapshot of originally-flagged rows so cards persist after Keep/Skip (for dim + Undo + progress)
+  const reviewSnapshotRows = useMemo(() => {
+    if (!reviewSnapshot) return [];
+    const byId = new Map(stagedRows.map((r) => [r.id, r]));
+    return reviewSnapshot.map((id) => byId.get(id)).filter((r): r is StagedRow => !!r);
+  }, [reviewSnapshot, stagedRows]);
+  const reviewDecidedCount = useMemo(
+    () => reviewSnapshotRows.filter((r) => r.status !== "near_duplicate").length,
+    [reviewSnapshotRows]
+  );
+
+  // Capture snapshot once when entering Step 3 with near-duplicates present
+  useEffect(() => {
+    if (step === 3 && reviewSnapshot === null && stagedRows.length > 0) {
+      const flagged = stagedRows.filter((r) => r.status === "near_duplicate").map((r) => r.id);
+      setReviewSnapshot(flagged);
+    }
+  }, [step, reviewSnapshot, stagedRows]);
 
   if (authLoading || permLoading) {
     return (
@@ -576,7 +642,7 @@ const Import = () => {
             .from("highlights")
             .select("created_at")
             .eq("user_id", user.id)
-            .eq("source", "kindle")
+            .eq("source", "user")
             .order("created_at", { ascending: false })
             .limit(1)
             .maybeSingle(),
@@ -848,6 +914,45 @@ const Import = () => {
     toast.success(`Author saved for "${bookTitle}"`);
   };
 
+  const setTitleForBook = async (oldTitle: string, newTitle: string) => {
+    const trimmed = newTitle.trim();
+    if (!trimmed || trimmed === oldTitle) return;
+    const { error: e } = await supabase
+      .from("kindle_import_staging")
+      .update({ book_title: trimmed })
+      .eq("user_id", user!.id)
+      .eq("session_id", sessionId!)
+      .eq("book_title", oldTitle);
+    if (e) { toast.error("Could not rename book"); return; }
+    setStagedRows((prev) => prev.map((r) => (r.book_title === oldTitle ? { ...r, book_title: trimmed } : r)));
+    // Migrate per-book draft state from old title key to new title key
+    setAuthorEdits((prev) => {
+      if (!(oldTitle in prev)) return prev;
+      const next = { ...prev };
+      next[trimmed] = next[oldTitle];
+      delete next[oldTitle];
+      return next;
+    });
+    setTitleEdits((prev) => {
+      const next = { ...prev };
+      // Drop the draft entry for the old key (input will rebind to new title)
+      delete next[oldTitle];
+      delete next[trimmed];
+      return next;
+    });
+    toast.success(`Renamed to "${trimmed}"`);
+  };
+
+  const undoRow = async (row: StagedRow) => {
+    const { error: e } = await supabase
+      .from("kindle_import_staging")
+      .update({ status: "near_duplicate" })
+      .eq("id", row.id)
+      .eq("user_id", user!.id);
+    if (e) { toast.error("Could not undo"); return; }
+    setStagedRows((prev) => prev.map((r) => (r.id === row.id ? { ...r, status: "near_duplicate" } : r)));
+  };
+
 
 
   // ============================================================================
@@ -1013,6 +1118,8 @@ const Import = () => {
     setStagedRows([]);
     setMatchLookup({});
     setAuthorEdits({});
+    setTitleEdits({});
+    setReviewSnapshot(null);
     setImportResult(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
@@ -1246,34 +1353,48 @@ const Import = () => {
           </Card>
 
           {/* Section 2 — Needs review */}
-          {reviewItems.length > 0 && (
+          {reviewSnapshotRows.length > 0 && (
             <Card className="p-6">
-              <h2 className="font-display text-xl font-semibold text-foreground mb-1">
-                Needs your review
-              </h2>
-              <p className="text-sm text-muted-foreground mb-4">
-                {reviewItems.length} {reviewItems.length === 1 ? "highlight looks" : "highlights look"} similar to existing ones. Decide whether to keep or skip each.
+              <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2">
+                <h2 className="font-display text-xl font-semibold text-foreground">
+                  Needs your review
+                </h2>
+                <span className="text-sm text-muted-foreground">
+                  {reviewDecidedCount} of {reviewSnapshotRows.length} reviewed
+                </span>
+              </div>
+              <p className="text-sm text-muted-foreground mb-2">
+                {reviewSnapshotRows.length} {reviewSnapshotRows.length === 1 ? "highlight looks" : "highlights look"} similar to existing ones. Decide whether to import or skip each.
+              </p>
+              <p className="text-xs text-muted-foreground mb-4 italic">
+                Your existing library is never modified — you are only deciding which new highlights to add.
               </p>
               <div className="space-y-4">
-                {reviewItems.map((row) => {
+                {reviewSnapshotRows.map((row) => {
                   const match = row.duplicate_of ? matchLookup[row.duplicate_of] : null;
+                  const decided = row.status !== "near_duplicate";
+                  const willImport = row.status === "pending";
+                  const rightLabel = match
+                    ? match.scope === "import"
+                      ? "Similar highlight in this import — the longer one will be kept by default"
+                      : "Already in your library — will not be deleted"
+                    : "Match reference unavailable";
                   return (
-                    <div key={row.id} className="rounded-lg border border-border bg-muted/20 p-4">
+                    <div
+                      key={row.id}
+                      className={`rounded-lg border border-border bg-muted/20 p-4 transition-opacity ${decided ? "opacity-60" : ""}`}
+                    >
                       <div className="grid gap-3 sm:grid-cols-2">
                         <div>
                           <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-1.5">
-                            New highlight
+                            This highlight
                           </div>
                           <div className="text-sm font-medium text-foreground mb-1 truncate">{row.book_title}</div>
                           <div className="text-sm text-foreground whitespace-pre-wrap">{row.quote}</div>
                         </div>
                         <div>
                           <div className="text-xs font-medium uppercase tracking-wide text-primary mb-1.5">
-                            {match
-                              ? match.scope === "import"
-                                ? "Already in this import"
-                                : "Already in your library"
-                              : "Match reference unavailable"}
+                            {rightLabel}
                           </div>
                           {match ? (
                             <>
@@ -1287,13 +1408,32 @@ const Import = () => {
                           )}
                         </div>
                       </div>
-                      <div className="mt-4 flex justify-end gap-2">
-                        <Button variant="outline" size="sm" onClick={() => skipRow(row)}>
-                          Skip
-                        </Button>
-                        <Button size="sm" onClick={() => keepRow(row)}>
-                          Keep
-                        </Button>
+                      <div className="mt-4 flex items-center justify-between gap-2">
+                        {decided ? (
+                          <div className="flex items-center gap-1.5 text-xs font-medium text-primary">
+                            <CheckCircle2 className="h-4 w-4" />
+                            <span>{willImport ? "Will import" : "Will skip"}</span>
+                          </div>
+                        ) : (
+                          <span />
+                        )}
+                        <div className="flex gap-2">
+                          {decided ? (
+                            <Button variant="outline" size="sm" onClick={() => undoRow(row)}>
+                              <Undo2 className="mr-1.5 h-3.5 w-3.5" />
+                              Undo
+                            </Button>
+                          ) : (
+                            <>
+                              <Button variant="outline" size="sm" onClick={() => skipRow(row)}>
+                                Skip this one
+                              </Button>
+                              <Button size="sm" onClick={() => keepRow(row)}>
+                                Import this one
+                              </Button>
+                            </>
+                          )}
+                        </div>
                       </div>
                     </div>
                   );
@@ -1309,36 +1449,54 @@ const Import = () => {
                 Books needing author information
               </h2>
               <p className="text-sm text-muted-foreground mb-4">
-                Add author names so these books are correctly attributed in your library.
+                Fix garbled book titles and add author names so these books are correctly attributed in your library.
               </p>
-              <div className="space-y-3">
+              <div className="space-y-5">
                 {booksMissingAuthor.map((title) => (
-                  <div key={title} className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                    <div className="flex items-center gap-2 sm:w-1/2">
-                      <BookOpen className="h-4 w-4 text-muted-foreground shrink-0" />
-                      <span className="truncate text-sm font-medium text-foreground">{title}</span>
+                  <div key={title} className="space-y-2 rounded-md border border-border/60 bg-background/40 p-3">
+                    <div className="flex items-start gap-2">
+                      <BookOpen className="mt-2 h-4 w-4 text-muted-foreground shrink-0" />
+                      <div className="flex-1">
+                        <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                          Book title
+                        </label>
+                        <Input
+                          value={titleEdits[title] ?? title}
+                          onChange={(e) => setTitleEdits((prev) => ({ ...prev, [title]: e.target.value }))}
+                          onBlur={() => {
+                            const v = titleEdits[title];
+                            if (v && v.trim() && v.trim() !== title) setTitleForBook(title, v);
+                          }}
+                          placeholder="Book title"
+                        />
+                      </div>
                     </div>
-                    <div className="flex flex-1 gap-2">
-                      <Input
-                        placeholder="Author name (First Last)"
-                        value={authorEdits[title] ?? ""}
-                        onChange={(e) => setAuthorEdits((prev) => ({ ...prev, [title]: e.target.value }))}
-                        onBlur={() => {
-                          const v = authorEdits[title];
-                          if (v && v.trim()) setAuthorForBook(title, v);
-                        }}
-                      />
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          const v = authorEdits[title];
-                          if (v && v.trim()) setAuthorForBook(title, v);
-                        }}
-                        disabled={!authorEdits[title]?.trim()}
-                      >
-                        Save
-                      </Button>
+                    <div className="pl-6">
+                      <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                        Author
+                      </label>
+                      <div className="flex gap-2">
+                        <Input
+                          placeholder="Author name (First Last)"
+                          value={authorEdits[title] ?? ""}
+                          onChange={(e) => setAuthorEdits((prev) => ({ ...prev, [title]: e.target.value }))}
+                          onBlur={() => {
+                            const v = authorEdits[title];
+                            if (v && v.trim()) setAuthorForBook(title, v);
+                          }}
+                        />
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            const v = authorEdits[title];
+                            if (v && v.trim()) setAuthorForBook(title, v);
+                          }}
+                          disabled={!authorEdits[title]?.trim()}
+                        >
+                          Save
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 ))}
