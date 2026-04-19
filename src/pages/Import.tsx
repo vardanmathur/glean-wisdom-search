@@ -108,13 +108,14 @@ function parseClippings(contents: string): {
   oversizedCount: number;
   malformedCount: number;
 } {
-  const blocks = contents.split("==========");
+  const normalized = contents.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  const blocks = normalized.split("==========");
   const highlights: ParsedHighlight[] = [];
   let oversizedCount = 0;
   let malformedCount = 0;
 
   for (const rawBlock of blocks) {
-    const block = rawBlock.replace(/^\uFEFF/, "").trim();
+    const block = rawBlock.replace(/\uFEFF/g, "").trim();
     if (!block) continue;
 
     try {
