@@ -521,7 +521,7 @@ const Import = () => {
       setParsing(false);
       setSaving(false);
     }
-  }, [fileContents, user]);
+  };
 
   const goBackToStep1 = async () => {
     if (user) {
