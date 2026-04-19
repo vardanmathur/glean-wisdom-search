@@ -427,6 +427,8 @@ const Import = () => {
   const [stagedRows, setStagedRows] = useState<StagedRow[]>([]);
   const [matchLookup, setMatchLookup] = useState<Record<string, MatchSource>>({});
   const [authorEdits, setAuthorEdits] = useState<Record<string, string>>({}); // book_title -> author
+  const [titleEdits, setTitleEdits] = useState<Record<string, string>>({}); // current_title -> draft_new_title
+  const [reviewSnapshot, setReviewSnapshot] = useState<string[] | null>(null); // staged-row IDs originally flagged near_duplicate
   const [importing, setImporting] = useState(false);
   const [importProgress, setImportProgress] = useState({ done: 0, total: 0 });
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
