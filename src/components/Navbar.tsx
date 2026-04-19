@@ -75,19 +75,21 @@ const Navbar = () => {
           {hasPermission("import") && (
             <Link
               to="/import"
-              className="hidden sm:inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+              className="inline-flex items-center gap-1.5 rounded-lg px-2 sm:px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+              title="Import"
             >
               <Upload className="h-4 w-4" />
-              Import
+              <span className="hidden sm:inline">Import</span>
             </Link>
           )}
           {isAdmin && (
             <Link
               to="/admin/permissions"
-              className="hidden sm:inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+              className="inline-flex items-center gap-1.5 rounded-lg px-2 sm:px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+              title="Permissions"
             >
               <Shield className="h-4 w-4" />
-              Permissions
+              <span className="hidden sm:inline">Permissions</span>
             </Link>
           )}
           <Link
