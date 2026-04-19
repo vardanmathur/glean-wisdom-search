@@ -1353,34 +1353,48 @@ const Import = () => {
           </Card>
 
           {/* Section 2 — Needs review */}
-          {reviewItems.length > 0 && (
+          {reviewSnapshotRows.length > 0 && (
             <Card className="p-6">
-              <h2 className="font-display text-xl font-semibold text-foreground mb-1">
-                Needs your review
-              </h2>
-              <p className="text-sm text-muted-foreground mb-4">
-                {reviewItems.length} {reviewItems.length === 1 ? "highlight looks" : "highlights look"} similar to existing ones. Decide whether to keep or skip each.
+              <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2">
+                <h2 className="font-display text-xl font-semibold text-foreground">
+                  Needs your review
+                </h2>
+                <span className="text-sm text-muted-foreground">
+                  {reviewDecidedCount} of {reviewSnapshotRows.length} reviewed
+                </span>
+              </div>
+              <p className="text-sm text-muted-foreground mb-2">
+                {reviewSnapshotRows.length} {reviewSnapshotRows.length === 1 ? "highlight looks" : "highlights look"} similar to existing ones. Decide whether to import or skip each.
+              </p>
+              <p className="text-xs text-muted-foreground mb-4 italic">
+                Your existing library is never modified — you are only deciding which new highlights to add.
               </p>
               <div className="space-y-4">
-                {reviewItems.map((row) => {
+                {reviewSnapshotRows.map((row) => {
                   const match = row.duplicate_of ? matchLookup[row.duplicate_of] : null;
+                  const decided = row.status !== "near_duplicate";
+                  const willImport = row.status === "pending";
+                  const rightLabel = match
+                    ? match.scope === "import"
+                      ? "Similar highlight in this import — the longer one will be kept by default"
+                      : "Already in your library — will not be deleted"
+                    : "Match reference unavailable";
                   return (
-                    <div key={row.id} className="rounded-lg border border-border bg-muted/20 p-4">
+                    <div
+                      key={row.id}
+                      className={`rounded-lg border border-border bg-muted/20 p-4 transition-opacity ${decided ? "opacity-60" : ""}`}
+                    >
                       <div className="grid gap-3 sm:grid-cols-2">
                         <div>
                           <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-1.5">
-                            New highlight
+                            This highlight
                           </div>
                           <div className="text-sm font-medium text-foreground mb-1 truncate">{row.book_title}</div>
                           <div className="text-sm text-foreground whitespace-pre-wrap">{row.quote}</div>
                         </div>
                         <div>
                           <div className="text-xs font-medium uppercase tracking-wide text-primary mb-1.5">
-                            {match
-                              ? match.scope === "import"
-                                ? "Already in this import"
-                                : "Already in your library"
-                              : "Match reference unavailable"}
+                            {rightLabel}
                           </div>
                           {match ? (
                             <>
@@ -1394,13 +1408,32 @@ const Import = () => {
                           )}
                         </div>
                       </div>
-                      <div className="mt-4 flex justify-end gap-2">
-                        <Button variant="outline" size="sm" onClick={() => skipRow(row)}>
-                          Skip
-                        </Button>
-                        <Button size="sm" onClick={() => keepRow(row)}>
-                          Keep
-                        </Button>
+                      <div className="mt-4 flex items-center justify-between gap-2">
+                        {decided ? (
+                          <div className="flex items-center gap-1.5 text-xs font-medium text-primary">
+                            <CheckCircle2 className="h-4 w-4" />
+                            <span>{willImport ? "Will import" : "Will skip"}</span>
+                          </div>
+                        ) : (
+                          <span />
+                        )}
+                        <div className="flex gap-2">
+                          {decided ? (
+                            <Button variant="outline" size="sm" onClick={() => undoRow(row)}>
+                              <Undo2 className="mr-1.5 h-3.5 w-3.5" />
+                              Undo
+                            </Button>
+                          ) : (
+                            <>
+                              <Button variant="outline" size="sm" onClick={() => skipRow(row)}>
+                                Skip this one
+                              </Button>
+                              <Button size="sm" onClick={() => keepRow(row)}>
+                                Import this one
+                              </Button>
+                            </>
+                          )}
+                        </div>
                       </div>
                     </div>
                   );
