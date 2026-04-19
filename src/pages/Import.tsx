@@ -931,7 +931,7 @@ const Import = () => {
           quote: r.quote,
           book_id,
           my_notes: r.my_notes,
-          source: "kindle",
+          source: "user",
           visibility: "private",
           user_id: user.id,
           created_at: createdAt,
