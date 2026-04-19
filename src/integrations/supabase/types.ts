@@ -104,6 +104,59 @@ export type Database = {
           },
         ]
       }
+      kindle_import_staging: {
+        Row: {
+          author: string | null
+          book_title: string
+          created_at: string
+          duplicate_of: string | null
+          id: string
+          kindle_location: string | null
+          kindle_timestamp: string | null
+          my_notes: string | null
+          quote: string
+          session_id: string
+          status: string
+          user_id: string
+        }
+        Insert: {
+          author?: string | null
+          book_title: string
+          created_at?: string
+          duplicate_of?: string | null
+          id?: string
+          kindle_location?: string | null
+          kindle_timestamp?: string | null
+          my_notes?: string | null
+          quote: string
+          session_id: string
+          status?: string
+          user_id: string
+        }
+        Update: {
+          author?: string | null
+          book_title?: string
+          created_at?: string
+          duplicate_of?: string | null
+          id?: string
+          kindle_location?: string | null
+          kindle_timestamp?: string | null
+          my_notes?: string | null
+          quote?: string
+          session_id?: string
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "kindle_import_staging_duplicate_of_fkey"
+            columns: ["duplicate_of"]
+            isOneToOne: false
+            referencedRelation: "highlights"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       saved_highlights: {
         Row: {
           created_at: string
