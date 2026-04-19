@@ -447,9 +447,20 @@ const Import = () => {
     return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0]));
   }, [pendingItems]);
   const booksMissingAuthor = useMemo(() => {
+    const looksGarbled = (title: string): boolean => {
+      if (!title) return false;
+      // Contains any underscore
+      if (title.includes("_")) return true;
+      // Contains multiple consecutive dashes or underscores
+      if (/--|__/.test(title)) return true;
+      // No spaces and entirely lowercase letters/digits
+      if (!/\s/.test(title) && /^[a-z0-9]+$/.test(title)) return true;
+      return false;
+    };
     const set = new Set<string>();
     for (const r of pendingItems) {
-      if (!r.author || r.author.trim() === "") set.add(r.book_title);
+      const noAuthor = !r.author || r.author.trim() === "";
+      if (noAuthor || looksGarbled(r.book_title)) set.add(r.book_title);
     }
     return Array.from(set).sort();
   }, [pendingItems]);
@@ -880,14 +891,38 @@ const Import = () => {
   // ============================================================================
   // Step 3 actions
   // ============================================================================
+  // For Level 1 (within-import) duplicates, find the partner staged row
+  // (the "winner" referenced by row.duplicate_of, only if it is also a staging row).
+  const getLevel1Partner = (row: StagedRow): StagedRow | null => {
+    if (!row.duplicate_of) return null;
+    const match = matchLookup[row.duplicate_of];
+    if (!match || match.scope !== "import") return null;
+    return stagedRows.find((r) => r.id === row.duplicate_of) ?? null;
+  };
+
   const keepRow = async (row: StagedRow) => {
+    const partner = getLevel1Partner(row);
+    // Update this row → pending
     const { error: e } = await supabase
       .from("kindle_import_staging")
       .update({ status: "pending" })
       .eq("id", row.id)
       .eq("user_id", user!.id);
     if (e) { toast.error("Could not keep highlight"); return; }
-    setStagedRows((prev) => prev.map((r) => (r.id === row.id ? { ...r, status: "pending" } : r)));
+    // Level 1: flip partner (winner) → skipped so we don't double-import
+    if (partner) {
+      const { error: pe } = await supabase
+        .from("kindle_import_staging")
+        .update({ status: "skipped" })
+        .eq("id", partner.id)
+        .eq("user_id", user!.id);
+      if (pe) { toast.error("Could not update duplicate partner"); return; }
+    }
+    setStagedRows((prev) => prev.map((r) => {
+      if (r.id === row.id) return { ...r, status: "pending" };
+      if (partner && r.id === partner.id) return { ...r, status: "skipped" };
+      return r;
+    }));
   };
 
   const skipRow = async (row: StagedRow) => {
@@ -897,6 +932,8 @@ const Import = () => {
       .eq("id", row.id)
       .eq("user_id", user!.id);
     if (e) { toast.error("Could not skip highlight"); return; }
+    // Level 1: partner (winner) stays pending — it's the surviving copy.
+    // Level 2: library row is never touched.
     setStagedRows((prev) => prev.map((r) => (r.id === row.id ? { ...r, status: "skipped" } : r)));
   };
 
@@ -944,13 +981,27 @@ const Import = () => {
   };
 
   const undoRow = async (row: StagedRow) => {
+    const partner = getLevel1Partner(row);
     const { error: e } = await supabase
       .from("kindle_import_staging")
       .update({ status: "near_duplicate" })
       .eq("id", row.id)
       .eq("user_id", user!.id);
     if (e) { toast.error("Could not undo"); return; }
-    setStagedRows((prev) => prev.map((r) => (r.id === row.id ? { ...r, status: "near_duplicate" } : r)));
+    // Level 1: restore partner (winner) back to near_duplicate too if we previously skipped it
+    if (partner && partner.status === "skipped") {
+      const { error: pe } = await supabase
+        .from("kindle_import_staging")
+        .update({ status: "near_duplicate" })
+        .eq("id", partner.id)
+        .eq("user_id", user!.id);
+      if (pe) { toast.error("Could not restore duplicate partner"); return; }
+    }
+    setStagedRows((prev) => prev.map((r) => {
+      if (r.id === row.id) return { ...r, status: "near_duplicate" };
+      if (partner && r.id === partner.id && r.status === "skipped") return { ...r, status: "near_duplicate" };
+      return r;
+    }));
   };
 
 
@@ -1382,32 +1433,43 @@ const Import = () => {
                   return (
                     <div
                       key={row.id}
-                      className={`rounded-lg border border-border bg-muted/20 p-4 transition-opacity ${decided ? "opacity-60" : ""}`}
+                      className={`rounded-lg border border-border bg-muted/20 p-4 transition-opacity ${decided ? "opacity-70" : ""}`}
                     >
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        <div>
-                          <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-1.5">
-                            This highlight
-                          </div>
-                          <div className="text-sm font-medium text-foreground mb-1 truncate">{row.book_title}</div>
-                          <div className="text-sm text-foreground whitespace-pre-wrap">{row.quote}</div>
-                        </div>
-                        <div>
-                          <div className="text-xs font-medium uppercase tracking-wide text-primary mb-1.5">
-                            {rightLabel}
-                          </div>
-                          {match ? (
-                            <>
-                              <div className="text-sm font-medium text-foreground mb-1 truncate">{match.book_title}</div>
-                              <div className="text-sm text-foreground whitespace-pre-wrap">{match.quote}</div>
-                            </>
-                          ) : (
-                            <div className="text-sm text-muted-foreground italic">
-                              Could not load the matching highlight.
+                      {(() => {
+                        // Survivor side: which panel will end up in the library
+                        // - decided + willImport → left (this row imports)
+                        // - decided + skip       → right (partner/library is the kept copy)
+                        const leftIsSurvivor = decided && willImport;
+                        const rightIsSurvivor = decided && !willImport;
+                        const survivorCls = "rounded-md border-l-4 border-l-emerald-500 bg-emerald-500/5 pl-3 py-2 -ml-1";
+                        const skippedQuoteCls = "line-through text-muted-foreground/60";
+                        return (
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            <div className={leftIsSurvivor ? survivorCls : ""}>
+                              <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-1.5">
+                                This highlight
+                              </div>
+                              <div className="text-sm font-medium text-foreground mb-1 truncate">{row.book_title}</div>
+                              <div className={`text-sm whitespace-pre-wrap ${rightIsSurvivor ? skippedQuoteCls : "text-foreground"}`}>{row.quote}</div>
                             </div>
-                          )}
-                        </div>
-                      </div>
+                            <div className={rightIsSurvivor ? survivorCls : ""}>
+                              <div className="text-xs font-medium uppercase tracking-wide text-primary mb-1.5">
+                                {rightLabel}
+                              </div>
+                              {match ? (
+                                <>
+                                  <div className="text-sm font-medium text-foreground mb-1 truncate">{match.book_title}</div>
+                                  <div className={`text-sm whitespace-pre-wrap ${leftIsSurvivor && match.scope === "import" ? skippedQuoteCls : "text-foreground"}`}>{match.quote}</div>
+                                </>
+                              ) : (
+                                <div className="text-sm text-muted-foreground italic">
+                                  Could not load the matching highlight.
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })()}
                       <div className="mt-4 flex items-center justify-between gap-2">
                         {decided ? (
                           <div className="flex items-center gap-1.5 text-xs font-medium text-primary">
@@ -1446,7 +1508,7 @@ const Import = () => {
           {booksMissingAuthor.length > 0 && (
             <Card className="p-6">
               <h2 className="font-display text-xl font-semibold text-foreground mb-1">
-                Books needing author information
+                Books needing attention
               </h2>
               <p className="text-sm text-muted-foreground mb-4">
                 Fix garbled book titles and add author names so these books are correctly attributed in your library.
