@@ -1508,7 +1508,7 @@ const Import = () => {
           {booksMissingAuthor.length > 0 && (
             <Card className="p-6">
               <h2 className="font-display text-xl font-semibold text-foreground mb-1">
-                Books needing author information
+                Books needing attention
               </h2>
               <p className="text-sm text-muted-foreground mb-4">
                 Fix garbled book titles and add author names so these books are correctly attributed in your library.
