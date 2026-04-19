@@ -317,7 +317,7 @@ type ParseSummary = {
 };
 
 const Import = () => {
-  const { user, loading: authLoading, signInWithGoogle } = useAuth();
+  const { user, authLoading } = useAuth();
   const { hasPermission, loading: permLoading } = usePermissions();
 
   const [step, setStep] = useState<Step>(1);
