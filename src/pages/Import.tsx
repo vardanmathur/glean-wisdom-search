@@ -652,6 +652,7 @@ const Import = () => {
           return {
             user_id: user.id,
             session_id: newSessionId,
+            client_id: r.client_id, // for reliable post-insert mapping (insert return order is not guaranteed)
             quote: r.quote,
             book_title: r.book_title,
             author: r.author,
@@ -665,7 +666,7 @@ const Import = () => {
         const { data: inserted, error: insErr } = await supabase
           .from("kindle_import_staging")
           .insert(insertRows)
-          .select("id");
+          .select("id, client_id");
         if (insErr || !inserted) {
           console.error("staging insert error", insErr);
           setError("Could not save highlights for review. Please try again.");
@@ -673,8 +674,16 @@ const Import = () => {
           setParsing(false);
           return;
         }
-        slice.forEach((r, idx) => {
-          clientToDbId.set(r.client_id, inserted[idx].id);
+        // Match by client_id rather than index — Supabase does not guarantee insert return order
+        slice.forEach((r) => {
+          const match = (inserted as { id: string; client_id: string | null }[]).find(
+            (row) => row.client_id === r.client_id
+          );
+          if (match) {
+            clientToDbId.set(r.client_id, match.id);
+          } else {
+            console.warn("[Import] No insert match found for client_id", r.client_id);
+          }
         });
       }
 
@@ -690,13 +699,26 @@ const Import = () => {
         }
       }
       // Apply updates one row at a time (typically small N — only flagged rows)
+      let level1UpdatedCount = 0;
       for (const u of level1Updates) {
-        await supabase
+        const { data: updated, error: updErr } = await supabase
           .from("kindle_import_staging")
           .update({ duplicate_of: u.duplicate_of })
           .eq("id", u.id)
-          .eq("user_id", user.id);
+          .eq("user_id", user.id)
+          .select("id");
+        if (updErr) {
+          console.error("[Import] Level 1 duplicate_of update error", updErr, u);
+        } else if (!updated || updated.length === 0) {
+          console.warn("[Import] Level 1 update affected 0 rows", u);
+        } else {
+          level1UpdatedCount++;
+        }
       }
+      console.log("[Import] Level 1 duplicate_of updates:", {
+        attempted: level1Updates.length,
+        succeeded: level1UpdatedCount,
+      });
 
       setSaving(false);
 

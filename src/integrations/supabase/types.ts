@@ -108,6 +108,7 @@ export type Database = {
         Row: {
           author: string | null
           book_title: string
+          client_id: string | null
           created_at: string
           duplicate_of: string | null
           id: string
@@ -122,6 +123,7 @@ export type Database = {
         Insert: {
           author?: string | null
           book_title: string
+          client_id?: string | null
           created_at?: string
           duplicate_of?: string | null
           id?: string
@@ -136,6 +138,7 @@ export type Database = {
         Update: {
           author?: string | null
           book_title?: string
+          client_id?: string | null
           created_at?: string
           duplicate_of?: string | null
           id?: string
