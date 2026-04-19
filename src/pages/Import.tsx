@@ -1433,32 +1433,43 @@ const Import = () => {
                   return (
                     <div
                       key={row.id}
-                      className={`rounded-lg border border-border bg-muted/20 p-4 transition-opacity ${decided ? "opacity-60" : ""}`}
+                      className={`rounded-lg border border-border bg-muted/20 p-4 transition-opacity ${decided ? "opacity-70" : ""}`}
                     >
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        <div>
-                          <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-1.5">
-                            This highlight
-                          </div>
-                          <div className="text-sm font-medium text-foreground mb-1 truncate">{row.book_title}</div>
-                          <div className="text-sm text-foreground whitespace-pre-wrap">{row.quote}</div>
-                        </div>
-                        <div>
-                          <div className="text-xs font-medium uppercase tracking-wide text-primary mb-1.5">
-                            {rightLabel}
-                          </div>
-                          {match ? (
-                            <>
-                              <div className="text-sm font-medium text-foreground mb-1 truncate">{match.book_title}</div>
-                              <div className="text-sm text-foreground whitespace-pre-wrap">{match.quote}</div>
-                            </>
-                          ) : (
-                            <div className="text-sm text-muted-foreground italic">
-                              Could not load the matching highlight.
+                      {(() => {
+                        // Survivor side: which panel will end up in the library
+                        // - decided + willImport → left (this row imports)
+                        // - decided + skip       → right (partner/library is the kept copy)
+                        const leftIsSurvivor = decided && willImport;
+                        const rightIsSurvivor = decided && !willImport;
+                        const survivorCls = "rounded-md border-l-4 border-l-emerald-500 bg-emerald-500/5 pl-3 py-2 -ml-1";
+                        const skippedQuoteCls = "line-through text-muted-foreground/60";
+                        return (
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            <div className={leftIsSurvivor ? survivorCls : ""}>
+                              <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-1.5">
+                                This highlight
+                              </div>
+                              <div className="text-sm font-medium text-foreground mb-1 truncate">{row.book_title}</div>
+                              <div className={`text-sm whitespace-pre-wrap ${rightIsSurvivor ? skippedQuoteCls : "text-foreground"}`}>{row.quote}</div>
                             </div>
-                          )}
-                        </div>
-                      </div>
+                            <div className={rightIsSurvivor ? survivorCls : ""}>
+                              <div className="text-xs font-medium uppercase tracking-wide text-primary mb-1.5">
+                                {rightLabel}
+                              </div>
+                              {match ? (
+                                <>
+                                  <div className="text-sm font-medium text-foreground mb-1 truncate">{match.book_title}</div>
+                                  <div className={`text-sm whitespace-pre-wrap ${leftIsSurvivor && match.scope === "import" ? skippedQuoteCls : "text-foreground"}`}>{match.quote}</div>
+                                </>
+                              ) : (
+                                <div className="text-sm text-muted-foreground italic">
+                                  Could not load the matching highlight.
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })()}
                       <div className="mt-4 flex items-center justify-between gap-2">
                         {decided ? (
                           <div className="flex items-center gap-1.5 text-xs font-medium text-primary">
