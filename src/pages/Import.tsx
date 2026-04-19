@@ -699,13 +699,26 @@ const Import = () => {
         }
       }
       // Apply updates one row at a time (typically small N — only flagged rows)
+      let level1UpdatedCount = 0;
       for (const u of level1Updates) {
-        await supabase
+        const { data: updated, error: updErr } = await supabase
           .from("kindle_import_staging")
           .update({ duplicate_of: u.duplicate_of })
           .eq("id", u.id)
-          .eq("user_id", user.id);
+          .eq("user_id", user.id)
+          .select("id");
+        if (updErr) {
+          console.error("[Import] Level 1 duplicate_of update error", updErr, u);
+        } else if (!updated || updated.length === 0) {
+          console.warn("[Import] Level 1 update affected 0 rows", u);
+        } else {
+          level1UpdatedCount++;
+        }
       }
+      console.log("[Import] Level 1 duplicate_of updates:", {
+        attempted: level1Updates.length,
+        succeeded: level1UpdatedCount,
+      });
 
       setSaving(false);
 
