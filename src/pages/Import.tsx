@@ -914,6 +914,45 @@ const Import = () => {
     toast.success(`Author saved for "${bookTitle}"`);
   };
 
+  const setTitleForBook = async (oldTitle: string, newTitle: string) => {
+    const trimmed = newTitle.trim();
+    if (!trimmed || trimmed === oldTitle) return;
+    const { error: e } = await supabase
+      .from("kindle_import_staging")
+      .update({ book_title: trimmed })
+      .eq("user_id", user!.id)
+      .eq("session_id", sessionId!)
+      .eq("book_title", oldTitle);
+    if (e) { toast.error("Could not rename book"); return; }
+    setStagedRows((prev) => prev.map((r) => (r.book_title === oldTitle ? { ...r, book_title: trimmed } : r)));
+    // Migrate per-book draft state from old title key to new title key
+    setAuthorEdits((prev) => {
+      if (!(oldTitle in prev)) return prev;
+      const next = { ...prev };
+      next[trimmed] = next[oldTitle];
+      delete next[oldTitle];
+      return next;
+    });
+    setTitleEdits((prev) => {
+      const next = { ...prev };
+      // Drop the draft entry for the old key (input will rebind to new title)
+      delete next[oldTitle];
+      delete next[trimmed];
+      return next;
+    });
+    toast.success(`Renamed to "${trimmed}"`);
+  };
+
+  const undoRow = async (row: StagedRow) => {
+    const { error: e } = await supabase
+      .from("kindle_import_staging")
+      .update({ status: "near_duplicate" })
+      .eq("id", row.id)
+      .eq("user_id", user!.id);
+    if (e) { toast.error("Could not undo"); return; }
+    setStagedRows((prev) => prev.map((r) => (r.id === row.id ? { ...r, status: "near_duplicate" } : r)));
+  };
+
 
 
   // ============================================================================
