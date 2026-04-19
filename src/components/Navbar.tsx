@@ -1,5 +1,5 @@
 import { Link, useNavigate } from "react-router-dom";
-import { Leaf, Search, Bookmark, User, LogOut, Settings, BookOpen, Wrench, Shield, Upload } from "lucide-react";
+import { Leaf, Search, Bookmark, User, LogOut, Settings, BookOpen, Wrench, Shield, Upload, Menu } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -12,10 +12,19 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+  SheetClose,
+} from "@/components/ui/sheet";
 
 const Navbar = () => {
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
+  const [mobileOpen, setMobileOpen] = useState(false);
   const { user, signOut } = useAuth();
   const { hasPermission } = usePermissions();
   const isAdmin = user?.email === "vardan@gmail.com";
@@ -41,10 +50,103 @@ const Navbar = () => {
   return (
     <nav className="sticky top-0 z-50 border-b bg-card/80 backdrop-blur-md">
       <div className="container mx-auto flex h-16 items-center justify-between px-4">
-        <Link to="/" className="flex items-center gap-2 text-primary">
-          <Leaf className="h-6 w-6" />
-          <span className="font-display text-xl font-semibold tracking-tight">Glean</span>
-        </Link>
+        <div className="flex items-center gap-2">
+          {/* Mobile hamburger */}
+          <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
+            <SheetTrigger asChild>
+              <button
+                className="sm:hidden rounded-lg p-2 text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+                aria-label="Open menu"
+              >
+                <Menu className="h-5 w-5" />
+              </button>
+            </SheetTrigger>
+            <SheetContent side="left" className="w-72">
+              <SheetHeader>
+                <SheetTitle className="flex items-center gap-2 text-primary">
+                  <Leaf className="h-5 w-5" />
+                  <span className="font-display text-lg">Glean</span>
+                </SheetTitle>
+              </SheetHeader>
+              <div className="mt-6 flex flex-col gap-1">
+                <SheetClose asChild>
+                  <Link
+                    to="/topics"
+                    className="rounded-lg px-3 py-2.5 text-sm font-medium text-foreground hover:bg-secondary transition-colors"
+                  >
+                    Topics
+                  </Link>
+                </SheetClose>
+                <SheetClose asChild>
+                  <Link
+                    to="/books"
+                    className="rounded-lg px-3 py-2.5 text-sm font-medium text-foreground hover:bg-secondary transition-colors"
+                  >
+                    Books
+                  </Link>
+                </SheetClose>
+                <SheetClose asChild>
+                  <Link
+                    to="/saved"
+                    className="inline-flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-foreground hover:bg-secondary transition-colors"
+                  >
+                    <Bookmark className="h-4 w-4" />
+                    Saved Highlights
+                  </Link>
+                </SheetClose>
+                {hasPermission("import") && (
+                  <SheetClose asChild>
+                    <Link
+                      to="/import"
+                      className="inline-flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-foreground hover:bg-secondary transition-colors"
+                    >
+                      <Upload className="h-4 w-4" />
+                      Import
+                    </Link>
+                  </SheetClose>
+                )}
+                {isAdmin && (
+                  <SheetClose asChild>
+                    <Link
+                      to="/admin/permissions"
+                      className="inline-flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-foreground hover:bg-secondary transition-colors"
+                    >
+                      <Shield className="h-4 w-4" />
+                      Permissions
+                    </Link>
+                  </SheetClose>
+                )}
+                {isAdmin && (
+                  <SheetClose asChild>
+                    <Link
+                      to="/admin/studio/highlights"
+                      className="inline-flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-foreground hover:bg-secondary transition-colors"
+                    >
+                      <Wrench className="h-4 w-4" />
+                      Studio
+                    </Link>
+                  </SheetClose>
+                )}
+                {user && (
+                  <SheetClose asChild>
+                    <Link
+                      to="/settings"
+                      className="inline-flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-foreground hover:bg-secondary transition-colors"
+                    >
+                      <Settings className="h-4 w-4" />
+                      Settings
+                    </Link>
+                  </SheetClose>
+                )}
+              </div>
+            </SheetContent>
+          </Sheet>
+
+          <Link to="/" className="flex items-center gap-2 text-primary">
+            <Leaf className="h-6 w-6" />
+            <span className="font-display text-xl font-semibold tracking-tight">Glean</span>
+          </Link>
+        </div>
 
         <form onSubmit={handleSearch} className="hidden md:flex items-center">
           <div className="relative">
@@ -62,39 +164,37 @@ const Navbar = () => {
         <div className="flex items-center gap-1">
           <Link
             to="/topics"
-            className="rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+            className="hidden sm:inline-flex rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
           >
             Topics
           </Link>
           <Link
             to="/books"
-            className="rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+            className="hidden sm:inline-flex rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
           >
             Books
           </Link>
           {hasPermission("import") && (
             <Link
               to="/import"
-              className="inline-flex items-center gap-1.5 rounded-lg px-2 sm:px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
-              title="Import"
+              className="hidden sm:inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
             >
               <Upload className="h-4 w-4" />
-              <span className="hidden sm:inline">Import</span>
+              Import
             </Link>
           )}
           {isAdmin && (
             <Link
               to="/admin/permissions"
-              className="inline-flex items-center gap-1.5 rounded-lg px-2 sm:px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
-              title="Permissions"
+              className="hidden sm:inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
             >
               <Shield className="h-4 w-4" />
-              <span className="hidden sm:inline">Permissions</span>
+              Permissions
             </Link>
           )}
           <Link
             to="/saved"
-            className="rounded-lg p-2 text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+            className="hidden sm:inline-flex rounded-lg p-2 text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
             title="Saved Highlights"
           >
             <Bookmark className="h-5 w-5" />
