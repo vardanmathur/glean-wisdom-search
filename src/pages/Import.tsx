@@ -387,6 +387,29 @@ const Import = () => {
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Derived state for Step 3 — must be declared before any early returns
+  const reviewItems = useMemo(() => stagedRows.filter((r) => r.status === "near_duplicate"), [stagedRows]);
+  const pendingItems = useMemo(() => stagedRows.filter((r) => r.status === "pending"), [stagedRows]);
+  const pendingByBook = useMemo(() => {
+    const map = new Map<string, StagedRow[]>();
+    for (const r of pendingItems) {
+      const arr = map.get(r.book_title) ?? [];
+      arr.push(r);
+      map.set(r.book_title, arr);
+    }
+    return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+  }, [pendingItems]);
+  const booksMissingAuthor = useMemo(() => {
+    const set = new Set<string>();
+    for (const r of pendingItems) {
+      if (!r.author || r.author.trim() === "") set.add(r.book_title);
+    }
+    return Array.from(set).sort();
+  }, [pendingItems]);
+
+  const allReviewResolved = reviewItems.length === 0;
+  const allAuthorsFilled = booksMissingAuthor.length === 0;
+
   if (authLoading || permLoading) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
