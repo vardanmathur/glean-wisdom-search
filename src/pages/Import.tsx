@@ -346,7 +346,15 @@ const Import = () => {
         <p className="text-muted-foreground mb-6">
           Import your Kindle highlights into your private Glean library. Sign in to get started — your highlights will only be visible to you.
         </p>
-        <Button onClick={() => signInWithGoogle()} size="lg">
+        <Button
+          onClick={() =>
+            supabase.auth.signInWithOAuth({
+              provider: "google",
+              options: { redirectTo: `${window.location.origin}/import` },
+            })
+          }
+          size="lg"
+        >
           Sign in with Google
         </Button>
       </div>
@@ -389,7 +397,7 @@ const Import = () => {
     if (f) acceptFile(f);
   };
 
-  const runParse = useCallback(async (showAll: boolean) => {
+  const runParse = async (showAll: boolean) => {
     if (!fileContents || !user) return;
     setParsing(true);
     setError(null);
