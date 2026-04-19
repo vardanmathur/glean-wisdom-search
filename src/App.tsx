@@ -19,6 +19,14 @@ import AdminStudioHighlights from "./pages/AdminStudioHighlights";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import Settings from "./pages/Settings";
 import Think from "./pages/Think";
+import AdminPermissions from "./pages/AdminPermissions";
+
+const ImportComingSoon = () => (
+  <div className="flex min-h-[60vh] flex-col items-center justify-center px-4 text-center">
+    <h1 className="font-display text-3xl font-semibold text-foreground mb-2">Import</h1>
+    <p className="text-muted-foreground">Coming soon.</p>
+  </div>
+);
 
 const queryClient = new QueryClient();
 
@@ -45,6 +53,8 @@ const App = () => (
               <Route path="/privacy" element={<PrivacyPolicy />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="/think" element={<Think />} />
+              <Route path="/admin/permissions" element={<AdminPermissions />} />
+              <Route path="/import" element={<ImportComingSoon />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>

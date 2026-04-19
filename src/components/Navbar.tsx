@@ -1,7 +1,8 @@
 import { Link, useNavigate } from "react-router-dom";
-import { Leaf, Search, Bookmark, User, LogOut, Settings, BookOpen, Wrench } from "lucide-react";
+import { Leaf, Search, Bookmark, User, LogOut, Settings, BookOpen, Wrench, Shield, Upload } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "@/context/AuthContext";
+import { usePermissions } from "@/hooks/usePermissions";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -16,6 +17,8 @@ const Navbar = () => {
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
   const { user, signOut } = useAuth();
+  const { hasPermission } = usePermissions();
+  const isAdmin = user?.email === "vardan@gmail.com";
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -69,6 +72,24 @@ const Navbar = () => {
           >
             Books
           </Link>
+          {hasPermission("import") && (
+            <Link
+              to="/import"
+              className="hidden sm:inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+            >
+              <Upload className="h-4 w-4" />
+              Import
+            </Link>
+          )}
+          {isAdmin && (
+            <Link
+              to="/admin/permissions"
+              className="hidden sm:inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+            >
+              <Shield className="h-4 w-4" />
+              Permissions
+            </Link>
+          )}
           <Link
             to="/saved"
             className="rounded-lg p-2 text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
