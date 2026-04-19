@@ -1,0 +1,2 @@
+ALTER TABLE public.kindle_import_staging
+  DROP CONSTRAINT IF EXISTS kindle_import_staging_duplicate_of_fkey;

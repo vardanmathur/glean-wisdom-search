@@ -150,15 +150,7 @@ export type Database = {
           status?: string
           user_id?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "kindle_import_staging_duplicate_of_fkey"
-            columns: ["duplicate_of"]
-            isOneToOne: false
-            referencedRelation: "highlights"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       saved_highlights: {
         Row: {
