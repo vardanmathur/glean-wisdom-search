@@ -436,6 +436,18 @@ const Import = () => {
         const sDate = sRes.data?.created_at ? new Date(sRes.data.created_at) : null;
         if (hDate && sDate) lastImportDate = hDate > sDate ? hDate : sDate;
         else lastImportDate = hDate ?? sDate;
+        console.log("[Import] Re-import filter diagnostics:", {
+          highlightsRow: hRes.data,
+          stagingRow: sRes.data,
+          highlightsError: hRes.error,
+          stagingError: sRes.error,
+          hDate,
+          sDate,
+          lastImportDate,
+          parsedCount: withNotes.length,
+          withTimestamps: withNotes.filter((h) => h.kindle_timestamp).length,
+          withoutTimestamps: withNotes.filter((h) => !h.kindle_timestamp).length,
+        });
       }
 
       let filteredByDate = 0;
