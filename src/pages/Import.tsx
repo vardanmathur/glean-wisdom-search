@@ -652,6 +652,7 @@ const Import = () => {
           return {
             user_id: user.id,
             session_id: newSessionId,
+            client_id: r.client_id, // for reliable post-insert mapping (insert return order is not guaranteed)
             quote: r.quote,
             book_title: r.book_title,
             author: r.author,
@@ -665,7 +666,7 @@ const Import = () => {
         const { data: inserted, error: insErr } = await supabase
           .from("kindle_import_staging")
           .insert(insertRows)
-          .select("id");
+          .select("id, client_id");
         if (insErr || !inserted) {
           console.error("staging insert error", insErr);
           setError("Could not save highlights for review. Please try again.");
@@ -673,8 +674,16 @@ const Import = () => {
           setParsing(false);
           return;
         }
-        slice.forEach((r, idx) => {
-          clientToDbId.set(r.client_id, inserted[idx].id);
+        // Match by client_id rather than index — Supabase does not guarantee insert return order
+        slice.forEach((r) => {
+          const match = (inserted as { id: string; client_id: string | null }[]).find(
+            (row) => row.client_id === r.client_id
+          );
+          if (match) {
+            clientToDbId.set(r.client_id, match.id);
+          } else {
+            console.warn("[Import] No insert match found for client_id", r.client_id);
+          }
         });
       }
 
