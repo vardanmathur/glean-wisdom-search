@@ -457,6 +457,25 @@ const Import = () => {
   const allReviewResolved = reviewItems.length === 0;
   const allAuthorsFilled = booksMissingAuthor.length === 0;
 
+  // Snapshot of originally-flagged rows so cards persist after Keep/Skip (for dim + Undo + progress)
+  const reviewSnapshotRows = useMemo(() => {
+    if (!reviewSnapshot) return [];
+    const byId = new Map(stagedRows.map((r) => [r.id, r]));
+    return reviewSnapshot.map((id) => byId.get(id)).filter((r): r is StagedRow => !!r);
+  }, [reviewSnapshot, stagedRows]);
+  const reviewDecidedCount = useMemo(
+    () => reviewSnapshotRows.filter((r) => r.status !== "near_duplicate").length,
+    [reviewSnapshotRows]
+  );
+
+  // Capture snapshot once when entering Step 3 with near-duplicates present
+  useEffect(() => {
+    if (step === 3 && reviewSnapshot === null && stagedRows.length > 0) {
+      const flagged = stagedRows.filter((r) => r.status === "near_duplicate").map((r) => r.id);
+      setReviewSnapshot(flagged);
+    }
+  }, [step, reviewSnapshot, stagedRows]);
+
   if (authLoading || permLoading) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
