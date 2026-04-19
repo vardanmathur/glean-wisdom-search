@@ -1,13 +1,15 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useMemo } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Progress } from "@/components/ui/progress";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { ChevronDown, Upload, FileText, ArrowLeft, AlertCircle, Loader2, CheckCircle2 } from "lucide-react";
+import { ChevronDown, Upload, FileText, ArrowLeft, AlertCircle, Loader2, CheckCircle2, BookOpen } from "lucide-react";
 import { toast } from "sonner";
+import { Link } from "react-router-dom";
 
 // ============================================================================
 // Kindle parsing — pure functions
@@ -24,17 +26,7 @@ type ParsedHighlight = {
   entry_type: "Highlight" | "Note" | "Bookmark";
 };
 
-type StagingStatus = "pending" | "near_duplicate" | "similar";
-
-type StagingRow = {
-  quote: string;
-  book_title: string;
-  author: string | null;
-  kindle_location: string | null;
-  kindle_timestamp: Date | null;
-  my_notes: string | null;
-  status: StagingStatus;
-};
+type StagingStatus = "pending" | "near_duplicate" | "similar" | "skipped";
 
 const MONTHS: Record<string, number> = {
   january: 0, february: 1, march: 2, april: 3, may: 4, june: 5,
@@ -224,13 +216,27 @@ function levenshtein(a: string, b: string): number {
   return prev[n];
 }
 
+// Pre-staged row carries a temp client id so we can reference duplicates within the file
+type StagingRowDraft = {
+  client_id: string;
+  quote: string;
+  book_title: string;
+  author: string | null;
+  kindle_location: string | null;
+  kindle_timestamp: Date | null;
+  my_notes: string | null;
+  status: StagingStatus;
+  duplicate_of_client_id: string | null; // refs another client_id in this batch (Level 1)
+};
+
 type Detected = {
-  rows: StagingRow[];
+  rows: StagingRowDraft[];
   exactDuplicatesRemoved: number;
   flaggedCount: number;
 };
 
-function detectDuplicates(highlights: ParsedHighlight[]): Detected {
+function detectDuplicatesLevel1(highlights: ParsedHighlight[]): Detected {
+  // Step A: exact dedup — keep most recent
   const exactMap = new Map<string, ParsedHighlight>();
   let exactRemoved = 0;
   for (const h of highlights) {
@@ -247,62 +253,77 @@ function detectDuplicates(highlights: ParsedHighlight[]): Detected {
   }
   const deduped = Array.from(exactMap.values());
 
-  const buckets = new Map<string, ParsedHighlight[]>();
-  for (const h of deduped) {
-    const arr = buckets.get(h.book_title) ?? [];
-    arr.push(h);
-    buckets.set(h.book_title, arr);
+  // Build draft rows with client ids
+  const drafts: StagingRowDraft[] = deduped.map((h) => ({
+    client_id: crypto.randomUUID(),
+    quote: h.quote,
+    book_title: h.book_title,
+    author: h.author,
+    kindle_location: h.kindle_location,
+    kindle_timestamp: h.kindle_timestamp,
+    my_notes: h.my_notes,
+    status: "pending",
+    duplicate_of_client_id: null,
+  }));
+
+  // Bucket by book_title (case-insensitive)
+  const buckets = new Map<string, StagingRowDraft[]>();
+  for (const d of drafts) {
+    const key = d.book_title.toLowerCase();
+    const arr = buckets.get(key) ?? [];
+    arr.push(d);
+    buckets.set(key, arr);
   }
 
-  const statusByIndex = new Map<ParsedHighlight, StagingStatus>();
+  let flagged = 0;
   for (const list of buckets.values()) {
     if (list.length < 2) continue;
+    // Sort by quote length descending — longer wins
+    list.sort((a, b) => b.quote.length - a.quote.length);
+
     for (let i = 0; i < list.length; i++) {
+      const winner = list[i];
+      if (winner.status !== "pending") continue;
       for (let j = i + 1; j < list.length; j++) {
-        const a = list[i].quote;
-        const b = list[j].quote;
-        if (a.includes(b) || b.includes(a)) {
-          const shorter = a.length < b.length ? list[i] : list[j];
-          if (!statusByIndex.has(shorter)) statusByIndex.set(shorter, "near_duplicate");
+        const candidate = list[j];
+        if (candidate.status !== "pending") continue;
+
+        const a = winner.quote;
+        const b = candidate.quote;
+
+        // Substring match
+        if (a.includes(b)) {
+          candidate.status = "near_duplicate";
+          candidate.duplicate_of_client_id = winner.client_id;
+          flagged++;
           continue;
         }
+
+        // Length pre-filter for Levenshtein
         const maxLen = Math.max(a.length, b.length);
         const minLen = Math.min(a.length, b.length);
         if (maxLen === 0) continue;
         if ((maxLen - minLen) / maxLen > 0.15) continue;
+
         const dist = levenshtein(a, b);
         const sim = 1 - dist / maxLen;
         if (sim > 0.85) {
-          if (!statusByIndex.has(list[i])) statusByIndex.set(list[i], "similar");
-          if (!statusByIndex.has(list[j])) statusByIndex.set(list[j], "similar");
+          candidate.status = "near_duplicate";
+          candidate.duplicate_of_client_id = winner.client_id;
+          flagged++;
         }
       }
     }
   }
 
-  let flaggedCount = 0;
-  const rows: StagingRow[] = deduped.map((h) => {
-    const status = statusByIndex.get(h) ?? "pending";
-    if (status !== "pending") flaggedCount++;
-    return {
-      quote: h.quote,
-      book_title: h.book_title,
-      author: h.author,
-      kindle_location: h.kindle_location,
-      kindle_timestamp: h.kindle_timestamp,
-      my_notes: h.my_notes,
-      status,
-    };
-  });
-
-  return { rows, exactDuplicatesRemoved: exactRemoved, flaggedCount };
+  return { rows: drafts, exactDuplicatesRemoved: exactRemoved, flaggedCount: flagged };
 }
 
 // ============================================================================
 // Main page component
 // ============================================================================
 
-type Step = 1 | 2;
+type Step = 1 | 2 | 3 | 4 | 5;
 
 type ParseSummary = {
   totalReady: number;
@@ -315,6 +336,33 @@ type ParseSummary = {
   filteredByDate: number;
   lastImportDate: Date | null;
   showingAll: boolean;
+};
+
+type StagedRow = {
+  id: string;
+  user_id: string;
+  session_id: string;
+  quote: string;
+  book_title: string;
+  author: string | null;
+  kindle_location: string | null;
+  kindle_timestamp: string | null;
+  my_notes: string | null;
+  status: string;
+  duplicate_of: string | null;
+};
+
+type MatchSource = {
+  scope: "import" | "library";
+  book_title: string;
+  quote: string;
+};
+
+type ImportResult = {
+  imported: number;
+  failed: { row: StagedRow; reason: string }[];
+  booksTouched: number;
+  booksMissingAuthor: number;
 };
 
 const Import = () => {
@@ -330,7 +378,37 @@ const Import = () => {
   const [error, setError] = useState<string | null>(null);
   const [summary, setSummary] = useState<ParseSummary | null>(null);
   const [howToOpen, setHowToOpen] = useState(false);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [stagedRows, setStagedRows] = useState<StagedRow[]>([]);
+  const [matchLookup, setMatchLookup] = useState<Record<string, MatchSource>>({});
+  const [authorEdits, setAuthorEdits] = useState<Record<string, string>>({}); // book_title -> author
+  const [importing, setImporting] = useState(false);
+  const [importProgress, setImportProgress] = useState({ done: 0, total: 0 });
+  const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Derived state for Step 3 — must be declared before any early returns
+  const reviewItems = useMemo(() => stagedRows.filter((r) => r.status === "near_duplicate"), [stagedRows]);
+  const pendingItems = useMemo(() => stagedRows.filter((r) => r.status === "pending"), [stagedRows]);
+  const pendingByBook = useMemo(() => {
+    const map = new Map<string, StagedRow[]>();
+    for (const r of pendingItems) {
+      const arr = map.get(r.book_title) ?? [];
+      arr.push(r);
+      map.set(r.book_title, arr);
+    }
+    return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+  }, [pendingItems]);
+  const booksMissingAuthor = useMemo(() => {
+    const set = new Set<string>();
+    for (const r of pendingItems) {
+      if (!r.author || r.author.trim() === "") set.add(r.book_title);
+    }
+    return Array.from(set).sort();
+  }, [pendingItems]);
+
+  const allReviewResolved = reviewItems.length === 0;
+  const allAuthorsFilled = booksMissingAuthor.length === 0;
 
   if (authLoading || permLoading) {
     return (
@@ -398,6 +476,83 @@ const Import = () => {
     if (f) acceptFile(f);
   };
 
+  // ============================================================================
+  // Level 2 — match against user's library
+  // ============================================================================
+  const runLevel2Match = async (
+    drafts: StagingRowDraft[]
+  ): Promise<Map<string, { highlight_id: string; book_title: string; quote: string }>> => {
+    if (!user) return new Map();
+    // Fetch user's library — explicit columns only, never embedding, paginated
+    const allLib: { id: string; quote: string; book_title: string }[] = [];
+    let from = 0;
+    const PAGE = 1000;
+    while (true) {
+      const { data, error: libErr } = await supabase
+        .from("highlights")
+        .select("id, quote, book_id, books!inner(id, title)")
+        .eq("user_id", user.id)
+        .range(from, from + PAGE - 1);
+      if (libErr) {
+        console.error("[Import] Level 2 library fetch error", libErr);
+        break;
+      }
+      if (!data || data.length === 0) break;
+      for (const r of data as unknown as { id: string; quote: string; books: { title: string } }[]) {
+        allLib.push({ id: r.id, quote: r.quote, book_title: r.books?.title ?? "" });
+      }
+      if (data.length < PAGE) break;
+      from += PAGE;
+    }
+
+    // Bucket library by lowercased book title
+    const libBuckets = new Map<string, { id: string; quote: string; book_title: string }[]>();
+    for (const lib of allLib) {
+      const key = lib.book_title.toLowerCase();
+      const arr = libBuckets.get(key) ?? [];
+      arr.push(lib);
+      libBuckets.set(key, arr);
+    }
+
+    const matches = new Map<string, { highlight_id: string; book_title: string; quote: string }>();
+    for (const draft of drafts) {
+      // Skip drafts already flagged by Level 1
+      if (draft.status !== "pending") continue;
+      const bucket = libBuckets.get(draft.book_title.toLowerCase());
+      if (!bucket) continue;
+
+      const a = draft.quote;
+      let matched: { id: string; quote: string; book_title: string } | null = null;
+
+      for (const lib of bucket) {
+        const b = lib.quote;
+        if (a === b || a.includes(b) || b.includes(a)) {
+          matched = lib;
+          break;
+        }
+        const maxLen = Math.max(a.length, b.length);
+        const minLen = Math.min(a.length, b.length);
+        if (maxLen === 0) continue;
+        if ((maxLen - minLen) / maxLen > 0.15) continue;
+        const dist = levenshtein(a, b);
+        const sim = 1 - dist / maxLen;
+        if (sim > 0.85) {
+          matched = lib;
+          break;
+        }
+      }
+
+      if (matched) {
+        matches.set(draft.client_id, {
+          highlight_id: matched.id,
+          book_title: matched.book_title,
+          quote: matched.quote,
+        });
+      }
+    }
+    return matches;
+  };
+
   const runParse = async (showAll: boolean) => {
     if (!fileContents || !user) return;
     setParsing(true);
@@ -437,18 +592,6 @@ const Import = () => {
         const sDate = sRes.data?.created_at ? new Date(sRes.data.created_at) : null;
         if (hDate && sDate) lastImportDate = hDate > sDate ? hDate : sDate;
         else lastImportDate = hDate ?? sDate;
-        console.log("[Import] Re-import filter diagnostics:", {
-          highlightsRow: hRes.data,
-          stagingRow: sRes.data,
-          highlightsError: hRes.error,
-          stagingError: sRes.error,
-          hDate,
-          sDate,
-          lastImportDate,
-          parsedCount: withNotes.length,
-          withTimestamps: withNotes.filter((h) => h.kindle_timestamp).length,
-          withoutTimestamps: withNotes.filter((h) => !h.kindle_timestamp).length,
-        });
       }
 
       let filteredByDate = 0;
@@ -460,7 +603,7 @@ const Import = () => {
         working = newer;
       }
 
-      const detected = detectDuplicates(working);
+      const detected = detectDuplicatesLevel1(working);
 
       if (detected.rows.length === 0) {
         setSummary({
@@ -480,32 +623,81 @@ const Import = () => {
         return;
       }
 
+      // Level 2 — match against library BEFORE writing to staging so duplicate_of can be set
+      const libMatches = await runLevel2Match(detected.rows);
+      let level2Flagged = 0;
+      for (const draft of detected.rows) {
+        const m = libMatches.get(draft.client_id);
+        if (m) {
+          draft.status = "near_duplicate";
+          // We'll set duplicate_of to the library highlight UUID after staging insert
+          // Store it temporarily by overwriting client_id reference with the library id, marked
+          (draft as StagingRowDraft & { _library_match_id?: string })._library_match_id = m.highlight_id;
+          level2Flagged++;
+        }
+      }
+
       setSaving(true);
-      const sessionId = crypto.randomUUID();
-      const stagingRows = detected.rows.map((r) => ({
-        user_id: user.id,
-        session_id: sessionId,
-        quote: r.quote,
-        book_title: r.book_title,
-        author: r.author,
-        kindle_location: r.kindle_location,
-        kindle_timestamp: r.kindle_timestamp ? r.kindle_timestamp.toISOString() : null,
-        my_notes: r.my_notes,
-        status: r.status,
-      }));
+      const newSessionId = crypto.randomUUID();
+
+      // First pass: insert all rows (without duplicate_of for Level 1 refs since we don't have DB UUIDs yet)
+      // We'll use a client_id -> db id map to update duplicate_of in a second pass.
+      const clientToDbId = new Map<string, string>();
 
       const BATCH = 100;
-      for (let i = 0; i < stagingRows.length; i += BATCH) {
-        const slice = stagingRows.slice(i, i + BATCH);
-        const { error: insErr } = await supabase.from("kindle_import_staging").insert(slice);
-        if (insErr) {
+      for (let i = 0; i < detected.rows.length; i += BATCH) {
+        const slice = detected.rows.slice(i, i + BATCH);
+        const insertRows = slice.map((r) => {
+          const libMatchId = (r as StagingRowDraft & { _library_match_id?: string })._library_match_id ?? null;
+          return {
+            user_id: user.id,
+            session_id: newSessionId,
+            quote: r.quote,
+            book_title: r.book_title,
+            author: r.author,
+            kindle_location: r.kindle_location,
+            kindle_timestamp: r.kindle_timestamp ? r.kindle_timestamp.toISOString() : null,
+            my_notes: r.my_notes,
+            status: r.status,
+            duplicate_of: libMatchId, // Level 2 ref set immediately (real highlight id)
+          };
+        });
+        const { data: inserted, error: insErr } = await supabase
+          .from("kindle_import_staging")
+          .insert(insertRows)
+          .select("id");
+        if (insErr || !inserted) {
           console.error("staging insert error", insErr);
           setError("Could not save highlights for review. Please try again.");
           setSaving(false);
           setParsing(false);
           return;
         }
+        slice.forEach((r, idx) => {
+          clientToDbId.set(r.client_id, inserted[idx].id);
+        });
       }
+
+      // Second pass: for Level 1 refs, update duplicate_of with the actual DB id of the winner
+      const level1Updates: { id: string; duplicate_of: string }[] = [];
+      for (const r of detected.rows) {
+        if (r.duplicate_of_client_id) {
+          const myId = clientToDbId.get(r.client_id);
+          const refId = clientToDbId.get(r.duplicate_of_client_id);
+          if (myId && refId) {
+            level1Updates.push({ id: myId, duplicate_of: refId });
+          }
+        }
+      }
+      // Apply updates one row at a time (typically small N — only flagged rows)
+      for (const u of level1Updates) {
+        await supabase
+          .from("kindle_import_staging")
+          .update({ duplicate_of: u.duplicate_of })
+          .eq("id", u.id)
+          .eq("user_id", user.id);
+      }
+
       setSaving(false);
 
       const uniqueBooks = new Set(detected.rows.map((r) => r.book_title)).size;
@@ -513,11 +705,12 @@ const Import = () => {
         detected.rows.filter((r) => !r.author).map((r) => r.book_title)
       ).size;
 
+      setSessionId(newSessionId);
       setSummary({
         totalReady: detected.rows.length,
         uniqueBooks,
         exactDuplicatesRemoved: detected.exactDuplicatesRemoved,
-        flaggedCount: detected.flaggedCount,
+        flaggedCount: detected.flaggedCount + level2Flagged,
         unknownAuthorBooks,
         oversizedCount: parsed.oversizedCount,
         malformedCount: parsed.malformedCount,
@@ -536,6 +729,255 @@ const Import = () => {
     }
   };
 
+  // ============================================================================
+  // Step 3 — load staged rows + match sources
+  // ============================================================================
+  const goToStep3 = async () => {
+    if (!user || !sessionId) return;
+    setError(null);
+
+    // Fetch all staged rows for this session
+    const { data: rows, error: rowsErr } = await supabase
+      .from("kindle_import_staging")
+      .select("id, user_id, session_id, quote, book_title, author, kindle_location, kindle_timestamp, my_notes, status, duplicate_of")
+      .eq("user_id", user.id)
+      .eq("session_id", sessionId);
+
+    if (rowsErr || !rows) {
+      console.error("[Import] fetch staging failed", rowsErr);
+      setError("Could not load review queue. Please try again.");
+      return;
+    }
+    setStagedRows(rows as StagedRow[]);
+
+    // Resolve duplicate_of references — could be either a staging row id or a highlights id
+    const refIds = Array.from(
+      new Set(rows.filter((r) => r.duplicate_of).map((r) => r.duplicate_of as string))
+    );
+    const lookup: Record<string, MatchSource> = {};
+    if (refIds.length > 0) {
+      // Try staging first
+      const { data: stagingRefs } = await supabase
+        .from("kindle_import_staging")
+        .select("id, quote, book_title")
+        .in("id", refIds)
+        .eq("user_id", user.id);
+      if (stagingRefs) {
+        for (const s of stagingRefs) {
+          lookup[s.id] = { scope: "import", book_title: s.book_title, quote: s.quote };
+        }
+      }
+      const remaining = refIds.filter((id) => !lookup[id]);
+      if (remaining.length > 0) {
+        // Library refs — explicit columns, never embedding, table-prefixed via select
+        const { data: libRefs } = await supabase
+          .from("highlights")
+          .select("id, quote, books!inner(title)")
+          .in("id", remaining)
+          .eq("user_id", user.id);
+        if (libRefs) {
+          for (const l of libRefs as unknown as { id: string; quote: string; books: { title: string } }[]) {
+            lookup[l.id] = { scope: "library", book_title: l.books?.title ?? "", quote: l.quote };
+          }
+        }
+      }
+    }
+    setMatchLookup(lookup);
+
+    // Reset author edits
+    setAuthorEdits({});
+    setStep(3);
+  };
+
+  // ============================================================================
+  // Step 3 actions
+  // ============================================================================
+  const keepRow = async (row: StagedRow) => {
+    const { error: e } = await supabase
+      .from("kindle_import_staging")
+      .update({ status: "pending" })
+      .eq("id", row.id)
+      .eq("user_id", user!.id);
+    if (e) { toast.error("Could not keep highlight"); return; }
+    setStagedRows((prev) => prev.map((r) => (r.id === row.id ? { ...r, status: "pending" } : r)));
+  };
+
+  const skipRow = async (row: StagedRow) => {
+    const { error: e } = await supabase
+      .from("kindle_import_staging")
+      .update({ status: "skipped" })
+      .eq("id", row.id)
+      .eq("user_id", user!.id);
+    if (e) { toast.error("Could not skip highlight"); return; }
+    setStagedRows((prev) => prev.map((r) => (r.id === row.id ? { ...r, status: "skipped" } : r)));
+  };
+
+  const setAuthorForBook = async (bookTitle: string, author: string) => {
+    const trimmed = author.trim();
+    if (!trimmed) return;
+    const { error: e } = await supabase
+      .from("kindle_import_staging")
+      .update({ author: trimmed })
+      .eq("user_id", user!.id)
+      .eq("session_id", sessionId!)
+      .eq("book_title", bookTitle);
+    if (e) { toast.error("Could not save author"); return; }
+    setStagedRows((prev) => prev.map((r) => (r.book_title === bookTitle ? { ...r, author: trimmed } : r)));
+    toast.success(`Author saved for "${bookTitle}"`);
+  };
+
+
+
+  // ============================================================================
+  // Step 4 — Import execution
+  // ============================================================================
+  const runImport = async (allowMissingAuthor: boolean) => {
+    if (!user || !sessionId) return;
+    setError(null);
+    setImporting(true);
+    setImportResult(null);
+
+    try {
+      // Fetch fresh pending rows
+      const { data: pending, error: pErr } = await supabase
+        .from("kindle_import_staging")
+        .select("id, user_id, session_id, quote, book_title, author, kindle_location, kindle_timestamp, my_notes, status, duplicate_of")
+        .eq("user_id", user.id)
+        .eq("session_id", sessionId)
+        .eq("status", "pending");
+
+      if (pErr || !pending) {
+        setError("Could not load highlights to import.");
+        setImporting(false);
+        return;
+      }
+
+      const rows = pending as StagedRow[];
+      setImportProgress({ done: 0, total: rows.length });
+
+      // Resolve book_id per (book_title + author) combination
+      const bookKey = (title: string, author: string | null) =>
+        `${title.toLowerCase()}\u0000${(author ?? "").toLowerCase()}`;
+
+      const bookIdMap = new Map<string, string | null>();
+      const uniqueBookKeys = new Map<string, { title: string; author: string | null }>();
+      for (const r of rows) {
+        uniqueBookKeys.set(bookKey(r.book_title, r.author), { title: r.book_title, author: r.author });
+      }
+
+      let booksMissingAuthorCount = 0;
+      for (const [key, b] of uniqueBookKeys.entries()) {
+        // Look up existing book by case-insensitive title (and author if available)
+        const { data: existing } = await supabase
+          .from("books")
+          .select("id, author")
+          .ilike("title", b.title)
+          .limit(5);
+        let foundId: string | null = null;
+        if (existing && existing.length > 0) {
+          // Prefer matching author, else first
+          const match = existing.find((e) => (e.author ?? "").toLowerCase() === (b.author ?? "").toLowerCase());
+          foundId = (match ?? existing[0]).id;
+        }
+        if (!foundId) {
+          const authorToInsert = b.author ?? "Unknown";
+          if (!b.author) booksMissingAuthorCount++;
+          const { data: created, error: createErr } = await supabase
+            .from("books")
+            .insert({ title: b.title, author: authorToInsert })
+            .select("id")
+            .single();
+          if (createErr || !created) {
+            console.error("[Import] book insert failed", createErr);
+            bookIdMap.set(key, null);
+            continue;
+          }
+          foundId = created.id;
+        }
+        bookIdMap.set(key, foundId);
+      }
+
+      // Insert highlights one by one to capture per-row failures
+      const failed: { row: StagedRow; reason: string }[] = [];
+      let imported = 0;
+      const successfulIds: string[] = [];
+
+      for (const r of rows) {
+        const book_id = bookIdMap.get(bookKey(r.book_title, r.author)) ?? null;
+        const createdAt = r.kindle_timestamp ?? new Date().toISOString();
+        const { error: hErr } = await supabase.from("highlights").insert({
+          quote: r.quote,
+          book_id,
+          my_notes: r.my_notes,
+          source: "kindle",
+          visibility: "private",
+          user_id: user.id,
+          created_at: createdAt,
+          tags: [],
+          stars: false,
+          reported: false,
+        });
+        if (hErr) {
+          console.error("[Import] highlight insert failed", hErr, r);
+          failed.push({ row: r, reason: hErr.message });
+        } else {
+          imported++;
+          successfulIds.push(r.id);
+        }
+        setImportProgress({ done: imported + failed.length, total: rows.length });
+      }
+
+      // Cleanup: delete pending (now imported) + skipped rows for this session
+      // Only remove successful pending rows from staging — keep failures so user can retry
+      if (successfulIds.length > 0) {
+        const DEL_BATCH = 200;
+        for (let i = 0; i < successfulIds.length; i += DEL_BATCH) {
+          const slice = successfulIds.slice(i, i + DEL_BATCH);
+          await supabase
+            .from("kindle_import_staging")
+            .delete()
+            .in("id", slice)
+            .eq("user_id", user.id);
+        }
+      }
+      // Delete skipped rows
+      await supabase
+        .from("kindle_import_staging")
+        .delete()
+        .eq("user_id", user.id)
+        .eq("session_id", sessionId)
+        .eq("status", "skipped");
+
+      const booksTouched = uniqueBookKeys.size;
+
+      setImportResult({
+        imported,
+        failed,
+        booksTouched,
+        booksMissingAuthor: booksMissingAuthorCount,
+      });
+      setStep(5);
+    } catch (err) {
+      console.error(err);
+      setError("Import failed unexpectedly. Please try again.");
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const retryFailed = async () => {
+    if (!user || !sessionId || !importResult) return;
+    const failedIds = importResult.failed.map((f) => f.row.id);
+    if (failedIds.length === 0) return;
+    // Re-mark as pending and re-run import
+    await supabase
+      .from("kindle_import_staging")
+      .update({ status: "pending" })
+      .in("id", failedIds)
+      .eq("user_id", user.id);
+    await runImport(true);
+  };
+
   const goBackToStep1 = async () => {
     if (user) {
       await supabase.from("kindle_import_staging").delete().eq("user_id", user.id);
@@ -545,6 +987,11 @@ const Import = () => {
     setFile(null);
     setFileContents("");
     setError(null);
+    setSessionId(null);
+    setStagedRows([]);
+    setMatchLookup({});
+    setAuthorEdits({});
+    setImportResult(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
@@ -560,11 +1007,11 @@ const Import = () => {
       <div className="mb-8 flex flex-wrap items-center gap-2 text-sm">
         <StepBadge n={1} label="Upload" active={step === 1} done={step > 1} />
         <Connector />
-        <StepBadge n={2} label="Parse & review" active={step === 2} done={false} />
+        <StepBadge n={2} label="Parse & review" active={step === 2} done={step > 2} />
         <Connector />
-        <StepBadge n={3} label="Confirm" active={false} done={false} disabled />
+        <StepBadge n={3} label="Confirm" active={step === 3} done={step > 3} />
         <Connector />
-        <StepBadge n={4} label="Import" active={false} done={false} disabled />
+        <StepBadge n={4} label="Import" active={step === 4 || step === 5} done={step === 5} />
       </div>
 
       {step === 1 && (
@@ -740,19 +1187,255 @@ const Import = () => {
                   <ArrowLeft className="mr-2 h-4 w-4" />
                   Upload a different file
                 </Button>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span tabIndex={0}>
-                      <Button disabled size="lg">
-                        Next: Review and import →
-                      </Button>
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent>Coming in next update</TooltipContent>
-                </Tooltip>
+                {summary.totalReady > 0 && (
+                  <Button onClick={goToStep3} size="lg">
+                    Next: Review and import →
+                  </Button>
+                )}
               </div>
             </>
           )}
+        </div>
+      )}
+
+      {step === 3 && (
+        <div className="space-y-6">
+          {/* Section 1 — Ready to import */}
+          <Card className="p-6">
+            <h2 className="font-display text-xl font-semibold text-foreground mb-3">
+              Ready to import
+            </h2>
+            <p className="text-foreground mb-4">
+              <span className="text-2xl font-display font-semibold text-primary">{pendingItems.length}</span>{" "}
+              highlights from{" "}
+              <span className="text-2xl font-display font-semibold text-primary">{pendingByBook.length}</span>{" "}
+              books
+            </p>
+            {pendingByBook.length > 0 && (
+              <ul className="space-y-1.5 text-sm max-h-48 overflow-y-auto">
+                {pendingByBook.map(([title, items]) => (
+                  <li key={title} className="flex items-center justify-between gap-3 border-b border-border/50 pb-1.5 last:border-0">
+                    <span className="truncate text-foreground">{title}</span>
+                    <span className="shrink-0 text-muted-foreground">{items.length}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card>
+
+          {/* Section 2 — Needs review */}
+          {reviewItems.length > 0 && (
+            <Card className="p-6">
+              <h2 className="font-display text-xl font-semibold text-foreground mb-1">
+                Needs your review
+              </h2>
+              <p className="text-sm text-muted-foreground mb-4">
+                {reviewItems.length} {reviewItems.length === 1 ? "highlight looks" : "highlights look"} similar to existing ones. Decide whether to keep or skip each.
+              </p>
+              <div className="space-y-4">
+                {reviewItems.map((row) => {
+                  const match = row.duplicate_of ? matchLookup[row.duplicate_of] : null;
+                  return (
+                    <div key={row.id} className="rounded-lg border border-border bg-muted/20 p-4">
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <div>
+                          <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-1.5">
+                            New highlight
+                          </div>
+                          <div className="text-sm font-medium text-foreground mb-1 truncate">{row.book_title}</div>
+                          <div className="text-sm text-foreground whitespace-pre-wrap">{row.quote}</div>
+                        </div>
+                        <div>
+                          <div className="text-xs font-medium uppercase tracking-wide text-primary mb-1.5">
+                            {match
+                              ? match.scope === "import"
+                                ? "Already in this import"
+                                : "Already in your library"
+                              : "Match reference unavailable"}
+                          </div>
+                          {match ? (
+                            <>
+                              <div className="text-sm font-medium text-foreground mb-1 truncate">{match.book_title}</div>
+                              <div className="text-sm text-foreground whitespace-pre-wrap">{match.quote}</div>
+                            </>
+                          ) : (
+                            <div className="text-sm text-muted-foreground italic">
+                              Could not load the matching highlight.
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <div className="mt-4 flex justify-end gap-2">
+                        <Button variant="outline" size="sm" onClick={() => skipRow(row)}>
+                          Skip
+                        </Button>
+                        <Button size="sm" onClick={() => keepRow(row)}>
+                          Keep
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </Card>
+          )}
+
+          {/* Section 3 — Books needing author info */}
+          {booksMissingAuthor.length > 0 && (
+            <Card className="p-6">
+              <h2 className="font-display text-xl font-semibold text-foreground mb-1">
+                Books needing author information
+              </h2>
+              <p className="text-sm text-muted-foreground mb-4">
+                Add author names so these books are correctly attributed in your library.
+              </p>
+              <div className="space-y-3">
+                {booksMissingAuthor.map((title) => (
+                  <div key={title} className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                    <div className="flex items-center gap-2 sm:w-1/2">
+                      <BookOpen className="h-4 w-4 text-muted-foreground shrink-0" />
+                      <span className="truncate text-sm font-medium text-foreground">{title}</span>
+                    </div>
+                    <div className="flex flex-1 gap-2">
+                      <Input
+                        placeholder="Author name (First Last)"
+                        value={authorEdits[title] ?? ""}
+                        onChange={(e) => setAuthorEdits((prev) => ({ ...prev, [title]: e.target.value }))}
+                        onBlur={() => {
+                          const v = authorEdits[title];
+                          if (v && v.trim()) setAuthorForBook(title, v);
+                        }}
+                      />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const v = authorEdits[title];
+                          if (v && v.trim()) setAuthorForBook(title, v);
+                        }}
+                        disabled={!authorEdits[title]?.trim()}
+                      >
+                        Save
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
+
+          {error && (
+            <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+              <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+              <span>{error}</span>
+            </div>
+          )}
+
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <Button variant="outline" onClick={goBackToStep1}>
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Cancel and start over
+            </Button>
+            <div className="flex flex-wrap gap-2">
+              {!allAuthorsFilled && allReviewResolved && (
+                <Button
+                  variant="outline"
+                  onClick={() => { setStep(4); runImport(true); }}
+                  disabled={importing || pendingItems.length === 0}
+                >
+                  Import without author info
+                </Button>
+              )}
+              <Button
+                size="lg"
+                onClick={() => { setStep(4); runImport(false); }}
+                disabled={!allReviewResolved || !allAuthorsFilled || importing || pendingItems.length === 0}
+              >
+                Import {pendingItems.length} highlights →
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {step === 4 && (
+        <Card className="p-8">
+          <div className="flex items-center gap-3 mb-4">
+            <Loader2 className="h-5 w-5 animate-spin text-primary" />
+            <h2 className="font-display text-xl font-semibold text-foreground">
+              Importing {importProgress.done} of {importProgress.total} highlights...
+            </h2>
+          </div>
+          <Progress
+            value={importProgress.total > 0 ? (importProgress.done / importProgress.total) * 100 : 0}
+          />
+          <p className="text-sm text-muted-foreground mt-3">
+            Please don't close this tab.
+          </p>
+        </Card>
+      )}
+
+      {step === 5 && importResult && (
+        <div className="space-y-5">
+          <Card className="p-8 text-center">
+            <CheckCircle2 className="mx-auto mb-3 h-10 w-10 text-primary" />
+            <h2 className="font-display text-2xl font-semibold text-foreground mb-2">
+              {importResult.imported} highlights imported from {importResult.booksTouched} books
+            </h2>
+            {importResult.booksMissingAuthor > 0 && (
+              <p className="text-sm text-muted-foreground mt-3">
+                {importResult.booksMissingAuthor}{" "}
+                {importResult.booksMissingAuthor === 1 ? "book still needs" : "books still need"} author info — update in{" "}
+                <Link to="/admin/studio/highlights" className="text-primary underline-offset-2 hover:underline">
+                  Glean Studio
+                </Link>
+                .
+              </p>
+            )}
+          </Card>
+
+          {importResult.failed.length > 0 && (
+            <Card className="p-6 border-destructive/30 bg-destructive/5">
+              <div className="flex items-start gap-2 mb-3">
+                <AlertCircle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
+                <div>
+                  <h3 className="font-display text-lg font-semibold text-foreground">
+                    {importResult.failed.length} {importResult.failed.length === 1 ? "highlight" : "highlights"} could not be imported
+                  </h3>
+                  <p className="text-sm text-muted-foreground">
+                    These rows are still in your review queue. Try again or skip them.
+                  </p>
+                </div>
+              </div>
+              <ul className="space-y-1.5 text-sm max-h-40 overflow-y-auto mb-3">
+                {importResult.failed.slice(0, 10).map((f) => (
+                  <li key={f.row.id} className="text-muted-foreground truncate">
+                    "{f.row.quote.slice(0, 60)}..." — {f.reason}
+                  </li>
+                ))}
+                {importResult.failed.length > 10 && (
+                  <li className="text-muted-foreground italic">
+                    ...and {importResult.failed.length - 10} more.
+                  </li>
+                )}
+              </ul>
+              <Button variant="outline" onClick={retryFailed} disabled={importing}>
+                Retry failed
+              </Button>
+            </Card>
+          )}
+
+          <div className="flex flex-wrap justify-center gap-3">
+            <Link to="/saved">
+              <Button variant="outline">Browse my highlights</Button>
+            </Link>
+            <Link to="/admin/studio/highlights">
+              <Button>Open Glean Studio</Button>
+            </Link>
+            <Button variant="ghost" onClick={goBackToStep1}>
+              Import another file
+            </Button>
+          </div>
         </div>
       )}
     </div>
