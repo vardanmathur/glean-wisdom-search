@@ -1118,6 +1118,8 @@ const Import = () => {
     setStagedRows([]);
     setMatchLookup({});
     setAuthorEdits({});
+    setTitleEdits({});
+    setReviewSnapshot(null);
     setImportResult(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
