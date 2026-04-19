@@ -645,13 +645,6 @@ const Import = () => {
       const clientToDbId = new Map<string, string>();
 
       const BATCH = 100;
-      console.log("[Import][DIAG] Starting staging insert", {
-        totalRows: detected.rows.length,
-        rowsWithDuplicateOfClientId: detected.rows.filter((r) => r.duplicate_of_client_id).length,
-        rowsWithLibraryMatch: detected.rows.filter(
-          (r) => (r as StagingRowDraft & { _library_match_id?: string })._library_match_id
-        ).length,
-      });
       for (let i = 0; i < detected.rows.length; i += BATCH) {
         const slice = detected.rows.slice(i, i + BATCH);
         const insertRows = slice.map((r) => {
@@ -670,15 +663,6 @@ const Import = () => {
             duplicate_of: libMatchId, // Level 2 ref set immediately (real highlight id)
           };
         });
-        console.log("[Import][DIAG] Inserting batch", {
-          batchIndex: i / BATCH,
-          batchSize: insertRows.length,
-          firstRowSample: {
-            client_id: insertRows[0]?.client_id,
-            book_title: insertRows[0]?.book_title?.slice(0, 40),
-            status: insertRows[0]?.status,
-          },
-        });
         const { data: inserted, error: insErr } = await supabase
           .from("kindle_import_staging")
           .insert(insertRows)
@@ -690,13 +674,6 @@ const Import = () => {
           setParsing(false);
           return;
         }
-        console.log("[Import][DIAG] Insert response", {
-          batchIndex: i / BATCH,
-          returnedCount: inserted.length,
-          firstReturned: inserted[0],
-          allHaveClientId: inserted.every((row) => (row as { client_id: string | null }).client_id != null),
-          nullClientIdCount: inserted.filter((row) => (row as { client_id: string | null }).client_id == null).length,
-        });
         // Match by client_id rather than index — Supabase does not guarantee insert return order
         slice.forEach((r) => {
           const match = (inserted as { id: string; client_id: string | null }[]).find(
@@ -710,33 +687,17 @@ const Import = () => {
         });
       }
 
-      console.log("[Import][DIAG] clientToDbId map after all inserts", {
-        mapSize: clientToDbId.size,
-        totalDrafts: detected.rows.length,
-      });
-
       // Second pass: for Level 1 refs, update duplicate_of with the actual DB id of the winner
       const level1Updates: { id: string; duplicate_of: string }[] = [];
-      let missingMyId = 0;
-      let missingRefId = 0;
       for (const r of detected.rows) {
         if (r.duplicate_of_client_id) {
           const myId = clientToDbId.get(r.client_id);
           const refId = clientToDbId.get(r.duplicate_of_client_id);
-          if (!myId) missingMyId++;
-          if (!refId) missingRefId++;
           if (myId && refId) {
             level1Updates.push({ id: myId, duplicate_of: refId });
           }
         }
       }
-      console.log("[Import][DIAG] Level 1 update plan", {
-        candidatesWithDupClientId: detected.rows.filter((r) => r.duplicate_of_client_id).length,
-        level1UpdatesBuilt: level1Updates.length,
-        missingMyId,
-        missingRefId,
-        sampleUpdate: level1Updates[0],
-      });
       // Apply updates one row at a time (typically small N — only flagged rows)
       let level1UpdatedCount = 0;
       for (const u of level1Updates) {
