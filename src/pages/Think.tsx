@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
+import { usePermissions } from "@/hooks/usePermissions";
 import { supabase } from "@/integrations/supabase/client";
 import ThinkHeader from "@/components/think/ThinkHeader";
 import ForgeMode, { ForgeHighlight } from "@/components/think/ForgeMode";
@@ -68,6 +69,7 @@ const todayUtc = (): string => {
 
 const Think = () => {
   const { user, authLoading } = useAuth();
+  const { hasPermission, loading: permsLoading } = usePermissions();
   const navigate = useNavigate();
 
   const [mode, setMode] = useState<Mode | null>(null);
@@ -383,7 +385,15 @@ const Think = () => {
     );
   }
 
-  if (!isAdmin) {
+  if (permsLoading) {
+    return (
+      <div className="min-h-[60vh] flex items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!hasPermission("think")) {
     return <div className="min-h-[60vh]" />;
   }
 

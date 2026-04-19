@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Search, Leaf, Plus, Brain } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
+import { usePermissions } from "@/hooks/usePermissions";
 import AddHighlightModal from "@/components/AddHighlightModal";
 import InstallPrompt from "@/components/InstallPrompt";
 import { useQuery } from "@tanstack/react-query";
@@ -25,6 +26,7 @@ const Index = () => {
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
   const { user } = useAuth();
+  const { hasPermission } = usePermissions();
   const [showAddModal, setShowAddModal] = useState(false);
   const { data: stats } = useQuery({
     queryKey: ["glean-stats"],
@@ -85,7 +87,7 @@ const Index = () => {
         <Plus className="h-4 w-4" />
         Build your own / Contribute
       </button>
-      {user?.email === "vardan@gmail.com" && (
+      {hasPermission("think") && (
         <button
           type="button"
           onClick={() => navigate("/think")}
