@@ -90,20 +90,25 @@ const Index = () => {
         <InstallPrompt />
       </div>
 
-      <div className="w-full max-w-2xl flex flex-col gap-2 mb-12">
-        <ComingSoonCard
-          feature="think"
-          title="Think!"
-          description="A daily practice for your mind. Forge your thinking or stress-test your beliefs against the wisdom in your library."
-          icon={Brain}
-        />
-        <ComingSoonCard
-          feature="import"
-          title="Import"
-          description="Your Kindle highlights are a goldmine of your own past wisdom. Import brings them back to life."
-          icon={Upload}
-        />
-      </div>
+      <section className="w-full max-w-2xl mb-12 rounded-xl bg-primary/5 border-l-2 border-primary/30 px-4 py-3">
+        <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-2">
+          Early Access
+        </h3>
+        <div className="flex flex-col divide-y divide-primary/10">
+          <ComingSoonCard
+            feature="think"
+            title="Think!"
+            description="A daily practice for your mind. Forge your thinking or stress-test your beliefs against the wisdom in your library."
+            icon={Brain}
+          />
+          <ComingSoonCard
+            feature="import"
+            title="Import"
+            description="Your Kindle highlights are a goldmine of your own past wisdom. Import brings them back to life."
+            icon={Upload}
+          />
+        </div>
+      </section>
 
       <div className="w-full max-w-2xl text-center">
         <h2 className="font-display text-2xl text-foreground mb-6">Browse by Topic</h2>
