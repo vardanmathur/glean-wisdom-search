@@ -94,6 +94,17 @@ const Navbar = () => {
                     Saved Highlights
                   </Link>
                 </SheetClose>
+                {(isAdmin || hasPermission("think")) && (
+                  <SheetClose asChild>
+                    <Link
+                      to="/think"
+                      className="inline-flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-foreground hover:bg-secondary transition-colors"
+                    >
+                      <Brain className="h-4 w-4" />
+                      Think!
+                    </Link>
+                  </SheetClose>
+                )}
                 {hasPermission("import") && (
                   <SheetClose asChild>
                     <Link
