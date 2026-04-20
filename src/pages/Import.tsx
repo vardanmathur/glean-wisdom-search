@@ -109,7 +109,9 @@ function parseTitleAndAuthor(rawTitle: string): { title: string; author: string 
   }
 
   // Pattern 2: "Title by Author"
-  const p2 = t.match(/^(.+?)\s+by\s+(.+)$/i);
+  // Greedy left + lazy right ensures we split on the LAST " by " — so titles
+  // ending in "By" (e.g. "Algorithms to Live By by Christian, Brian") parse correctly.
+  const p2 = t.match(/^(.+)\s+by\s+(.+?)$/i);
   if (p2) {
     return { title: p2[1].trim(), author: normalizeAuthor(p2[2].trim()), unknown: false };
   }
