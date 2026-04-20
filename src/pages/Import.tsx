@@ -74,16 +74,26 @@ function parseKindleDate(raw: string): Date | null {
   }
 }
 
-// Reverses "Last, First" → "First Last". Returns null if input doesn't look like a comma-name.
+// Reverses "Last, First" → "First Last" for any string matching the simple
+// pattern of exactly two comma-separated non-empty parts. Returns null otherwise.
 function reverseIfCommaName(s: string): string | null {
   const trimmed = s.trim();
-  if (!trimmed.includes(",")) return null;
-  const parts = trimmed.split(",", 2).map((p) => p.trim());
-  if (parts.length !== 2 || !parts[0] || !parts[1]) return null;
-  // Sanity: each part should look name-like (letters, spaces, hyphens, dots, apostrophes)
-  const nameRe = /^[\p{L}][\p{L}\s.\-']*$/u;
-  if (!nameRe.test(parts[0]) || !nameRe.test(parts[1])) return null;
-  return `${parts[1]} ${parts[0]}`;
+  if (!trimmed) return null;
+  // Must contain exactly one comma producing two non-empty parts.
+  const parts = trimmed.split(",");
+  if (parts.length !== 2) return null;
+  const last = parts[0].trim();
+  const first = parts[1].trim();
+  if (!last || !first) return null;
+  return `${first} ${last}`;
+}
+
+// Final safety-net pass: applied to every author string before it's returned,
+// regardless of which pattern matched. Guarantees no "Last, First" form leaks through.
+function normalizeAuthor(author: string | null): string | null {
+  if (!author) return author;
+  const reversed = reverseIfCommaName(author);
+  return reversed ?? author.trim();
 }
 
 function parseTitleAndAuthor(rawTitle: string): { title: string; author: string | null; unknown: boolean } {
@@ -93,21 +103,15 @@ function parseTitleAndAuthor(rawTitle: string): { title: string; author: string 
   const p1 = t.match(/^(.+?)\s*\(([^()]+)\)\s*$/);
   if (p1) {
     const inside = p1[2].trim();
-    const reversed = reverseIfCommaName(inside);
-    if (reversed) {
-      return { title: p1[1].trim(), author: reversed, unknown: false };
-    }
     if (inside.length > 0) {
-      return { title: p1[1].trim(), author: inside, unknown: false };
+      return { title: p1[1].trim(), author: normalizeAuthor(inside), unknown: false };
     }
   }
 
   // Pattern 2: "Title by Author"
   const p2 = t.match(/^(.+?)\s+by\s+(.+)$/i);
   if (p2) {
-    const authorPart = p2[2].trim();
-    const reversed = reverseIfCommaName(authorPart);
-    return { title: p2[1].trim(), author: reversed ?? authorPart, unknown: false };
+    return { title: p2[1].trim(), author: normalizeAuthor(p2[2].trim()), unknown: false };
   }
 
   // Pattern 3: dash- or colon-separated "Title - Last, First" or "Last, First - Title"
@@ -120,12 +124,12 @@ function parseTitleAndAuthor(rawTitle: string): { title: string; author: string 
       // Try right side as comma-name
       const rightReversed = reverseIfCommaName(right);
       if (rightReversed) {
-        return { title: left, author: rightReversed, unknown: false };
+        return { title: left, author: normalizeAuthor(rightReversed), unknown: false };
       }
       // Try left side as comma-name (author prefix)
       const leftReversed = reverseIfCommaName(left);
       if (leftReversed) {
-        return { title: right, author: leftReversed, unknown: false };
+        return { title: right, author: normalizeAuthor(leftReversed), unknown: false };
       }
     }
   }
@@ -134,7 +138,7 @@ function parseTitleAndAuthor(rawTitle: string): { title: string; author: string 
   // but at least don't store the comma-form verbatim if it's clearly a name.
   const bareReversed = reverseIfCommaName(t);
   if (bareReversed) {
-    return { title: t, author: bareReversed, unknown: false };
+    return { title: t, author: normalizeAuthor(bareReversed), unknown: false };
   }
 
   return { title: t, author: null, unknown: true };
