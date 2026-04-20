@@ -192,6 +192,22 @@ const AdminPermissions = () => {
     );
     if (!confirmed) return;
     await revokePermission(targetUserId, feature);
+    // Also remove the matching feature_interest row so the user can request again
+    try {
+      const { error } = await supabase
+        .from("feature_interest")
+        .delete()
+        .eq("user_id", targetUserId)
+        .eq("feature", feature);
+      if (error) throw error;
+      setInterestRows((prev) =>
+        prev.filter(
+          (r) => !(r.user_id === targetUserId && r.feature === feature)
+        )
+      );
+    } catch (err) {
+      console.error("Failed to clear feature_interest row:", err);
+    }
   };
 
   const sortedProfiles = [...profiles].sort((a, b) => {
