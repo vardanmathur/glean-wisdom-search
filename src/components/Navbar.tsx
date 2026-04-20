@@ -1,5 +1,5 @@
 import { Link, useNavigate } from "react-router-dom";
-import { Leaf, Search, Bookmark, User, LogOut, Settings, BookOpen, Wrench, Shield, Upload, Menu } from "lucide-react";
+import { Leaf, Search, Bookmark, User, LogOut, Settings, BookOpen, Wrench, Shield, Upload, Menu, Brain } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -94,6 +94,17 @@ const Navbar = () => {
                     Saved Highlights
                   </Link>
                 </SheetClose>
+                {(isAdmin || hasPermission("think")) && (
+                  <SheetClose asChild>
+                    <Link
+                      to="/think"
+                      className="inline-flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-foreground hover:bg-secondary transition-colors"
+                    >
+                      <Brain className="h-4 w-4" />
+                      Think!
+                    </Link>
+                  </SheetClose>
+                )}
                 {hasPermission("import") && (
                   <SheetClose asChild>
                     <Link
@@ -174,6 +185,15 @@ const Navbar = () => {
           >
             Books
           </Link>
+          {(isAdmin || hasPermission("think")) && (
+            <Link
+              to="/think"
+              className="hidden sm:inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+            >
+              <Brain className="h-4 w-4" />
+              Think!
+            </Link>
+          )}
           {hasPermission("import") && (
             <Link
               to="/import"
