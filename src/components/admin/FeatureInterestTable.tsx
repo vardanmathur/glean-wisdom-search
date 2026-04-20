@@ -11,11 +11,6 @@ interface InterestRow {
   display_name: string | null;
 }
 
-interface PermissionRow {
-  user_id: string;
-  feature: string;
-}
-
 type FeedbackKind = "success" | "error";
 
 const FeatureInterestTable = () => {
@@ -98,6 +93,42 @@ const FeatureInterestTable = () => {
     }
   };
 
+  const handleRevoke = async (
+    targetUserId: string,
+    feature: string,
+    displayName: string
+  ) => {
+    const confirmed = window.confirm(
+      `Are you sure you want to revoke ${feature} access for ${displayName}?`
+    );
+    if (!confirmed) return;
+    const key = `${targetUserId}::${feature}`;
+    setPending((p) => ({ ...p, [key]: true }));
+    try {
+      const { error } = await supabase
+        .from("user_permissions")
+        .delete()
+        .eq("user_id", targetUserId)
+        .eq("feature", feature);
+      if (error) throw error;
+      setPermissions((prev) => {
+        const next = new Set(prev);
+        next.delete(key);
+        return next;
+      });
+      flash(key, "success");
+    } catch (err) {
+      console.error("Revoke failed:", err);
+      flash(key, "error");
+    } finally {
+      setPending((p) => {
+        const next = { ...p };
+        delete next[key];
+        return next;
+      });
+    }
+  };
+
   const formatDate = (iso: string) =>
     new Date(iso).toLocaleDateString(undefined, {
       year: "numeric",
@@ -145,11 +176,13 @@ const FeatureInterestTable = () => {
                     const granted = permissions.has(key);
                     const isPending = pending[key];
                     const fb = feedback[key];
+                    const displayName =
+                      r.display_name?.trim() || `User ${r.user_id.slice(0, 8)}`;
                     return (
                       <tr key={r.id} className="border-t">
                         <td className="px-4 py-3 text-foreground">
                           <div className="font-medium truncate max-w-[260px]">
-                            {r.display_name?.trim() || `User ${r.user_id.slice(0, 8)}`}
+                            {displayName}
                           </div>
                         </td>
                         <td className="px-4 py-3">
@@ -164,17 +197,25 @@ const FeatureInterestTable = () => {
                           <div className="inline-flex items-center gap-2">
                             {fb === "success" && <Check className="h-4 w-4 text-primary" />}
                             {fb === "error" && <X className="h-4 w-4 text-destructive" />}
-                            <button
-                              onClick={() => handleGrant(r.user_id, r.feature)}
-                              disabled={granted || isPending}
-                              className={
-                                granted
-                                  ? "rounded-md border bg-secondary px-3 py-1.5 text-xs text-muted-foreground cursor-default"
-                                  : "rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-60"
-                              }
-                            >
-                              {granted ? "Access granted" : isPending ? "Granting…" : "Grant Access"}
-                            </button>
+                            {granted ? (
+                              <button
+                                onClick={() =>
+                                  handleRevoke(r.user_id, r.feature, displayName)
+                                }
+                                disabled={isPending}
+                                className="rounded-md border border-destructive/30 bg-card px-3 py-1.5 text-xs font-medium text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-60"
+                              >
+                                {isPending ? "Revoking…" : "Revoke"}
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => handleGrant(r.user_id, r.feature)}
+                                disabled={isPending}
+                                className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-60"
+                              >
+                                {isPending ? "Granting…" : "Grant Access"}
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -191,12 +232,14 @@ const FeatureInterestTable = () => {
                 const granted = permissions.has(key);
                 const isPending = pending[key];
                 const fb = feedback[key];
+                const displayName =
+                  r.display_name?.trim() || `User ${r.user_id.slice(0, 8)}`;
                 return (
                   <div key={r.id} className="p-4">
                     <div className="mb-2 flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <div className="font-medium text-foreground truncate">
-                          {r.display_name?.trim() || `User ${r.user_id.slice(0, 8)}`}
+                          {displayName}
                         </div>
                         <div className="text-xs text-muted-foreground mt-0.5">
                           {formatDate(r.created_at)}
@@ -207,17 +250,25 @@ const FeatureInterestTable = () => {
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => handleGrant(r.user_id, r.feature)}
-                        disabled={granted || isPending}
-                        className={
-                          granted
-                            ? "flex-1 rounded-md border bg-secondary px-3 py-2 text-xs text-muted-foreground cursor-default"
-                            : "flex-1 rounded-md bg-primary px-3 py-2 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-60"
-                        }
-                      >
-                        {granted ? "Access granted" : isPending ? "Granting…" : "Grant Access"}
-                      </button>
+                      {granted ? (
+                        <button
+                          onClick={() =>
+                            handleRevoke(r.user_id, r.feature, displayName)
+                          }
+                          disabled={isPending}
+                          className="flex-1 rounded-md border border-destructive/30 bg-card px-3 py-2 text-xs font-medium text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-60"
+                        >
+                          {isPending ? "Revoking…" : "Revoke"}
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handleGrant(r.user_id, r.feature)}
+                          disabled={isPending}
+                          className="flex-1 rounded-md bg-primary px-3 py-2 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-60"
+                        >
+                          {isPending ? "Granting…" : "Grant Access"}
+                        </button>
+                      )}
                       {fb === "success" && <Check className="h-4 w-4 text-primary" />}
                       {fb === "error" && <X className="h-4 w-4 text-destructive" />}
                     </div>
