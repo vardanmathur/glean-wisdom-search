@@ -1,11 +1,20 @@
 import { useNavigate } from "react-router-dom";
-import { useState } from "react";
-import { Search, Leaf, Brain, Upload } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Search, Leaf, Brain, Upload, X, ArrowRight } from "lucide-react";
 import { Link } from "react-router-dom";
 import InstallPrompt from "@/components/InstallPrompt";
 import ComingSoonCard from "@/components/ComingSoonCard";
 import { useQuery } from "@tanstack/react-query";
 import { getGleanStats } from "@/lib/data";
+import { useAuth } from "@/context/AuthContext";
+import { usePermissions } from "@/hooks/usePermissions";
+
+const ADMIN_EMAIL = "vardan@gmail.com";
+
+const FEATURE_META: Record<string, { label: string; route: string }> = {
+  think: { label: "Think!", route: "/think" },
+  import: { label: "Import", route: "/import" },
+};
 
 const exampleQueries = [
   "I'm struggling to motivate my team",
@@ -23,10 +32,35 @@ const featuredTopics = [
 const Index = () => {
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
+  const { user } = useAuth();
+  const { hasPermission, loading: permsLoading } = usePermissions();
   const { data: stats } = useQuery({
     queryKey: ["glean-stats"],
     queryFn: getGleanStats,
   });
+
+  const isAdmin = user?.email === ADMIN_EMAIL;
+  const hasThink = !!user && !isAdmin && hasPermission("think");
+  const hasImport = !!user && !isAdmin && hasPermission("import");
+  const hideEarlyAccess = !isAdmin && hasThink && hasImport;
+
+  // What's new banner — one per newly granted feature, dismissible per-feature
+  const [bannerFeatures, setBannerFeatures] = useState<string[]>([]);
+  useEffect(() => {
+    if (!user || isAdmin || permsLoading) return;
+    const granted: string[] = [];
+    if (hasThink) granted.push("think");
+    if (hasImport) granted.push("import");
+    const visible = granted.filter(
+      (f) => !localStorage.getItem(`glean_whats_new_dismissed_${f}`)
+    );
+    setBannerFeatures(visible);
+  }, [user, isAdmin, permsLoading, hasThink, hasImport]);
+
+  const dismissBanner = (feature: string) => {
+    localStorage.setItem(`glean_whats_new_dismissed_${feature}`, "1");
+    setBannerFeatures((prev) => prev.filter((f) => f !== feature));
+  };
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
