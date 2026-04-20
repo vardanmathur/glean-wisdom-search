@@ -33,32 +33,25 @@ export function useFeatureInterest() {
     setLoading(false);
   }, [user]);
 
-  // Initial fetch + re-fetch on auth change / component mount
+  // Initial fetch + re-fetch on auth change / mount, plus focus/visibility.
+  // Single effect ensures stable hook order across renders.
   useEffect(() => {
     cancelledRef.current = false;
     fetchInterests();
-    return () => {
-      cancelledRef.current = true;
-    };
-  }, [fetchInterests]);
 
-  // Re-fetch when the tab/window regains focus so externally deleted rows
-  // (e.g. an admin revoke) are picked up without a hard reload.
-  useEffect(() => {
-    if (!user) return;
-    const onFocus = () => {
-      fetchInterests();
-    };
+    const onFocus = () => fetchInterests();
     const onVisibility = () => {
       if (document.visibilityState === "visible") fetchInterests();
     };
     window.addEventListener("focus", onFocus);
     document.addEventListener("visibilitychange", onVisibility);
+
     return () => {
+      cancelledRef.current = true;
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [user, fetchInterests]);
+  }, [fetchInterests]);
 
   const register = useCallback(
     async (
