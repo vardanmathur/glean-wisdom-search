@@ -11,7 +11,7 @@ interface ComingSoonCardProps {
   icon?: LucideIcon;
 }
 
-const ComingSoonCard = ({ feature, title, description }: ComingSoonCardProps) => {
+const ComingSoonCard = ({ feature, title, description, icon: Icon }: ComingSoonCardProps) => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { hasInterest, register, loading } = useFeatureInterest();
@@ -31,14 +31,15 @@ const ComingSoonCard = ({ feature, title, description }: ComingSoonCardProps) =>
   };
 
   return (
-    <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm text-muted-foreground">
+    <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm text-muted-foreground py-2">
       <span className="inline-flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-foreground/70">
         <Lock className="h-3 w-3" />
-        Coming soon · {title}
+        {Icon && <Icon className="h-4 w-4 text-primary" strokeWidth={2} />}
+        {title}
       </span>
       <span className="text-muted-foreground">{description}</span>
       {registered ? (
-        <span className="text-primary/80 text-xs">Interest noted ✓</span>
+        <span className="text-primary/80 text-xs">Access requested ✓</span>
       ) : (
         <button
           type="button"
@@ -47,7 +48,7 @@ const ComingSoonCard = ({ feature, title, description }: ComingSoonCardProps) =>
           className="inline-flex items-center gap-1 text-primary hover:text-primary/80 hover:underline underline-offset-2 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
         >
           {submitting && <Loader2 className="h-3 w-3 animate-spin" />}
-          {!user ? "Sign in to express interest" : "I'm interested"}
+          {!user ? "Sign in to request access" : "Request Early Access"}
         </button>
       )}
     </div>
