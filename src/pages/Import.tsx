@@ -103,21 +103,15 @@ function parseTitleAndAuthor(rawTitle: string): { title: string; author: string 
   const p1 = t.match(/^(.+?)\s*\(([^()]+)\)\s*$/);
   if (p1) {
     const inside = p1[2].trim();
-    const reversed = reverseIfCommaName(inside);
-    if (reversed) {
-      return { title: p1[1].trim(), author: reversed, unknown: false };
-    }
     if (inside.length > 0) {
-      return { title: p1[1].trim(), author: inside, unknown: false };
+      return { title: p1[1].trim(), author: normalizeAuthor(inside), unknown: false };
     }
   }
 
   // Pattern 2: "Title by Author"
   const p2 = t.match(/^(.+?)\s+by\s+(.+)$/i);
   if (p2) {
-    const authorPart = p2[2].trim();
-    const reversed = reverseIfCommaName(authorPart);
-    return { title: p2[1].trim(), author: reversed ?? authorPart, unknown: false };
+    return { title: p2[1].trim(), author: normalizeAuthor(p2[2].trim()), unknown: false };
   }
 
   // Pattern 3: dash- or colon-separated "Title - Last, First" or "Last, First - Title"
@@ -130,12 +124,12 @@ function parseTitleAndAuthor(rawTitle: string): { title: string; author: string 
       // Try right side as comma-name
       const rightReversed = reverseIfCommaName(right);
       if (rightReversed) {
-        return { title: left, author: rightReversed, unknown: false };
+        return { title: left, author: normalizeAuthor(rightReversed), unknown: false };
       }
       // Try left side as comma-name (author prefix)
       const leftReversed = reverseIfCommaName(left);
       if (leftReversed) {
-        return { title: right, author: leftReversed, unknown: false };
+        return { title: right, author: normalizeAuthor(leftReversed), unknown: false };
       }
     }
   }
@@ -144,7 +138,7 @@ function parseTitleAndAuthor(rawTitle: string): { title: string; author: string 
   // but at least don't store the comma-form verbatim if it's clearly a name.
   const bareReversed = reverseIfCommaName(t);
   if (bareReversed) {
-    return { title: t, author: bareReversed, unknown: false };
+    return { title: t, author: normalizeAuthor(bareReversed), unknown: false };
   }
 
   return { title: t, author: null, unknown: true };
