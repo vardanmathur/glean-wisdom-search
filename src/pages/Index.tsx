@@ -75,7 +75,45 @@ const Index = () => {
   };
 
   return (
-    <div className="flex min-h-[calc(100vh-4rem)] flex-col items-center justify-center px-4">
+    <div className="flex min-h-[calc(100vh-4rem)] flex-col items-center px-4 pt-6">
+      {bannerFeatures.length > 0 && (
+        <div className="w-full max-w-2xl mb-6 flex flex-col gap-2">
+          {bannerFeatures.map((f) => {
+            const meta = FEATURE_META[f];
+            if (!meta) return null;
+            return (
+              <div
+                key={f}
+                className="flex items-center justify-between gap-3 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 text-sm"
+              >
+                <Link
+                  to={meta.route}
+                  className="flex items-center gap-2 text-primary hover:text-primary/80 transition-colors group"
+                >
+                  <span aria-hidden>🎉</span>
+                  <span>
+                    You now have access to{" "}
+                    <span className="font-semibold">{meta.label}</span> —
+                  </span>
+                  <span className="font-medium inline-flex items-center gap-1">
+                    Try it now
+                    <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
+                  </span>
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => dismissBanner(f)}
+                  className="text-muted-foreground hover:text-foreground transition-colors"
+                  aria-label="Dismiss"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      <div className="flex flex-1 flex-col items-center justify-center w-full">
       <div className="w-full max-w-2xl text-center mb-12">
         <div className="inline-flex items-center gap-2 text-primary mb-6">
           <Leaf className="h-8 w-8" />
@@ -124,25 +162,29 @@ const Index = () => {
         <InstallPrompt />
       </div>
 
-      <section className="w-full max-w-2xl mb-12 rounded-xl bg-primary/5 border-l-2 border-primary/30 px-4 py-3">
-        <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-2">
-          Early Access
-        </h3>
-        <div className="flex flex-col divide-y divide-primary/10">
-          <ComingSoonCard
-            feature="think"
-            title="Think!"
-            description="A daily practice for your mind. Forge your thinking or stress-test your beliefs against the wisdom in your library."
-            icon={Brain}
-          />
-          <ComingSoonCard
-            feature="import"
-            title="Import"
-            description="Your Kindle highlights are a goldmine of your own past wisdom. Import brings them back to life."
-            icon={Upload}
-          />
-        </div>
-      </section>
+      {!hideEarlyAccess && (
+        <section className="w-full max-w-2xl mb-12 rounded-xl bg-primary/5 border-l-2 border-primary/30 px-4 py-3">
+          <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-2">
+            Early Access
+          </h3>
+          <div className="flex flex-col divide-y divide-primary/10">
+            <ComingSoonCard
+              feature="think"
+              title="Think!"
+              description="A daily practice for your mind. Forge your thinking or stress-test your beliefs against the wisdom in your library."
+              icon={Brain}
+              featureRoute="/think"
+            />
+            <ComingSoonCard
+              feature="import"
+              title="Import"
+              description="Your Kindle highlights are a goldmine of your own past wisdom. Import brings them back to life."
+              icon={Upload}
+              featureRoute="/import"
+            />
+          </div>
+        </section>
+      )}
 
       <div className="w-full max-w-2xl text-center">
         <h2 className="font-display text-2xl text-foreground mb-6">Browse by Topic</h2>
