@@ -74,16 +74,26 @@ function parseKindleDate(raw: string): Date | null {
   }
 }
 
-// Reverses "Last, First" → "First Last". Returns null if input doesn't look like a comma-name.
+// Reverses "Last, First" → "First Last" for any string matching the simple
+// pattern of exactly two comma-separated non-empty parts. Returns null otherwise.
 function reverseIfCommaName(s: string): string | null {
   const trimmed = s.trim();
-  if (!trimmed.includes(",")) return null;
-  const parts = trimmed.split(",", 2).map((p) => p.trim());
-  if (parts.length !== 2 || !parts[0] || !parts[1]) return null;
-  // Sanity: each part should look name-like (letters, spaces, hyphens, dots, apostrophes)
-  const nameRe = /^[\p{L}][\p{L}\s.\-']*$/u;
-  if (!nameRe.test(parts[0]) || !nameRe.test(parts[1])) return null;
-  return `${parts[1]} ${parts[0]}`;
+  if (!trimmed) return null;
+  // Must contain exactly one comma producing two non-empty parts.
+  const parts = trimmed.split(",");
+  if (parts.length !== 2) return null;
+  const last = parts[0].trim();
+  const first = parts[1].trim();
+  if (!last || !first) return null;
+  return `${first} ${last}`;
+}
+
+// Final safety-net pass: applied to every author string before it's returned,
+// regardless of which pattern matched. Guarantees no "Last, First" form leaks through.
+function normalizeAuthor(author: string | null): string | null {
+  if (!author) return author;
+  const reversed = reverseIfCommaName(author);
+  return reversed ?? author.trim();
 }
 
 function parseTitleAndAuthor(rawTitle: string): { title: string; author: string | null; unknown: boolean } {
