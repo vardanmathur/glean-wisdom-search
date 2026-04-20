@@ -1,7 +1,4 @@
-import { useEffect, useState } from "react";
 import { Loader2, Check, X, Sparkles } from "lucide-react";
-import { useAuth } from "@/context/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
 
 interface InterestRow {
   id: string;
@@ -13,122 +10,25 @@ interface InterestRow {
 
 type FeedbackKind = "success" | "error";
 
-const FeatureInterestTable = () => {
-  const { user } = useAuth();
-  const [rows, setRows] = useState<InterestRow[]>([]);
-  const [permissions, setPermissions] = useState<Set<string>>(new Set());
-  const [loading, setLoading] = useState(true);
-  const [pending, setPending] = useState<Record<string, boolean>>({});
-  const [feedback, setFeedback] = useState<Record<string, FeedbackKind>>({});
+interface FeatureInterestTableProps {
+  rows: InterestRow[];
+  loading: boolean;
+  permissions: Set<string>;
+  pending: Record<string, boolean>;
+  feedback: Record<string, FeedbackKind>;
+  onGrant: (userId: string, feature: string) => void;
+  onRevoke: (userId: string, feature: string, displayName: string) => void;
+}
 
-  useEffect(() => {
-    const load = async () => {
-      setLoading(true);
-      const [
-        { data: interestData },
-        { data: profileData },
-        { data: permData },
-      ] = await Promise.all([
-        supabase
-          .from("feature_interest")
-          .select("id, user_id, feature, created_at")
-          .order("created_at", { ascending: false }),
-        supabase.from("user_profiles").select("id, display_name"),
-        supabase.from("user_permissions").select("user_id, feature"),
-      ]);
-
-      const profileMap = new Map<string, string | null>(
-        (profileData ?? []).map((p) => [p.id, p.display_name])
-      );
-
-      setRows(
-        (interestData ?? []).map((r) => ({
-          id: r.id,
-          user_id: r.user_id,
-          feature: r.feature,
-          created_at: r.created_at,
-          display_name: profileMap.get(r.user_id) ?? null,
-        }))
-      );
-      setPermissions(
-        new Set((permData ?? []).map((p) => `${p.user_id}::${p.feature}`))
-      );
-      setLoading(false);
-    };
-    load();
-  }, []);
-
-  const flash = (key: string, kind: FeedbackKind) => {
-    setFeedback((prev) => ({ ...prev, [key]: kind }));
-    setTimeout(() => {
-      setFeedback((prev) => {
-        const next = { ...prev };
-        delete next[key];
-        return next;
-      });
-    }, 2000);
-  };
-
-  const handleGrant = async (targetUserId: string, feature: string) => {
-    const key = `${targetUserId}::${feature}`;
-    setPending((p) => ({ ...p, [key]: true }));
-    try {
-      const { error } = await supabase.from("user_permissions").insert({
-        user_id: targetUserId,
-        feature,
-        granted_by: user?.id,
-      });
-      if (error && error.code !== "23505") throw error;
-      setPermissions((prev) => new Set(prev).add(key));
-      flash(key, "success");
-    } catch (err) {
-      console.error("Grant failed:", err);
-      flash(key, "error");
-    } finally {
-      setPending((p) => {
-        const next = { ...p };
-        delete next[key];
-        return next;
-      });
-    }
-  };
-
-  const handleRevoke = async (
-    targetUserId: string,
-    feature: string,
-    displayName: string
-  ) => {
-    const confirmed = window.confirm(
-      `Are you sure you want to revoke ${feature} access for ${displayName}?`
-    );
-    if (!confirmed) return;
-    const key = `${targetUserId}::${feature}`;
-    setPending((p) => ({ ...p, [key]: true }));
-    try {
-      const { error } = await supabase
-        .from("user_permissions")
-        .delete()
-        .eq("user_id", targetUserId)
-        .eq("feature", feature);
-      if (error) throw error;
-      setPermissions((prev) => {
-        const next = new Set(prev);
-        next.delete(key);
-        return next;
-      });
-      flash(key, "success");
-    } catch (err) {
-      console.error("Revoke failed:", err);
-      flash(key, "error");
-    } finally {
-      setPending((p) => {
-        const next = { ...p };
-        delete next[key];
-        return next;
-      });
-    }
-  };
-
+const FeatureInterestTable = ({
+  rows,
+  loading,
+  permissions,
+  pending,
+  feedback,
+  onGrant,
+  onRevoke,
+}: FeatureInterestTableProps) => {
   const formatDate = (iso: string) =>
     new Date(iso).toLocaleDateString(undefined, {
       year: "numeric",
@@ -200,7 +100,7 @@ const FeatureInterestTable = () => {
                             {granted ? (
                               <button
                                 onClick={() =>
-                                  handleRevoke(r.user_id, r.feature, displayName)
+                                  onRevoke(r.user_id, r.feature, displayName)
                                 }
                                 disabled={isPending}
                                 className="rounded-md border border-destructive/30 bg-card px-3 py-1.5 text-xs font-medium text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-60"
@@ -209,7 +109,7 @@ const FeatureInterestTable = () => {
                               </button>
                             ) : (
                               <button
-                                onClick={() => handleGrant(r.user_id, r.feature)}
+                                onClick={() => onGrant(r.user_id, r.feature)}
                                 disabled={isPending}
                                 className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-60"
                               >
@@ -253,7 +153,7 @@ const FeatureInterestTable = () => {
                       {granted ? (
                         <button
                           onClick={() =>
-                            handleRevoke(r.user_id, r.feature, displayName)
+                            onRevoke(r.user_id, r.feature, displayName)
                           }
                           disabled={isPending}
                           className="flex-1 rounded-md border border-destructive/30 bg-card px-3 py-2 text-xs font-medium text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-60"
@@ -262,7 +162,7 @@ const FeatureInterestTable = () => {
                         </button>
                       ) : (
                         <button
-                          onClick={() => handleGrant(r.user_id, r.feature)}
+                          onClick={() => onGrant(r.user_id, r.feature)}
                           disabled={isPending}
                           className="flex-1 rounded-md bg-primary px-3 py-2 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-60"
                         >
