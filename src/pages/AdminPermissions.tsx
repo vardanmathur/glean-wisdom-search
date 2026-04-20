@@ -23,13 +23,23 @@ interface PermissionRow {
   feature: string;
 }
 
+interface InterestRow {
+  id: string;
+  user_id: string;
+  feature: string;
+  created_at: string;
+  display_name: string | null;
+}
+
 type FeedbackKind = "success" | "error";
 
 const AdminPermissions = () => {
   const { user, authLoading } = useAuth();
   const [profiles, setProfiles] = useState<ProfileRow[]>([]);
   const [permissions, setPermissions] = useState<PermissionRow[]>([]);
+  const [interestRows, setInterestRows] = useState<InterestRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [interestLoading, setInterestLoading] = useState(true);
   const [feedback, setFeedback] = useState<Record<string, FeedbackKind>>({});
   const [pending, setPending] = useState<Record<string, boolean>>({});
 
@@ -37,13 +47,36 @@ const AdminPermissions = () => {
     if (!user || user.email !== ADMIN_EMAIL) return;
     const load = async () => {
       setLoading(true);
-      const [{ data: profileData }, { data: permData }] = await Promise.all([
+      setInterestLoading(true);
+      const [
+        { data: profileData },
+        { data: permData },
+        { data: interestData },
+      ] = await Promise.all([
         supabase.from("user_profiles").select("id, display_name"),
         supabase.from("user_permissions").select("user_id, feature"),
+        supabase
+          .from("feature_interest")
+          .select("id, user_id, feature, created_at")
+          .order("created_at", { ascending: false }),
       ]);
-      setProfiles(profileData ?? []);
+      const profiles = profileData ?? [];
+      setProfiles(profiles);
       setPermissions(permData ?? []);
+      const profileMap = new Map<string, string | null>(
+        profiles.map((p) => [p.id, p.display_name])
+      );
+      setInterestRows(
+        (interestData ?? []).map((r) => ({
+          id: r.id,
+          user_id: r.user_id,
+          feature: r.feature,
+          created_at: r.created_at,
+          display_name: profileMap.get(r.user_id) ?? null,
+        }))
+      );
       setLoading(false);
+      setInterestLoading(false);
     };
     load();
   }, [user]);
@@ -77,36 +110,24 @@ const AdminPermissions = () => {
     }, 2000);
   };
 
-  const togglePermission = async (
-    targetUserId: string,
-    feature: string,
-    currentlyHas: boolean
-  ) => {
+  const grantPermission = async (targetUserId: string, feature: string) => {
     const key = `${targetUserId}::${feature}`;
     setPending((p) => ({ ...p, [key]: true }));
     try {
-      if (currentlyHas) {
-        const { error } = await supabase
-          .from("user_permissions")
-          .delete()
-          .eq("user_id", targetUserId)
-          .eq("feature", feature);
-        if (error) throw error;
-        setPermissions((prev) =>
-          prev.filter((p) => !(p.user_id === targetUserId && p.feature === feature))
-        );
-      } else {
-        const { error } = await supabase.from("user_permissions").insert({
-          user_id: targetUserId,
-          feature,
-          granted_by: user.id,
-        });
-        if (error) throw error;
-        setPermissions((prev) => [...prev, { user_id: targetUserId, feature }]);
-      }
+      const { error } = await supabase.from("user_permissions").insert({
+        user_id: targetUserId,
+        feature,
+        granted_by: user.id,
+      });
+      if (error && error.code !== "23505") throw error;
+      setPermissions((prev) =>
+        prev.some((p) => p.user_id === targetUserId && p.feature === feature)
+          ? prev
+          : [...prev, { user_id: targetUserId, feature }]
+      );
       flashFeedback(key, "success");
     } catch (err) {
-      console.error("Permission toggle failed:", err);
+      console.error("Grant failed:", err);
       flashFeedback(key, "error");
     } finally {
       setPending((p) => {
@@ -115,6 +136,62 @@ const AdminPermissions = () => {
         return next;
       });
     }
+  };
+
+  const revokePermission = async (targetUserId: string, feature: string) => {
+    const key = `${targetUserId}::${feature}`;
+    setPending((p) => ({ ...p, [key]: true }));
+    try {
+      const { error } = await supabase
+        .from("user_permissions")
+        .delete()
+        .eq("user_id", targetUserId)
+        .eq("feature", feature);
+      if (error) throw error;
+      setPermissions((prev) =>
+        prev.filter((p) => !(p.user_id === targetUserId && p.feature === feature))
+      );
+      // Clear "What's new" dismissed flag so banner re-shows on re-grant
+      try {
+        localStorage.removeItem(`glean_whats_new_dismissed_${feature}`);
+      } catch {
+        // ignore storage errors
+      }
+      flashFeedback(key, "success");
+    } catch (err) {
+      console.error("Revoke failed:", err);
+      flashFeedback(key, "error");
+    } finally {
+      setPending((p) => {
+        const next = { ...p };
+        delete next[key];
+        return next;
+      });
+    }
+  };
+
+  const togglePermission = async (
+    targetUserId: string,
+    feature: string,
+    currentlyHas: boolean
+  ) => {
+    if (currentlyHas) {
+      await revokePermission(targetUserId, feature);
+    } else {
+      await grantPermission(targetUserId, feature);
+    }
+  };
+
+  const handleInterestRevoke = async (
+    targetUserId: string,
+    feature: string,
+    displayName: string
+  ) => {
+    const confirmed = window.confirm(
+      `Are you sure you want to revoke ${feature} access for ${displayName}?`
+    );
+    if (!confirmed) return;
+    await revokePermission(targetUserId, feature);
   };
 
   const sortedProfiles = [...profiles].sort((a, b) => {
@@ -263,7 +340,15 @@ const AdminPermissions = () => {
         </div>
       )}
 
-      <FeatureInterestTable />
+      <FeatureInterestTable
+        rows={interestRows}
+        loading={interestLoading}
+        permissions={permSet}
+        pending={pending}
+        feedback={feedback}
+        onGrant={grantPermission}
+        onRevoke={handleInterestRevoke}
+      />
     </div>
   );
 };
