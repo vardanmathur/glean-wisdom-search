@@ -1,9 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { useState } from "react";
-import { Search, Leaf, Plus, Brain, Upload } from "lucide-react";
+import { Search, Leaf, Brain, Upload } from "lucide-react";
 import { Link } from "react-router-dom";
-import { useAuth } from "@/context/AuthContext";
-import AddHighlightModal from "@/components/AddHighlightModal";
 import InstallPrompt from "@/components/InstallPrompt";
 import ComingSoonCard from "@/components/ComingSoonCard";
 import { useQuery } from "@tanstack/react-query";
@@ -25,8 +23,6 @@ const featuredTopics = [
 const Index = () => {
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
-  const { user } = useAuth();
-  const [showAddModal, setShowAddModal] = useState(false);
   const { data: stats } = useQuery({
     queryKey: ["glean-stats"],
     queryFn: getGleanStats,
@@ -78,33 +74,7 @@ const Index = () => {
         </div>
       </form>
 
-    <div className="flex flex-wrap justify-center gap-3 mb-8">
-      <button
-        onClick={() => user ? setShowAddModal(true) : navigate("/auth")}
-        className="inline-flex items-center gap-2 rounded-lg bg-primary/10 border border-primary/20 px-4 py-2 text-sm font-medium text-primary hover:bg-primary/15 transition-colors"
-      >
-        <Plus className="h-4 w-4" />
-        Build your own / Contribute
-      </button>
-      <InstallPrompt />
-    </div>
-
-    <div className="grid w-full max-w-2xl gap-4 sm:grid-cols-2 mb-10">
-      <ComingSoonCard
-        feature="think"
-        title="Think!"
-        description="A daily practice for your mind. Forge your thinking or stress-test your beliefs against the wisdom in your library."
-        icon={Brain}
-      />
-      <ComingSoonCard
-        feature="import"
-        title="Import"
-        description="Your Kindle highlights are a goldmine of your own past wisdom. Import brings them back to life."
-        icon={Upload}
-      />
-    </div>
-
-      <div className="flex flex-wrap justify-center gap-2 max-w-xl mb-16">
+      <div className="flex flex-wrap justify-center gap-2 max-w-xl mb-8">
         {exampleQueries.map((q) => (
           <button
             key={q}
@@ -114,6 +84,25 @@ const Index = () => {
             {q}
           </button>
         ))}
+      </div>
+
+      <div className="flex flex-wrap justify-center gap-3 mb-10">
+        <InstallPrompt />
+      </div>
+
+      <div className="w-full max-w-2xl flex flex-col gap-2 mb-12">
+        <ComingSoonCard
+          feature="think"
+          title="Think!"
+          description="A daily practice for your mind. Forge your thinking or stress-test your beliefs against the wisdom in your library."
+          icon={Brain}
+        />
+        <ComingSoonCard
+          feature="import"
+          title="Import"
+          description="Your Kindle highlights are a goldmine of your own past wisdom. Import brings them back to life."
+          icon={Upload}
+        />
       </div>
 
       <div className="w-full max-w-2xl text-center">
@@ -136,8 +125,6 @@ const Index = () => {
         <span className="mx-1">·</span>
         <Link to="/privacy" className="underline hover:text-foreground transition-colors">Privacy Policy</Link>
       </footer>
-
-      <AddHighlightModal open={showAddModal} onOpenChange={setShowAddModal} />
     </div>
   );
 };
