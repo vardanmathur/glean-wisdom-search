@@ -4,6 +4,7 @@ import { Search, Leaf, Brain, Upload, X, ArrowRight } from "lucide-react";
 import { Link } from "react-router-dom";
 import InstallPrompt from "@/components/InstallPrompt";
 import ComingSoonCard from "@/components/ComingSoonCard";
+import EarlyAccessPill from "@/components/EarlyAccessPill";
 import { useQuery } from "@tanstack/react-query";
 import { getGleanStats } from "@/lib/data";
 import { useAuth } from "@/context/AuthContext";
@@ -163,7 +164,7 @@ const Index = () => {
       </div>
 
       {!hideEarlyAccess && (
-        <section className="w-full max-w-2xl mb-12 rounded-xl bg-primary/5 border-l-2 border-primary/30 px-4 py-3">
+        <section id="early-access" className="w-full max-w-2xl mb-12 rounded-xl bg-primary/5 border-l-2 border-primary/30 px-4 py-3 scroll-mt-20">
           <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-2">
             Early Access
           </h3>
@@ -207,6 +208,7 @@ const Index = () => {
         <span className="mx-1">·</span>
         <Link to="/privacy" className="underline hover:text-foreground transition-colors">Privacy Policy</Link>
       </footer>
+      <EarlyAccessPill />
     </div>
   );
 };
