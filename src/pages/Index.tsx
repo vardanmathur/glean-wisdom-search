@@ -200,6 +200,7 @@ const Index = () => {
           ))}
         </div>
       </div>
+      </div>
 
       <footer className="mt-auto py-8 text-center text-xs text-muted-foreground">
         Built for Glean — extract meaning from what you've read · Built by: Vardan Mathur · February 2026
