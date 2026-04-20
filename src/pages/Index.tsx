@@ -1,11 +1,11 @@
 import { useNavigate } from "react-router-dom";
 import { useState } from "react";
-import { Search, Leaf, Plus, Brain } from "lucide-react";
+import { Search, Leaf, Plus, Brain, Upload } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
-import { usePermissions } from "@/hooks/usePermissions";
 import AddHighlightModal from "@/components/AddHighlightModal";
 import InstallPrompt from "@/components/InstallPrompt";
+import ComingSoonCard from "@/components/ComingSoonCard";
 import { useQuery } from "@tanstack/react-query";
 import { getGleanStats } from "@/lib/data";
 
@@ -26,7 +26,6 @@ const Index = () => {
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
   const { user } = useAuth();
-  const { hasPermission } = usePermissions();
   const [showAddModal, setShowAddModal] = useState(false);
   const { data: stats } = useQuery({
     queryKey: ["glean-stats"],
@@ -87,18 +86,22 @@ const Index = () => {
         <Plus className="h-4 w-4" />
         Build your own / Contribute
       </button>
-      {hasPermission("think") && (
-        <button
-          type="button"
-          onClick={() => navigate("/think")}
-          className="inline-flex items-center gap-2 rounded-lg border border-primary/40 bg-card px-4 py-2 text-sm font-medium text-primary hover:bg-primary/5 transition-colors"
-          aria-label="Open Think!"
-        >
-          <Brain className="h-4 w-4" />
-          Think!
-        </button>
-      )}
       <InstallPrompt />
+    </div>
+
+    <div className="grid w-full max-w-2xl gap-4 sm:grid-cols-2 mb-10">
+      <ComingSoonCard
+        feature="think"
+        title="Think!"
+        description="A daily practice for your mind. Forge your thinking or stress-test your beliefs against the wisdom in your library."
+        icon={Brain}
+      />
+      <ComingSoonCard
+        feature="import"
+        title="Import"
+        description="Your Kindle highlights are a goldmine of your own past wisdom. Import brings them back to life."
+        icon={Upload}
+      />
     </div>
 
       <div className="flex flex-wrap justify-center gap-2 max-w-xl mb-16">

@@ -3,6 +3,7 @@ import { Navigate } from "react-router-dom";
 import { Check, X, Loader2 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import FeatureInterestTable from "@/components/admin/FeatureInterestTable";
 
 const FEATURES = [
   { key: "import", label: "Import" },
@@ -261,6 +262,8 @@ const AdminPermissions = () => {
           </div>
         </div>
       )}
+
+      <FeatureInterestTable />
     </div>
   );
 };
