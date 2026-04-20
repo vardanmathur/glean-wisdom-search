@@ -44,6 +44,27 @@ export type Database = {
         }
         Relationships: []
       }
+      feature_interest: {
+        Row: {
+          created_at: string
+          feature: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          feature: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          feature?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       highlights: {
         Row: {
           book_id: string | null
