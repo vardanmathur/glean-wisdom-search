@@ -1,11 +1,20 @@
 import { useNavigate } from "react-router-dom";
-import { useState } from "react";
-import { Search, Leaf, Brain, Upload } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Search, Leaf, Brain, Upload, X, ArrowRight } from "lucide-react";
 import { Link } from "react-router-dom";
 import InstallPrompt from "@/components/InstallPrompt";
 import ComingSoonCard from "@/components/ComingSoonCard";
 import { useQuery } from "@tanstack/react-query";
 import { getGleanStats } from "@/lib/data";
+import { useAuth } from "@/context/AuthContext";
+import { usePermissions } from "@/hooks/usePermissions";
+
+const ADMIN_EMAIL = "vardan@gmail.com";
+
+const FEATURE_META: Record<string, { label: string; route: string }> = {
+  think: { label: "Think!", route: "/think" },
+  import: { label: "Import", route: "/import" },
+};
 
 const exampleQueries = [
   "I'm struggling to motivate my team",
@@ -23,10 +32,35 @@ const featuredTopics = [
 const Index = () => {
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
+  const { user } = useAuth();
+  const { hasPermission, loading: permsLoading } = usePermissions();
   const { data: stats } = useQuery({
     queryKey: ["glean-stats"],
     queryFn: getGleanStats,
   });
+
+  const isAdmin = user?.email === ADMIN_EMAIL;
+  const hasThink = !!user && !isAdmin && hasPermission("think");
+  const hasImport = !!user && !isAdmin && hasPermission("import");
+  const hideEarlyAccess = !isAdmin && hasThink && hasImport;
+
+  // What's new banner — one per newly granted feature, dismissible per-feature
+  const [bannerFeatures, setBannerFeatures] = useState<string[]>([]);
+  useEffect(() => {
+    if (!user || isAdmin || permsLoading) return;
+    const granted: string[] = [];
+    if (hasThink) granted.push("think");
+    if (hasImport) granted.push("import");
+    const visible = granted.filter(
+      (f) => !localStorage.getItem(`glean_whats_new_dismissed_${f}`)
+    );
+    setBannerFeatures(visible);
+  }, [user, isAdmin, permsLoading, hasThink, hasImport]);
+
+  const dismissBanner = (feature: string) => {
+    localStorage.setItem(`glean_whats_new_dismissed_${feature}`, "1");
+    setBannerFeatures((prev) => prev.filter((f) => f !== feature));
+  };
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,7 +75,45 @@ const Index = () => {
   };
 
   return (
-    <div className="flex min-h-[calc(100vh-4rem)] flex-col items-center justify-center px-4">
+    <div className="flex min-h-[calc(100vh-4rem)] flex-col items-center px-4 pt-6">
+      {bannerFeatures.length > 0 && (
+        <div className="w-full max-w-2xl mb-6 flex flex-col gap-2">
+          {bannerFeatures.map((f) => {
+            const meta = FEATURE_META[f];
+            if (!meta) return null;
+            return (
+              <div
+                key={f}
+                className="flex items-center justify-between gap-3 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 text-sm"
+              >
+                <Link
+                  to={meta.route}
+                  className="flex items-center gap-2 text-primary hover:text-primary/80 transition-colors group"
+                >
+                  <span aria-hidden>🎉</span>
+                  <span>
+                    You now have access to{" "}
+                    <span className="font-semibold">{meta.label}</span> —
+                  </span>
+                  <span className="font-medium inline-flex items-center gap-1">
+                    Try it now
+                    <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
+                  </span>
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => dismissBanner(f)}
+                  className="text-muted-foreground hover:text-foreground transition-colors"
+                  aria-label="Dismiss"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      <div className="flex flex-1 flex-col items-center justify-center w-full">
       <div className="w-full max-w-2xl text-center mb-12">
         <div className="inline-flex items-center gap-2 text-primary mb-6">
           <Leaf className="h-8 w-8" />
@@ -90,25 +162,29 @@ const Index = () => {
         <InstallPrompt />
       </div>
 
-      <section className="w-full max-w-2xl mb-12 rounded-xl bg-primary/5 border-l-2 border-primary/30 px-4 py-3">
-        <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-2">
-          Early Access
-        </h3>
-        <div className="flex flex-col divide-y divide-primary/10">
-          <ComingSoonCard
-            feature="think"
-            title="Think!"
-            description="A daily practice for your mind. Forge your thinking or stress-test your beliefs against the wisdom in your library."
-            icon={Brain}
-          />
-          <ComingSoonCard
-            feature="import"
-            title="Import"
-            description="Your Kindle highlights are a goldmine of your own past wisdom. Import brings them back to life."
-            icon={Upload}
-          />
-        </div>
-      </section>
+      {!hideEarlyAccess && (
+        <section className="w-full max-w-2xl mb-12 rounded-xl bg-primary/5 border-l-2 border-primary/30 px-4 py-3">
+          <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-2">
+            Early Access
+          </h3>
+          <div className="flex flex-col divide-y divide-primary/10">
+            <ComingSoonCard
+              feature="think"
+              title="Think!"
+              description="A daily practice for your mind. Forge your thinking or stress-test your beliefs against the wisdom in your library."
+              icon={Brain}
+              featureRoute="/think"
+            />
+            <ComingSoonCard
+              feature="import"
+              title="Import"
+              description="Your Kindle highlights are a goldmine of your own past wisdom. Import brings them back to life."
+              icon={Upload}
+              featureRoute="/import"
+            />
+          </div>
+        </section>
+      )}
 
       <div className="w-full max-w-2xl text-center">
         <h2 className="font-display text-2xl text-foreground mb-6">Browse by Topic</h2>
@@ -123,6 +199,7 @@ const Index = () => {
             </Link>
           ))}
         </div>
+      </div>
       </div>
 
       <footer className="mt-auto py-8 text-center text-xs text-muted-foreground">
