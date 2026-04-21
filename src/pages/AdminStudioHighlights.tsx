@@ -456,6 +456,17 @@ const AdminStudioHighlights = () => {
           </SelectContent>
         </Select>
 
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={loadDuplicates}
+          disabled={loadingDuplicates}
+          className="gap-2"
+        >
+          {loadingDuplicates ? <Loader2 className="h-4 w-4 animate-spin" /> : <Copy className="h-4 w-4" />}
+          Find Duplicates
+        </Button>
+
         <span className="ml-auto text-xs text-muted-foreground">{totalCount} highlights</span>
       </div>
 
