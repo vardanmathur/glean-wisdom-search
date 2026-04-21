@@ -40,7 +40,23 @@ interface HighlightRow {
   books: { title: string } | null;
 }
 
-// --- Multi-select tag dropdown ---
+interface DuplicateRow {
+  id: string;
+  quote: string;
+  book_id: string | null;
+  tags: string[] | null;
+  created_at: string;
+  book_title: string | null;
+  book_author: string | null;
+}
+
+interface DuplicateGroup {
+  key: string;
+  book_title: string | null;
+  book_author: string | null;
+  quote: string;
+  rows: DuplicateRow[];
+}
 interface MultiTagFilterProps {
   allTags: string[];
   selected: string[];
