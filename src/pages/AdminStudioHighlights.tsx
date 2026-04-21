@@ -169,6 +169,12 @@ const AdminStudioHighlights = () => {
   const [columnSort, setColumnSort] = useState<ColumnSortState>(null);
   const [feedback, setFeedback] = useState<Record<string, "success" | "error">>({});
   const [editingHighlight, setEditingHighlight] = useState<HighlightRow | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [showDuplicates, setShowDuplicates] = useState(false);
+  const [loadingDuplicates, setLoadingDuplicates] = useState(false);
+  const [duplicateGroups, setDuplicateGroups] = useState<DuplicateGroup[]>([]);
+  const [keepIds, setKeepIds] = useState<Record<string, string>>({}); // groupKey -> highlight id to keep
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!authLoading && (!user || user.email !== ADMIN_EMAIL)) {
