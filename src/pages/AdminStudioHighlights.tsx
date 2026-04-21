@@ -470,6 +470,95 @@ const AdminStudioHighlights = () => {
         <span className="ml-auto text-xs text-muted-foreground">{totalCount} highlights</span>
       </div>
 
+      {showDuplicates ? (
+        /* Duplicates Panel */
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 p-4 rounded-lg border bg-card">
+            <div>
+              <h2 className="font-display text-xl font-semibold text-foreground">Duplicates</h2>
+              <p className="text-sm text-muted-foreground">
+                {duplicateGroups.length === 0
+                  ? "No exact duplicates found."
+                  : `${duplicateGroups.length} duplicate ${duplicateGroups.length === 1 ? "group" : "groups"} found, ${duplicateGroups.reduce((sum, g) => sum + g.rows.length - 1, 0)} highlights to remove`}
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={loadDuplicates} disabled={loadingDuplicates} className="gap-2">
+                {loadingDuplicates ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                Refresh
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setShowDuplicates(false)}>
+                Close duplicates view
+              </Button>
+            </div>
+          </div>
+
+          {duplicateGroups.length === 0 ? (
+            <div className="rounded-lg border bg-card p-8 text-center text-muted-foreground">
+              {loadingDuplicates ? "Scanning…" : "All clean — no duplicates found."}
+            </div>
+          ) : (
+            duplicateGroups.map((group) => {
+              const keepId = keepIds[group.key];
+              return (
+                <div key={group.key} className="rounded-lg border bg-card p-4">
+                  <div className="mb-3">
+                    <p className="text-sm font-medium text-foreground">
+                      {group.book_title ?? "Unknown book"}
+                      {group.book_author ? <span className="text-muted-foreground font-normal"> — {group.book_author}</span> : null}
+                    </p>
+                    <p className="text-sm text-muted-foreground italic mt-1">"{truncate(group.quote, 200)}"</p>
+                    <p className="text-xs text-muted-foreground mt-1">{group.rows.length} copies</p>
+                  </div>
+                  <div className="space-y-2">
+                    {group.rows.map((row) => {
+                      const isKeep = row.id === keepId;
+                      return (
+                        <div
+                          key={row.id}
+                          className={`flex items-center justify-between gap-3 rounded-md border p-3 ${isKeep ? "border-primary/40 bg-primary/5" : "border-border"}`}
+                        >
+                          <label className="flex items-center gap-2 text-sm cursor-pointer flex-1 min-w-0">
+                            <input
+                              type="radio"
+                              name={`keep-${group.key}`}
+                              checked={isKeep}
+                              onChange={() => setKeepIds((prev) => ({ ...prev, [group.key]: row.id }))}
+                              className="accent-primary"
+                            />
+                            <span className={isKeep ? "font-medium text-primary" : "text-muted-foreground"}>
+                              {isKeep ? "Keep" : "Duplicate"}
+                            </span>
+                            <span className="text-xs text-muted-foreground ml-2">
+                              {new Date(row.created_at).toLocaleString()}
+                            </span>
+                            {(row.tags?.length ?? 0) > 0 && (
+                              <span className="text-xs text-muted-foreground ml-2 truncate">
+                                · {row.tags!.join(", ")}
+                              </span>
+                            )}
+                          </label>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            disabled={isKeep || deletingId === row.id}
+                            onClick={() => deleteHighlight(row.id)}
+                            className="gap-1.5"
+                          >
+                            {deletingId === row.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                            Delete
+                          </Button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      ) : (
+      <>
       {/* Table */}
       <div className="rounded-lg border bg-card overflow-x-auto">
         <table className="w-full text-sm">
