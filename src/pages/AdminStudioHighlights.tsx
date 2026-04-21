@@ -319,6 +319,100 @@ const AdminStudioHighlights = () => {
     }), 2000);
   };
 
+  const loadDuplicates = async () => {
+    setLoadingDuplicates(true);
+    try {
+      const PAGE = 1000;
+      let from = 0;
+      const all: Array<{
+        id: string;
+        quote: string;
+        book_id: string | null;
+        tags: string[] | null;
+        created_at: string;
+        books: { title: string | null; author: string | null } | null;
+      }> = [];
+      // Paginated fetch — explicit columns only, never SELECT *, never embedding
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        const { data, error } = await supabase
+          .from("highlights")
+          .select("id, quote, book_id, tags, created_at, books(title, author)")
+          .range(from, from + PAGE - 1);
+        if (error) throw error;
+        const batch = (data ?? []) as typeof all;
+        all.push(...batch);
+        if (batch.length < PAGE) break;
+        from += PAGE;
+      }
+
+      const groups = new Map<string, DuplicateGroup>();
+      for (const r of all) {
+        const key = `${r.quote}||${r.book_id ?? ""}`;
+        const row: DuplicateRow = {
+          id: r.id,
+          quote: r.quote,
+          book_id: r.book_id,
+          tags: r.tags,
+          created_at: r.created_at,
+          book_title: r.books?.title ?? null,
+          book_author: r.books?.author ?? null,
+        };
+        const existing = groups.get(key);
+        if (existing) {
+          existing.rows.push(row);
+        } else {
+          groups.set(key, { key, book_title: row.book_title, book_author: row.book_author, quote: row.quote, rows: [row] });
+        }
+      }
+
+      const dupGroups = Array.from(groups.values())
+        .filter((g) => g.rows.length > 1)
+        .map((g) => ({
+          ...g,
+          rows: [...g.rows].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()),
+        }))
+        .sort((a, b) => b.rows.length - a.rows.length);
+
+      const keep: Record<string, string> = {};
+      dupGroups.forEach((g) => { keep[g.key] = g.rows[0].id; });
+
+      setDuplicateGroups(dupGroups);
+      setKeepIds(keep);
+      setShowDuplicates(true);
+    } catch (err) {
+      console.error("Failed to load duplicates:", err);
+      toast.error("Failed to load duplicates");
+    } finally {
+      setLoadingDuplicates(false);
+    }
+  };
+
+  const deleteHighlight = async (id: string) => {
+    setDeletingId(id);
+    try {
+      const { error } = await supabase.from("highlights").delete().eq("id", id);
+      if (error) throw error;
+      setDuplicateGroups((prev) =>
+        prev.map((g) => ({ ...g, rows: g.rows.filter((r) => r.id !== id) })).filter((g) => g.rows.length > 1)
+      );
+      setKeepIds((prev) => {
+        const next = { ...prev };
+        Object.keys(next).forEach((k) => { if (next[k] === id) delete next[k]; });
+        return next;
+      });
+      queryClient.invalidateQueries({ queryKey: ["studio-highlights"] });
+      toast.success("Highlight deleted");
+      return true;
+    } catch (err) {
+      console.error("Delete failed:", err);
+      toast.error("Delete failed — please try again");
+      return false;
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   useEffect(() => {
     setPage(0);
   }, [filterBook, filterTags, filterNoNotes, sortBy]);
