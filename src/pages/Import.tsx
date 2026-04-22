@@ -1111,9 +1111,15 @@ const Import = () => {
         setImportProgress({ done: imported + failed.length, total: rows.length });
       }
 
-      // Cleanup: delete pending (now imported) + skipped rows for this session
-      // Only remove successful pending rows from staging — keep failures so user can retry
-      if (successfulIds.length > 0) {
+      // Cleanup: if all pending rows imported successfully, wipe ALL staging rows
+      // for this session (any status). Preserve rows when failures exist so user can retry.
+      if (failed.length === 0) {
+        await supabase
+          .from("kindle_import_staging")
+          .delete()
+          .eq("user_id", user.id)
+          .eq("session_id", sessionId);
+      } else if (successfulIds.length > 0) {
         const DEL_BATCH = 200;
         for (let i = 0; i < successfulIds.length; i += DEL_BATCH) {
           const slice = successfulIds.slice(i, i + DEL_BATCH);
@@ -1124,13 +1130,6 @@ const Import = () => {
             .eq("user_id", user.id);
         }
       }
-      // Delete skipped rows
-      await supabase
-        .from("kindle_import_staging")
-        .delete()
-        .eq("user_id", user.id)
-        .eq("session_id", sessionId)
-        .eq("status", "skipped");
 
       const booksTouched = uniqueBookKeys.size;
 
