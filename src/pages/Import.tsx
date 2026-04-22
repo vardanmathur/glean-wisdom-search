@@ -723,6 +723,9 @@ const Import = () => {
       setSaving(true);
       const newSessionId = crypto.randomUUID();
 
+      // Clear any leftover staging rows from abandoned sessions for this user
+      await supabase.from("kindle_import_staging").delete().eq("user_id", user.id);
+
       // First pass: insert all rows (without duplicate_of for Level 1 refs since we don't have DB UUIDs yet)
       // We'll use a client_id -> db id map to update duplicate_of in a second pass.
       const clientToDbId = new Map<string, string>();
