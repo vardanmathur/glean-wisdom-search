@@ -308,7 +308,7 @@ export async function searchHighlights(
     }
 
     for (const tag of highlightTags) {
-      if (expandedTags.has(tag)) {
+      if (expandedTags.has(tag.toLowerCase())) {
         score += 2;
       }
     }
@@ -452,7 +452,7 @@ async function computeKeywordScores(query: string): Promise<{
         }
       }
       for (const tag of tags) {
-        if (expandedTags.has(tag)) score += 2;
+        if (expandedTags.has(tag.toLowerCase())) score += 2;
       }
       if (h.my_notes && h.my_notes.trim().length > 0) score += 2;
       if (h.my_notes) {
