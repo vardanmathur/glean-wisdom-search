@@ -159,7 +159,16 @@ serve(async (req) => {
     // 3. Pure vector scoring — keyword blending was found to actively hurt natural-language
     //    queries (semantic top results paraphrase concepts and have zero literal-keyword overlap,
     //    so blending collapsed their scores while inflating off-topic items with stopword matches).
-    const scored = rows.map((r: any) => {
+    type ScoredRow = {
+      id: string;
+      quote: string;
+      book_id: string | null;
+      tags: string[];
+      my_notes: string | null;
+      vector_score: number;
+      final_score: number;
+    };
+    const scored: ScoredRow[] = rows.map((r: any) => {
       const vScore = Math.max(0, Math.min(1, Number(r.vector_score) || 0));
       return {
         id: r.id,
