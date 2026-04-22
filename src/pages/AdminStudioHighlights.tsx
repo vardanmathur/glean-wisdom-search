@@ -191,6 +191,7 @@ const AdminStudioHighlights = () => {
   const [duplicateGroups, setDuplicateGroups] = useState<DuplicateGroup[]>([]);
   const [keepIds, setKeepIds] = useState<Record<string, string>>({}); // groupKey -> highlight id to keep
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
     if (!authLoading && (!user || user.email !== ADMIN_EMAIL)) {
@@ -284,7 +285,19 @@ const AdminStudioHighlights = () => {
     });
   };
 
-  const highlights = applyColumnSort(highlightsData?.rows ?? []);
+const sortedHighlights = applyColumnSort(highlightsData?.rows ?? []);
+const highlights = searchQuery.trim()
+  ? sortedHighlights.filter(h => {
+      const q = searchQuery.toLowerCase();
+      return (
+        h.quote?.toLowerCase().includes(q) ||
+        h.my_notes?.toLowerCase().includes(q) ||
+        h.books?.title?.toLowerCase().includes(q) ||
+        h.tags?.some((t: string) => t.toLowerCase().includes(q))
+      );
+    })
+  : sortedHighlights;
+  
   const totalCount = highlightsData?.total ?? 0;
   const totalPages = Math.ceil(totalCount / PAGE_SIZE);
 
@@ -467,7 +480,28 @@ const AdminStudioHighlights = () => {
           Find Duplicates
         </Button>
 
-        <span className="ml-auto text-xs text-muted-foreground">{totalCount} highlights</span>
+        <div className="relative ml-auto flex items-center gap-3">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <input
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              placeholder="Search quotes, books, tags, notes..."
+              className="h-9 w-72 rounded-md border border-input bg-background pl-9 pr-8 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery("")}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+          <span className="text-xs text-muted-foreground whitespace-nowrap">
+            {searchQuery ? `${highlights.length} of ${totalCount}` : `${totalCount}`} highlights
+          </span>
+        </div>
       </div>
 
       {showDuplicates ? (
