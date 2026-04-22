@@ -448,6 +448,24 @@ const AdminStudioHighlights = () => {
 
       {/* Filter & Sort Bar */}
       <div className="flex flex-wrap items-center gap-3 mb-6 p-4 rounded-lg border bg-card">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <input
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search quotes, books, notes..."
+            className="h-10 w-72 rounded-md border border-input bg-background pl-9 pr-8 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery("")}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+
         <Select value={filterBook} onValueChange={setFilterBook}>
           <SelectTrigger className="w-[200px]"><SelectValue placeholder="Filter by book" /></SelectTrigger>
           <SelectContent>
@@ -486,28 +504,9 @@ const AdminStudioHighlights = () => {
           Find Duplicates
         </Button>
 
-        <div className="relative ml-auto flex items-center gap-3">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <input
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              placeholder="Search quotes, books, tags, notes..."
-              className="h-9 w-72 rounded-md border border-input bg-background pl-9 pr-8 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            />
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery("")}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            )}
-          </div>
-          <span className="text-xs text-muted-foreground whitespace-nowrap">
-            {searchQuery ? `${highlights.length} of ${totalCount}` : `${totalCount}`} highlights
-          </span>
-        </div>
+        <span className="ml-auto text-xs text-muted-foreground whitespace-nowrap">
+          {totalCount} highlights
+        </span>
       </div>
 
       {showDuplicates ? (
