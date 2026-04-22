@@ -220,7 +220,7 @@ const AdminStudioHighlights = () => {
   });
 
   const { data: highlightsData, isLoading } = useQuery({
-    queryKey: ["studio-highlights", page, filterBook, filterTags, filterNoNotes, sortBy],
+    queryKey: ["studio-highlights", page, filterBook, filterTags, filterNoNotes, sortBy, searchQuery],
     queryFn: async () => {
       let query = supabase
         .from("highlights")
@@ -229,6 +229,24 @@ const AdminStudioHighlights = () => {
       if (filterBook !== "all") query = query.eq("book_id", filterBook);
       if (filterTags.length > 0) query = query.contains("tags", filterTags);
       if (filterNoNotes) query = query.or("my_notes.is.null,my_notes.eq.");
+
+      const trimmedSearch = searchQuery.trim();
+      if (trimmedSearch) {
+        // Escape PostgREST special chars in ilike pattern
+        const escaped = trimmedSearch.replace(/[,()]/g, " ");
+        const pattern = `%${escaped}%`;
+        // Look up matching book_ids by title so we can include them in the OR
+        const { data: matchingBooks } = await supabase
+          .from("books")
+          .select("id")
+          .ilike("title", pattern);
+        const bookIds = (matchingBooks ?? []).map((b) => b.id);
+        const orParts = [`quote.ilike.${pattern}`, `my_notes.ilike.${pattern}`];
+        if (bookIds.length > 0) {
+          orParts.push(`book_id.in.(${bookIds.join(",")})`);
+        }
+        query = query.or(orParts.join(","));
+      }
 
       switch (sortBy) {
         case "recent":
@@ -285,19 +303,7 @@ const AdminStudioHighlights = () => {
     });
   };
 
-const sortedHighlights = applyColumnSort(highlightsData?.rows ?? []);
-const highlights = searchQuery.trim()
-  ? sortedHighlights.filter(h => {
-      const q = searchQuery.toLowerCase();
-      return (
-        h.quote?.toLowerCase().includes(q) ||
-        h.my_notes?.toLowerCase().includes(q) ||
-        h.books?.title?.toLowerCase().includes(q) ||
-        h.tags?.some((t: string) => t.toLowerCase().includes(q))
-      );
-    })
-  : sortedHighlights;
-  
+  const highlights = applyColumnSort(highlightsData?.rows ?? []);
   const totalCount = highlightsData?.total ?? 0;
   const totalPages = Math.ceil(totalCount / PAGE_SIZE);
 
@@ -428,7 +434,7 @@ const highlights = searchQuery.trim()
 
   useEffect(() => {
     setPage(0);
-  }, [filterBook, filterTags, filterNoNotes, sortBy]);
+  }, [filterBook, filterTags, filterNoNotes, sortBy, searchQuery]);
 
   const truncate = (text: string, max: number) =>
     text.length > max ? text.slice(0, max) + "…" : text;
