@@ -254,7 +254,7 @@ function expandQueryTags(words: string[]): Set<string> {
   for (const word of words) {
     for (const [trigger, mappedTags] of Object.entries(synonymMap)) {
       if (word.includes(trigger) || trigger.includes(word)) {
-        mappedTags.forEach(tag => expandedTags.add(tag));
+        mappedTags.forEach(tag => expandedTags.add(tag.toLowerCase()));
       }
     }
   }
