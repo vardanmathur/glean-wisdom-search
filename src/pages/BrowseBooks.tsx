@@ -50,7 +50,7 @@ const BrowseBooks = () => {
             {sorted.map((book) => {
               const reason = `${book.highlightCount} highlight${
                 book.highlightCount !== 1 ? "s" : ""
-              }${book.avgHighlightLength ? ` · avg ${book.avgHighlightLength} chars` : ""}`;
+              }`;
 
               return (
                 <div
