@@ -677,28 +677,44 @@ const AdminStudioHighlights = () => {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b bg-muted/50">
-              <SortableHeader label="Quote" colKey="quote" columnSort={columnSort} onSort={handleColumnSort} className="w-[35%]" />
+              <th className="p-3 w-[40px]">
+                <Checkbox
+                  checked={visibleIds.length > 0 && visibleIds.every((id) => selectedIds.has(id))}
+                  onCheckedChange={(v) => toggleAllVisible(v === true)}
+                  aria-label="Select all visible"
+                />
+              </th>
+              <SortableHeader label="Quote" colKey="quote" columnSort={columnSort} onSort={handleColumnSort} className="w-[33%]" />
               <SortableHeader label="Book" colKey="book" columnSort={columnSort} onSort={handleColumnSort} className="w-[15%]" />
-              <SortableHeader label="Tags" colKey="tags" columnSort={columnSort} onSort={handleColumnSort} className="w-[20%]" />
-              <SortableHeader label="Notes" colKey="notes" columnSort={columnSort} onSort={handleColumnSort} className="w-[15%]" />
+              <SortableHeader label="Tags" colKey="tags" columnSort={columnSort} onSort={handleColumnSort} className="w-[18%]" />
+              <SortableHeader label="Notes" colKey="notes" columnSort={columnSort} onSort={handleColumnSort} className="w-[14%]" />
               <SortableHeader label="Visibility" colKey="visibility" columnSort={columnSort} onSort={handleColumnSort} className="w-[10%]" />
-              <th className="text-center p-3 font-medium text-muted-foreground w-[5%]"></th>
+              <th className="text-center p-3 font-medium text-muted-foreground w-[10%]"></th>
             </tr>
           </thead>
           <tbody>
             {isLoading ? (
               Array.from({ length: 5 }).map((_, i) => (
                 <tr key={i} className="border-b">
-                  <td colSpan={6} className="p-3"><div className="h-5 bg-muted/50 rounded animate-pulse" /></td>
+                  <td colSpan={7} className="p-3"><div className="h-5 bg-muted/50 rounded animate-pulse" /></td>
                 </tr>
               ))
             ) : highlights.length === 0 ? (
               <tr>
-                <td colSpan={6} className="p-8 text-center text-muted-foreground">No highlights found.</td>
+                <td colSpan={7} className="p-8 text-center text-muted-foreground">No highlights found.</td>
               </tr>
             ) : (
-              highlights.map((h) => (
+              highlights.map((h) => {
+                const isMissingEmbedding = missingEmbeddingIds?.has(h.id);
+                return (
                 <tr key={h.id} className="border-b hover:bg-muted/30 cursor-pointer" onDoubleClick={() => setEditingHighlight(h)}>
+                  <td className="p-3" onClick={(e) => e.stopPropagation()}>
+                    <Checkbox
+                      checked={selectedIds.has(h.id)}
+                      onCheckedChange={() => toggleRowSelection(h.id)}
+                      aria-label="Select row"
+                    />
+                  </td>
                   <td className="p-3 text-foreground leading-relaxed">{truncate(h.quote, 100)}</td>
                   <td className="p-3 text-muted-foreground">{h.books?.title ?? "—"}</td>
                   <td className="p-3">
@@ -723,6 +739,9 @@ const AdminStudioHighlights = () => {
                       <AlertCircle className="h-4 w-4 text-destructive mx-auto" />
                     ) : (
                       <div className="flex items-center justify-center gap-1">
+                        {isMissingEmbedding && (
+                          <Sparkles className="h-3.5 w-3.5 text-amber-500" aria-label="Missing embedding" />
+                        )}
                         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditingHighlight(h)}>
                           <Pencil className="h-3.5 w-3.5" />
                         </Button>
@@ -740,7 +759,8 @@ const AdminStudioHighlights = () => {
                     )}
                   </td>
                 </tr>
-              ))
+                );
+              })
             )}
           </tbody>
         </table>
