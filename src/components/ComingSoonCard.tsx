@@ -45,16 +45,18 @@ const ComingSoonCard = ({
 
   // Granted user — clean single-line teal entry point (no lock)
   if (granted) {
+    // For Import: route directly to the user-scoped Studio instead of the importer landing.
+    const isImport = feature === "import";
+    const target = isImport ? "/studio" : featureRoute;
+    const label = isImport ? "My Studio" : `${title} is unlocked — Try it now`;
     return (
       <Link
-        to={featureRoute}
+        to={target}
         className="flex items-center gap-2 py-2 text-sm text-primary hover:text-primary/80 transition-colors group"
       >
         <span aria-hidden>🎉</span>
         {Icon && <Icon className="h-4 w-4" strokeWidth={2} />}
-        <span className="font-medium">
-          {title} is unlocked — Try it now
-        </span>
+        <span className="font-medium">{label}</span>
         <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
       </Link>
     );

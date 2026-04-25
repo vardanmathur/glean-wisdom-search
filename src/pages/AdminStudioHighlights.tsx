@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Check, AlertCircle, ChevronLeft, ChevronRight, Pencil, X, ChevronDown, Search, ArrowUpDown, ArrowUp, ArrowDown, Trash2, Copy, Loader2 } from "lucide-react";
+import { Check, AlertCircle, ChevronLeft, ChevronRight, Pencil, X, ChevronDown, Search, ArrowUpDown, ArrowUp, ArrowDown, Trash2, Copy, Loader2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -192,6 +192,8 @@ const AdminStudioHighlights = () => {
   const [keepIds, setKeepIds] = useState<Record<string, string>>({}); // groupKey -> highlight id to keep
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [generatingEmbeddings, setGeneratingEmbeddings] = useState(false);
 
   useEffect(() => {
     if (!authLoading && (!user || user.email !== ADMIN_EMAIL)) {
@@ -275,6 +277,65 @@ const AdminStudioHighlights = () => {
     },
     enabled: user?.email === ADMIN_EMAIL,
   });
+
+  // Lightweight query for which currently-visible IDs lack embeddings.
+  // We never SELECT the embedding vector itself — just IDs filtered by IS NULL.
+  const visibleIds = (highlightsData?.rows ?? []).map((r) => r.id);
+  const { data: missingEmbeddingIds } = useQuery({
+    queryKey: ["studio-missing-embeddings", visibleIds],
+    queryFn: async () => {
+      if (visibleIds.length === 0) return new Set<string>();
+      const { data, error } = await supabase
+        .from("highlights")
+        .select("id")
+        .in("id", visibleIds)
+        .is("embedding", null);
+      if (error) throw error;
+      return new Set((data ?? []).map((r) => r.id));
+    },
+    enabled: user?.email === ADMIN_EMAIL && visibleIds.length > 0,
+  });
+
+  const selectedMissingCount = Array.from(selectedIds).filter((id) => missingEmbeddingIds?.has(id)).length;
+
+  const generateEmbeddingsForSelected = async () => {
+    const ids = Array.from(selectedIds).filter((id) => missingEmbeddingIds?.has(id));
+    if (ids.length === 0) return;
+    setGeneratingEmbeddings(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("generate-embeddings", {
+        body: { ids },
+      });
+      if (error) throw error;
+      const processed = (data as { processed?: number })?.processed ?? ids.length;
+      toast.success(`Embeddings generated for ${processed} highlight${processed === 1 ? "" : "s"}`);
+      setSelectedIds(new Set());
+      queryClient.invalidateQueries({ queryKey: ["studio-missing-embeddings"] });
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to generate embeddings — please try again");
+    } finally {
+      setGeneratingEmbeddings(false);
+    }
+  };
+
+  const toggleRowSelection = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleAllVisible = (checked: boolean) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (checked) visibleIds.forEach((id) => next.add(id));
+      else visibleIds.forEach((id) => next.delete(id));
+      return next;
+    });
+  };
 
   // Apply client-side column sort
   const applyColumnSort = (rows: HighlightRow[]): HighlightRow[] => {
@@ -504,6 +565,19 @@ const AdminStudioHighlights = () => {
           Find Duplicates
         </Button>
 
+        {selectedIds.size > 0 && (
+          <Button
+            variant="default"
+            size="sm"
+            onClick={generateEmbeddingsForSelected}
+            disabled={generatingEmbeddings || selectedMissingCount === 0}
+            className="gap-2"
+          >
+            {generatingEmbeddings ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+            {generatingEmbeddings ? "Generating…" : `Generate embeddings (${selectedMissingCount})`}
+          </Button>
+        )}
+
         <span className="ml-auto text-xs text-muted-foreground whitespace-nowrap">
           {totalCount} highlights
         </span>
@@ -603,28 +677,44 @@ const AdminStudioHighlights = () => {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b bg-muted/50">
-              <SortableHeader label="Quote" colKey="quote" columnSort={columnSort} onSort={handleColumnSort} className="w-[35%]" />
+              <th className="p-3 w-[40px]">
+                <Checkbox
+                  checked={visibleIds.length > 0 && visibleIds.every((id) => selectedIds.has(id))}
+                  onCheckedChange={(v) => toggleAllVisible(v === true)}
+                  aria-label="Select all visible"
+                />
+              </th>
+              <SortableHeader label="Quote" colKey="quote" columnSort={columnSort} onSort={handleColumnSort} className="w-[33%]" />
               <SortableHeader label="Book" colKey="book" columnSort={columnSort} onSort={handleColumnSort} className="w-[15%]" />
-              <SortableHeader label="Tags" colKey="tags" columnSort={columnSort} onSort={handleColumnSort} className="w-[20%]" />
-              <SortableHeader label="Notes" colKey="notes" columnSort={columnSort} onSort={handleColumnSort} className="w-[15%]" />
+              <SortableHeader label="Tags" colKey="tags" columnSort={columnSort} onSort={handleColumnSort} className="w-[18%]" />
+              <SortableHeader label="Notes" colKey="notes" columnSort={columnSort} onSort={handleColumnSort} className="w-[14%]" />
               <SortableHeader label="Visibility" colKey="visibility" columnSort={columnSort} onSort={handleColumnSort} className="w-[10%]" />
-              <th className="text-center p-3 font-medium text-muted-foreground w-[5%]"></th>
+              <th className="text-center p-3 font-medium text-muted-foreground w-[10%]"></th>
             </tr>
           </thead>
           <tbody>
             {isLoading ? (
               Array.from({ length: 5 }).map((_, i) => (
                 <tr key={i} className="border-b">
-                  <td colSpan={6} className="p-3"><div className="h-5 bg-muted/50 rounded animate-pulse" /></td>
+                  <td colSpan={7} className="p-3"><div className="h-5 bg-muted/50 rounded animate-pulse" /></td>
                 </tr>
               ))
             ) : highlights.length === 0 ? (
               <tr>
-                <td colSpan={6} className="p-8 text-center text-muted-foreground">No highlights found.</td>
+                <td colSpan={7} className="p-8 text-center text-muted-foreground">No highlights found.</td>
               </tr>
             ) : (
-              highlights.map((h) => (
+              highlights.map((h) => {
+                const isMissingEmbedding = missingEmbeddingIds?.has(h.id);
+                return (
                 <tr key={h.id} className="border-b hover:bg-muted/30 cursor-pointer" onDoubleClick={() => setEditingHighlight(h)}>
+                  <td className="p-3" onClick={(e) => e.stopPropagation()}>
+                    <Checkbox
+                      checked={selectedIds.has(h.id)}
+                      onCheckedChange={() => toggleRowSelection(h.id)}
+                      aria-label="Select row"
+                    />
+                  </td>
                   <td className="p-3 text-foreground leading-relaxed">{truncate(h.quote, 100)}</td>
                   <td className="p-3 text-muted-foreground">{h.books?.title ?? "—"}</td>
                   <td className="p-3">
@@ -649,6 +739,9 @@ const AdminStudioHighlights = () => {
                       <AlertCircle className="h-4 w-4 text-destructive mx-auto" />
                     ) : (
                       <div className="flex items-center justify-center gap-1">
+                        {isMissingEmbedding && (
+                          <Sparkles className="h-3.5 w-3.5 text-amber-500" aria-label="Missing embedding" />
+                        )}
                         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditingHighlight(h)}>
                           <Pencil className="h-3.5 w-3.5" />
                         </Button>
@@ -666,7 +759,8 @@ const AdminStudioHighlights = () => {
                     )}
                   </td>
                 </tr>
-              ))
+                );
+              })
             )}
           </tbody>
         </table>

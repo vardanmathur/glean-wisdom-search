@@ -1,5 +1,5 @@
 import { Link, useNavigate } from "react-router-dom";
-import { Leaf, Search, Bookmark, User, LogOut, Settings, BookOpen, Wrench, Shield, Upload, Menu, Brain } from "lucide-react";
+import { Leaf, Search, Bookmark, User, LogOut, Settings, BookOpen, Wrench, Shield, Upload, Menu, Brain, Sparkles } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -113,6 +113,17 @@ const Navbar = () => {
                     >
                       <Upload className="h-4 w-4" />
                       Import
+                    </Link>
+                  </SheetClose>
+                )}
+                {hasPermission("import") && (
+                  <SheetClose asChild>
+                    <Link
+                      to="/studio"
+                      className="inline-flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-foreground hover:bg-secondary transition-colors"
+                    >
+                      <Sparkles className="h-4 w-4" />
+                      My Studio
                     </Link>
                   </SheetClose>
                 )}

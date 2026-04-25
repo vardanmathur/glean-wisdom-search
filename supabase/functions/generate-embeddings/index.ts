@@ -43,17 +43,46 @@ serve(async (req) => {
   const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+  // Optional: { ids: string[] } body to target specific highlights.
+  // When omitted, falls back to scanning all rows with NULL embedding.
+  let targetIds: string[] | null = null;
+  if (req.method === "POST") {
+    try {
+      const body = await req.json();
+      if (body && Array.isArray(body.ids) && body.ids.length > 0) {
+        targetIds = body.ids.filter((x: unknown) => typeof x === "string");
+      }
+    } catch {
+      // no body / invalid json — ignore, fall back to global scan
+    }
+  }
+
   try {
-    const { count: remaining, error: countError } = await supabase
-      .from("highlights")
-      .select("id", { count: "exact", head: true })
-      .is("embedding", null);
+    let remaining: number | null = null;
+    let totalCount: number | null = null;
 
-    if (countError) throw countError;
+    if (targetIds) {
+      const { count, error: countError } = await supabase
+        .from("highlights")
+        .select("id", { count: "exact", head: true })
+        .in("id", targetIds)
+        .is("embedding", null);
+      if (countError) throw countError;
+      remaining = count ?? 0;
+      totalCount = targetIds.length;
+    } else {
+      const { count, error: countError } = await supabase
+        .from("highlights")
+        .select("id", { count: "exact", head: true })
+        .is("embedding", null);
+      if (countError) throw countError;
+      remaining = count ?? 0;
 
-    const { count: totalCount } = await supabase
-      .from("highlights")
-      .select("id", { count: "exact", head: true });
+      const { count: tc } = await supabase
+        .from("highlights")
+        .select("id", { count: "exact", head: true });
+      totalCount = tc ?? 0;
+    }
 
     if (remaining === 0) {
       return new Response(JSON.stringify({
@@ -66,11 +95,16 @@ serve(async (req) => {
       });
     }
 
-    const { data: batch, error: fetchError } = await supabase
+    let fetchQuery = supabase
       .from("highlights")
       .select("id, quote")
-      .is("embedding", null)
-      .limit(BATCH_SIZE);
+      .is("embedding", null);
+
+    if (targetIds) {
+      fetchQuery = fetchQuery.in("id", targetIds);
+    }
+
+    const { data: batch, error: fetchError } = await fetchQuery.limit(BATCH_SIZE);
 
     if (fetchError) throw fetchError;
 
