@@ -192,6 +192,8 @@ const AdminStudioHighlights = () => {
   const [keepIds, setKeepIds] = useState<Record<string, string>>({}); // groupKey -> highlight id to keep
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [generatingEmbeddings, setGeneratingEmbeddings] = useState(false);
 
   useEffect(() => {
     if (!authLoading && (!user || user.email !== ADMIN_EMAIL)) {
