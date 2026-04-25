@@ -106,8 +106,8 @@ const UserStudio = () => {
       let query = supabase
         .from("highlights")
         .select("id, quote, tags, my_notes, visibility, created_at, book_id, books(title)", { count: "exact" })
-        .eq("highlights.user_id", user!.id)
-        .eq("highlights.visibility", "private");
+        .eq("user_id", user!.id)
+        .eq("visibility", "private");
 
       const trimmed = searchQuery.trim();
       if (trimmed) {
@@ -116,7 +116,7 @@ const UserStudio = () => {
         const { data: matchingBooks } = await supabase
           .from("books")
           .select("id")
-          .ilike("books.title", pattern);
+          .ilike("title", pattern);
         const bookIds = (matchingBooks ?? []).map((b) => b.id);
         const orParts = [`quote.ilike.${pattern}`, `my_notes.ilike.${pattern}`];
         if (bookIds.length > 0) orParts.push(`book_id.in.(${bookIds.join(",")})`);
@@ -181,8 +181,8 @@ const UserStudio = () => {
       const { error } = await supabase
         .from("highlights")
         .update(updates)
-        .eq("highlights.id", id)
-        .eq("highlights.user_id", user!.id);
+        .eq("id", id)
+        .eq("user_id", user!.id);
       if (error) throw error;
     },
     onSuccess: (_, { id }) => {
@@ -207,8 +207,8 @@ const UserStudio = () => {
       const { error } = await supabase
         .from("highlights")
         .delete()
-        .eq("highlights.id", id)
-        .eq("highlights.user_id", user!.id);
+        .eq("id", id)
+        .eq("user_id", user!.id);
       if (error) throw error;
       queryClient.invalidateQueries({ queryKey: ["user-studio-highlights"] });
       toast.success("Highlight deleted");
