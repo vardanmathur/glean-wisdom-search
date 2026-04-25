@@ -565,6 +565,19 @@ const AdminStudioHighlights = () => {
           Find Duplicates
         </Button>
 
+        {selectedIds.size > 0 && (
+          <Button
+            variant="default"
+            size="sm"
+            onClick={generateEmbeddingsForSelected}
+            disabled={generatingEmbeddings || selectedMissingCount === 0}
+            className="gap-2"
+          >
+            {generatingEmbeddings ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+            {generatingEmbeddings ? "Generating…" : `Generate embeddings (${selectedMissingCount})`}
+          </Button>
+        )}
+
         <span className="ml-auto text-xs text-muted-foreground whitespace-nowrap">
           {totalCount} highlights
         </span>
