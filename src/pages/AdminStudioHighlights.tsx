@@ -278,6 +278,65 @@ const AdminStudioHighlights = () => {
     enabled: user?.email === ADMIN_EMAIL,
   });
 
+  // Lightweight query for which currently-visible IDs lack embeddings.
+  // We never SELECT the embedding vector itself — just IDs filtered by IS NULL.
+  const visibleIds = (highlightsData?.rows ?? []).map((r) => r.id);
+  const { data: missingEmbeddingIds } = useQuery({
+    queryKey: ["studio-missing-embeddings", visibleIds],
+    queryFn: async () => {
+      if (visibleIds.length === 0) return new Set<string>();
+      const { data, error } = await supabase
+        .from("highlights")
+        .select("id")
+        .in("id", visibleIds)
+        .is("embedding", null);
+      if (error) throw error;
+      return new Set((data ?? []).map((r) => r.id));
+    },
+    enabled: user?.email === ADMIN_EMAIL && visibleIds.length > 0,
+  });
+
+  const selectedMissingCount = Array.from(selectedIds).filter((id) => missingEmbeddingIds?.has(id)).length;
+
+  const generateEmbeddingsForSelected = async () => {
+    const ids = Array.from(selectedIds).filter((id) => missingEmbeddingIds?.has(id));
+    if (ids.length === 0) return;
+    setGeneratingEmbeddings(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("generate-embeddings", {
+        body: { ids },
+      });
+      if (error) throw error;
+      const processed = (data as { processed?: number })?.processed ?? ids.length;
+      toast.success(`Embeddings generated for ${processed} highlight${processed === 1 ? "" : "s"}`);
+      setSelectedIds(new Set());
+      queryClient.invalidateQueries({ queryKey: ["studio-missing-embeddings"] });
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to generate embeddings — please try again");
+    } finally {
+      setGeneratingEmbeddings(false);
+    }
+  };
+
+  const toggleRowSelection = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleAllVisible = (checked: boolean) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (checked) visibleIds.forEach((id) => next.add(id));
+      else visibleIds.forEach((id) => next.delete(id));
+      return next;
+    });
+  };
+
   // Apply client-side column sort
   const applyColumnSort = (rows: HighlightRow[]): HighlightRow[] => {
     if (!columnSort) return rows;
