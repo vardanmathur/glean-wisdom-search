@@ -740,7 +740,7 @@ const AdminStudioHighlights = () => {
                     ) : (
                       <div className="flex items-center justify-center gap-1">
                         {isMissingEmbedding && (
-                          <Sparkles className="h-3.5 w-3.5 text-amber-500" aria-label="Missing embedding" />
+                          <Sparkles className="h-3.5 w-3.5 text-destructive" aria-label="Missing embedding" />
                         )}
                         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditingHighlight(h)}>
                           <Pencil className="h-3.5 w-3.5" />
