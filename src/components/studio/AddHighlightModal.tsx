@@ -198,6 +198,26 @@ const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags }: Add
                 <Button type="button" onClick={openCamera} className="gap-1.5">
                   <Camera className="h-4 w-4" /> Open camera
                 </Button>
+              ) : isMobile ? (
+                <>
+                  <p className="text-xs text-muted-foreground">Camera is open in fullscreen — use the bottom toolbar to capture or stop.</p>
+                  <div className="fixed inset-0 z-50 bg-black flex flex-col">
+                    <video
+                      ref={videoRef}
+                      className="flex-1 w-full h-full object-contain bg-black"
+                      muted
+                      playsInline
+                      autoPlay
+                    />
+                    <div className="fixed bottom-0 left-0 right-0 z-[51] flex gap-2 justify-center p-4 bg-black/80 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+                      <Button type="button" size="lg" onClick={captureAndOcr} disabled={ocrLoading}>
+                        {ocrLoading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+                        {ocrLoading ? "Reading text…" : "Capture & read text"}
+                      </Button>
+                      <Button type="button" size="lg" variant="outline" onClick={stopCamera}>Stop</Button>
+                    </div>
+                  </div>
+                </>
               ) : (
                 <>
                   <video ref={videoRef} className="w-full rounded-md bg-black aspect-video" muted playsInline autoPlay />
