@@ -51,12 +51,14 @@ const BookLookup = ({ selectedBook, onSelect, onClear }: BookLookupProps) => {
       setSearched(false);
       return;
     }
+    // Strip punctuation so "mans" matches "Man's Search for Meaning"
+    const stripped = term.replace(/['\-\.]/g, "");
     setLoading(true);
     const t = setTimeout(async () => {
       const { data, error } = await supabase
         .from("books")
         .select("id, title, author")
-        .ilike("title", `%${term}%`)
+        .ilike("title", `%${stripped}%`)
         .order("title")
         .limit(8);
       if (!error) setSuggestions(data ?? []);
