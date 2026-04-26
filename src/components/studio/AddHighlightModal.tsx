@@ -49,11 +49,23 @@ const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags }: Add
     stopCamera();
   };
 
+  // Track previous open state so reset only fires on an explicit open→close
+  // transition. Without this, any incidental re-render where `open` is already
+  // false (e.g. parent re-renders triggered by window blur / tab switch) could
+  // wipe the form.
+  const prevOpenRef = useRef(open);
   useEffect(() => {
-    if (!open) reset();
-    return () => stopCamera();
+    const wasOpen = prevOpenRef.current;
+    prevOpenRef.current = open;
+    if (wasOpen && !open) reset();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
+
+  // Always release the camera on unmount
+  useEffect(() => {
+    return () => stopCamera();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const stopCamera = () => {
     streamRef.current?.getTracks().forEach((t) => t.stop());
