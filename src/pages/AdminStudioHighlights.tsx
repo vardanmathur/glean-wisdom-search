@@ -258,10 +258,17 @@ const AdminStudioHighlights = () => {
           query = query.order("created_at", { ascending: true });
           break;
         case "no_notes":
-          query = query.order("my_notes", { ascending: true, nullsFirst: true }).order("created_at", { ascending: false });
+          // NULL my_notes first, then oldest-empty/newest non-empty by created_at
+          query = query
+            .order("my_notes", { ascending: true, nullsFirst: true })
+            .order("created_at", { ascending: false });
           break;
         case "no_tags":
-          query = query.order("created_at", { ascending: false });
+          // Postgres compares arrays element-wise, so empty arrays sort first
+          // when ordering ascending — gives "no tags first" across the full DB.
+          query = query
+            .order("tags", { ascending: true, nullsFirst: true })
+            .order("created_at", { ascending: false });
           break;
       }
 
@@ -269,10 +276,7 @@ const AdminStudioHighlights = () => {
       const { data, count, error } = await query;
       if (error) throw error;
 
-      let rows = (data as unknown as HighlightRow[]) ?? [];
-      if (sortBy === "no_tags") {
-        rows = [...rows].sort((a, b) => (a.tags?.length ?? 0) - (b.tags?.length ?? 0));
-      }
+      const rows = (data as unknown as HighlightRow[]) ?? [];
       return { rows, total: count ?? 0 };
     },
     enabled: user?.email === ADMIN_EMAIL,
@@ -740,7 +744,7 @@ const AdminStudioHighlights = () => {
                     ) : (
                       <div className="flex items-center justify-center gap-1">
                         {isMissingEmbedding && (
-                          <Sparkles className="h-3.5 w-3.5 text-amber-500" aria-label="Missing embedding" />
+                          <Sparkles className="h-3.5 w-3.5 text-destructive" aria-label="Missing embedding" />
                         )}
                         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditingHighlight(h)}>
                           <Pencil className="h-3.5 w-3.5" />

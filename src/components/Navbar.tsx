@@ -116,7 +116,18 @@ const Navbar = () => {
                     </Link>
                   </SheetClose>
                 )}
-                {hasPermission("import") && (
+                {hasPermission("import") && !isAdmin && (
+                  <SheetClose asChild>
+                    <Link
+                      to="/studio"
+                      className="inline-flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-foreground hover:bg-secondary transition-colors"
+                    >
+                      <Sparkles className="h-4 w-4" />
+                      My Studio
+                    </Link>
+                  </SheetClose>
+                )}
+                {isAdmin && (
                   <SheetClose asChild>
                     <Link
                       to="/studio"
@@ -145,7 +156,7 @@ const Navbar = () => {
                       className="inline-flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-foreground hover:bg-secondary transition-colors"
                     >
                       <Wrench className="h-4 w-4" />
-                      Studio
+                      Admin Studio
                     </Link>
                   </SheetClose>
                 )}
@@ -248,10 +259,16 @@ const Navbar = () => {
                   {displayName}
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                {user.email === "vardan@gmail.com" && (
+                {isAdmin && (
+                  <DropdownMenuItem onClick={() => navigate("/studio")}>
+                    <Sparkles className="mr-2 h-4 w-4" />
+                    My Studio
+                  </DropdownMenuItem>
+                )}
+                {isAdmin && (
                   <DropdownMenuItem onClick={() => navigate("/admin/studio/highlights")}>
                     <Wrench className="mr-2 h-4 w-4" />
-                    Studio
+                    Admin Studio
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuItem onClick={() => navigate("/saved")}>

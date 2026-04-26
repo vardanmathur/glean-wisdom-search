@@ -82,10 +82,17 @@ const UserStudio = () => {
   const [showAdd, setShowAdd] = useState(false);
 
   useEffect(() => {
-    if (!authLoading && !permsLoading && !allowed) {
+    // Wait for BOTH auth and permission loads to settle before deciding.
+    // Without the `user` guard, a transient state (user null, perms []) on
+    // first mount can trigger a premature redirect for users who do have
+    // import permission.
+    if (authLoading || permsLoading) return;
+    if (!user) {
       navigate("/", { replace: true });
+      return;
     }
-  }, [authLoading, permsLoading, allowed, navigate]);
+    if (!allowed) navigate("/", { replace: true });
+  }, [authLoading, permsLoading, user, allowed, navigate]);
 
   const enabled = !!user && allowed;
 
