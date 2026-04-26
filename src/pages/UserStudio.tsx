@@ -6,7 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Check, AlertCircle, ChevronLeft, ChevronRight, Pencil, X,
-  Search, ArrowUpDown, ArrowUp, ArrowDown, Trash2, Loader2, Plus,
+  Search, ArrowUpDown, ArrowUp, ArrowDown, Trash2, Loader2, Plus, Upload,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
