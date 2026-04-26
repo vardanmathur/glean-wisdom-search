@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2, Camera, X } from "lucide-react";
 import { toast } from "sonner";
 import BookLookup, { type SelectedBook } from "./BookLookup";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface AddHighlightModalProps {
   open: boolean;
