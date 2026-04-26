@@ -241,10 +241,10 @@ const UserStudio = () => {
           <p className="text-muted-foreground">Your private highlights — add, edit, and curate.</p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <Button variant="outline" onClick={() => navigate("/import")} className="gap-1.5">
+          <Button onClick={() => navigate("/import")} className="gap-1.5">
             <Upload className="h-4 w-4" /> Import from Kindle
           </Button>
-          <Button variant="outline" onClick={() => setShowAdd(true)} className="gap-1.5">
+          <Button onClick={() => setShowAdd(true)} className="gap-1.5">
             <Plus className="h-4 w-4" /> Add highlight
           </Button>
         </div>
