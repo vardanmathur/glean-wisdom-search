@@ -198,7 +198,7 @@ const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags }: Add
                 </Button>
               ) : (
                 <>
-                  <video ref={videoRef} className="w-full rounded-md bg-black aspect-video" muted playsInline />
+                  <video ref={videoRef} className="w-full rounded-md bg-black aspect-video" muted playsInline autoPlay />
                   <div className="flex gap-2">
                     <Button type="button" size="sm" onClick={captureAndOcr} disabled={ocrLoading}>
                       {ocrLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
