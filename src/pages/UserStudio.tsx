@@ -240,9 +240,14 @@ const UserStudio = () => {
           <h1 className="font-display text-3xl font-semibold text-foreground mb-2">My Studio</h1>
           <p className="text-muted-foreground">Your private highlights — add, edit, and curate.</p>
         </div>
-        <Button onClick={() => setShowAdd(true)} className="gap-1.5 shrink-0">
-          <Plus className="h-4 w-4" /> Add highlight
-        </Button>
+        <div className="flex items-center gap-2 shrink-0">
+          <Button variant="outline" onClick={() => navigate("/import")} className="gap-1.5">
+            <Upload className="h-4 w-4" /> Import from Kindle
+          </Button>
+          <Button onClick={() => setShowAdd(true)} className="gap-1.5">
+            <Plus className="h-4 w-4" /> Add highlight
+          </Button>
+        </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-3 mb-6 p-4 rounded-lg border bg-card">
