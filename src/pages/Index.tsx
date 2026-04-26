@@ -14,7 +14,7 @@ const ADMIN_EMAIL = "vardan@gmail.com";
 
 const FEATURE_META: Record<string, { label: string; route: string }> = {
   think: { label: "Think!", route: "/think" },
-  import: { label: "Import", route: "/import" },
+  import: { label: "Import", route: "/studio" },
 };
 
 const exampleQueries = [
