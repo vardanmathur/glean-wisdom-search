@@ -20,6 +20,7 @@ interface AddHighlightModalProps {
 
 const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags }: AddHighlightModalProps) => {
   const { user } = useAuth();
+  const isMobile = useIsMobile();
   const [tab, setTab] = useState<"type" | "scan">("type");
 
   const [quote, setQuote] = useState("");
