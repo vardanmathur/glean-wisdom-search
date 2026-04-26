@@ -141,7 +141,7 @@ const Index = () => {
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="What can I answer for you today today?"
+            placeholder="What can I answer for you today?"
             className="h-14 w-full rounded-xl border bg-card pl-12 pr-4 text-base font-body text-foreground placeholder:text-muted-foreground card-shadow focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all"
           />
         </div>
