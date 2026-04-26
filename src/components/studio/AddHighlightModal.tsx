@@ -65,16 +65,22 @@ const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags }: Add
         video: { facingMode: { ideal: "environment" } },
       });
       streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-      }
       setCameraOn(true);
     } catch (err) {
       console.error("Camera error:", err);
       toast.error("Couldn't access camera");
     }
   };
+
+  // Attach stream once the <video> element is mounted (cameraOn flips it into the DOM)
+  useEffect(() => {
+    if (!cameraOn) return;
+    const v = videoRef.current;
+    const s = streamRef.current;
+    if (!v || !s) return;
+    v.srcObject = s;
+    v.play().catch((err) => console.warn("video.play() failed:", err));
+  }, [cameraOn]);
 
   const captureAndOcr = async () => {
     if (!videoRef.current) return;
@@ -192,7 +198,7 @@ const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags }: Add
                 </Button>
               ) : (
                 <>
-                  <video ref={videoRef} className="w-full rounded-md bg-black aspect-video" muted playsInline />
+                  <video ref={videoRef} className="w-full rounded-md bg-black aspect-video" muted playsInline autoPlay />
                   <div className="flex gap-2">
                     <Button type="button" size="sm" onClick={captureAndOcr} disabled={ocrLoading}>
                       {ocrLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
