@@ -65,16 +65,22 @@ const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags }: Add
         video: { facingMode: { ideal: "environment" } },
       });
       streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-      }
       setCameraOn(true);
     } catch (err) {
       console.error("Camera error:", err);
       toast.error("Couldn't access camera");
     }
   };
+
+  // Attach stream once the <video> element is mounted (cameraOn flips it into the DOM)
+  useEffect(() => {
+    if (!cameraOn) return;
+    const v = videoRef.current;
+    const s = streamRef.current;
+    if (!v || !s) return;
+    v.srcObject = s;
+    v.play().catch((err) => console.warn("video.play() failed:", err));
+  }, [cameraOn]);
 
   const captureAndOcr = async () => {
     if (!videoRef.current) return;
