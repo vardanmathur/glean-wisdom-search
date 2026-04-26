@@ -259,10 +259,16 @@ const Navbar = () => {
                   {displayName}
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                {user.email === "vardan@gmail.com" && (
+                {isAdmin && (
+                  <DropdownMenuItem onClick={() => navigate("/studio")}>
+                    <Sparkles className="mr-2 h-4 w-4" />
+                    My Studio
+                  </DropdownMenuItem>
+                )}
+                {isAdmin && (
                   <DropdownMenuItem onClick={() => navigate("/admin/studio/highlights")}>
                     <Wrench className="mr-2 h-4 w-4" />
-                    Studio
+                    Admin Studio
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuItem onClick={() => navigate("/saved")}>
