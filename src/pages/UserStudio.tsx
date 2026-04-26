@@ -244,7 +244,7 @@ const UserStudio = () => {
           <Button variant="outline" onClick={() => navigate("/import")} className="gap-1.5">
             <Upload className="h-4 w-4" /> Import from Kindle
           </Button>
-          <Button onClick={() => setShowAdd(true)} className="gap-1.5">
+          <Button variant="outline" onClick={() => setShowAdd(true)} className="gap-1.5">
             <Plus className="h-4 w-4" /> Add highlight
           </Button>
         </div>
