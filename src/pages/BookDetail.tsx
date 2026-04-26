@@ -33,7 +33,7 @@ const BookDetail = () => {
     return (
       <div className="container mx-auto max-w-2xl px-4 py-8 text-center">
         <p className="text-muted-foreground">Book not found.</p>
-        <Link to="/" className="text-primary hover:underline text-sm mt-2 inline-block">
+        <Link to="/books" className="text-primary hover:underline text-sm mt-2 inline-block">
           Go home
         </Link>
       </div>
@@ -43,7 +43,7 @@ const BookDetail = () => {
   return (
     <div className="container mx-auto max-w-2xl px-4 py-8">
       <Link
-        to="/"
+        to="/books"
         className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-6 transition-colors"
       >
         <ArrowLeft className="h-4 w-4" /> Back
