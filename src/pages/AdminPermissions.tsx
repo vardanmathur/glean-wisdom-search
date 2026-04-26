@@ -249,7 +249,7 @@ const AdminPermissions = () => {
               </thead>
               <tbody>
                 {sortedProfiles.map((p) => {
-                  const isAdmin = p.display_name === ADMIN_EMAIL;
+                  const isAdmin = p.id === user.id;
                   const displayName =
                     p.display_name?.trim() || `User ${p.id.slice(0, 8)}`;
                   const rowFeedback = Object.entries(feedback).find(([k]) =>
@@ -301,7 +301,7 @@ const AdminPermissions = () => {
           {/* Mobile cards */}
           <div className="md:hidden divide-y">
             {sortedProfiles.map((p) => {
-              const isAdmin = p.display_name === ADMIN_EMAIL;
+              const isAdmin = p.id === user.id;
               const displayName =
                 p.display_name?.trim() || `User ${p.id.slice(0, 8)}`;
               const rowFeedback = Object.entries(feedback).find(([k]) =>
