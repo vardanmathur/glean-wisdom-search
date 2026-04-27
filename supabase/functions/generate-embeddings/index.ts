@@ -97,7 +97,7 @@ serve(async (req) => {
 
     let fetchQuery = supabase
       .from("highlights")
-      .select("id, quote")
+      .select("id, quote, tags")
       .is("embedding", null);
 
     if (targetIds) {
