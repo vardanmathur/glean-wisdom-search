@@ -7,9 +7,11 @@ import ThinkHeader from "@/components/think/ThinkHeader";
 import ForgeMode, { ForgeHighlight } from "@/components/think/ForgeMode";
 import OpponentMode, { OpponentHighlight, OpponentPersona } from "@/components/think/OpponentMode";
 import { Loader2, Flame, Swords } from "lucide-react";
+import { useSessionStorageState } from "@/hooks/useSessionStorageState";
 
 const ADMIN_EMAIL = "vardan@gmail.com";
 const DEFAULT_DAILY_LIMIT = 3;
+const THINK_SESSION_KEY = "glean_think_session";
 
 const FORGE_PROMPT =
   "You are a warm thinking partner. The user has read a book highlight and shared what it means to them personally right now. In maximum 150 words: reflect back what you hear in their response, add one dimension or question that deepens their thinking, and end with one gentle challenge. No preamble. Be warm and intellectually honest.";
@@ -72,18 +74,23 @@ const Think = () => {
   const { hasPermission, loading: permsLoading } = usePermissions();
   const navigate = useNavigate();
 
-  const [mode, setMode] = useState<Mode | null>(null);
-  const [forgeHighlights, setForgeHighlights] = useState<ForgeHighlight[]>([]);
-  const [opponentHighlight, setOpponentHighlight] = useState<OpponentHighlight | null>(null);
+  const [mode, setMode, clearMode] = useSessionStorageState<Mode | null>(`${THINK_SESSION_KEY}_mode`, null);
+  const [forgeHighlights, setForgeHighlights, clearForgeHighlights] =
+    useSessionStorageState<ForgeHighlight[]>(`${THINK_SESSION_KEY}_forge`, []);
+  const [opponentHighlight, setOpponentHighlight, clearOpponentHighlight] =
+    useSessionStorageState<OpponentHighlight | null>(`${THINK_SESSION_KEY}_opponentHl`, null);
   const [modeLoading, setModeLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const [creditsUsed, setCreditsUsed] = useState<number | null>(null);
   const [dailyLimit, setDailyLimit] = useState<number | null>(null);
 
-  // Opponent persona state — fresh every session, never persisted
-  const [opponentPersona, setOpponentPersona] = useState<OpponentPersona | null>(null);
-  const [opponentName, setOpponentName] = useState<string>("");
+  // Opponent persona state — persisted across mobile PWA backgrounding so
+  // an in-progress sparring session isn't wiped by a window switch.
+  const [opponentPersona, setOpponentPersona, clearOpponentPersona] =
+    useSessionStorageState<OpponentPersona | null>(`${THINK_SESSION_KEY}_persona`, null);
+  const [opponentName, setOpponentName, clearOpponentName] =
+    useSessionStorageState<string>(`${THINK_SESSION_KEY}_personaName`, "");
 
   // ===== Auth gate =====
   useEffect(() => {
@@ -235,11 +242,11 @@ const Think = () => {
 
   // ===== Back to mode selection (replaces shuffle behaviour) =====
   const handleBackToSelection = () => {
-    setMode(null);
-    setForgeHighlights([]);
-    setOpponentHighlight(null);
-    setOpponentPersona(null);
-    setOpponentName("");
+    clearMode();
+    clearForgeHighlights();
+    clearOpponentHighlight();
+    clearOpponentPersona();
+    clearOpponentName();
     setLoadError(null);
   };
 
@@ -373,6 +380,12 @@ const Think = () => {
   };
 
   const startNewSession = () => {
+    // Clear persisted draft before reloading so we land back on mode selection.
+    clearMode();
+    clearForgeHighlights();
+    clearOpponentHighlight();
+    clearOpponentPersona();
+    clearOpponentName();
     window.location.reload();
   };
 

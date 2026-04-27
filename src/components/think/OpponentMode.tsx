@@ -3,6 +3,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Loader2 } from "lucide-react";
+import { useSessionStorageState } from "@/hooks/useSessionStorageState";
+
+const OPPONENT_HISTORY_KEY = "glean_think_opponent_history";
 
 export interface OpponentHighlight {
   id: string;
@@ -51,8 +54,12 @@ const OpponentMode = ({
   const [pickerPersona, setPickerPersona] = useState<OpponentPersona | null>(null);
   const [nameInput, setNameInput] = useState("");
 
-  const [history, setHistory] = useState<Msg[]>([]);
-  const [input, setInput] = useState("");
+  // Conversation persisted across mobile PWA backgrounding. Keyed on the
+  // highlight id so unrelated sessions don't bleed into each other.
+  const historyKey = `${OPPONENT_HISTORY_KEY}_${highlight.id}_history`;
+  const inputKey = `${OPPONENT_HISTORY_KEY}_${highlight.id}_input`;
+  const [history, setHistory, clearHistory] = useSessionStorageState<Msg[]>(historyKey, []);
+  const [input, setInput, clearInput] = useSessionStorageState<string>(inputKey, "");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -241,7 +248,7 @@ const OpponentMode = ({
       {sessionComplete && (
         <div className="pt-4 border-t">
           <p className="text-sm text-muted-foreground mb-3">That's a wrap for this session.</p>
-          <Button variant="outline" onClick={onComplete}>Start a new session</Button>
+          <Button variant="outline" onClick={() => { clearHistory(); clearInput(); onComplete(); }}>Start a new session</Button>
         </div>
       )}
     </div>

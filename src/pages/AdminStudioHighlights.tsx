@@ -22,6 +22,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { useSessionStorageState } from "@/hooks/useSessionStorageState";
+
+const ADMIN_EDIT_DRAFT_PREFIX = "glean_admin_studio_edit_draft";
 
 const ADMIN_EMAIL = "vardan@gmail.com";
 const PAGE_SIZE = 20;
@@ -837,21 +840,38 @@ interface EditPanelProps {
 }
 
 const EditPanel = ({ highlight, allTags, onClose, onSave, saving }: EditPanelProps) => {
-  const [quote, setQuote] = useState("");
-  const [tags, setTags] = useState<string[]>([]);
-  const [notes, setNotes] = useState("");
-  const [visibility, setVisibility] = useState("public");
+  const draftKey = `${ADMIN_EDIT_DRAFT_PREFIX}_${highlight?.id ?? "none"}`;
+
+  const [quote, setQuote, clearQuote] = useSessionStorageState<string>(`${draftKey}_quote`, "");
+  const [tags, setTags, clearTags] = useSessionStorageState<string[]>(`${draftKey}_tags`, []);
+  const [notes, setNotes, clearNotes] = useSessionStorageState<string>(`${draftKey}_notes`, "");
+  const [visibility, setVisibility, clearVisibility] = useSessionStorageState<string>(`${draftKey}_visibility`, "public");
   const [tagInput, setTagInput] = useState("");
 
+  // Hydrate from row only when no in-progress draft exists for this id.
   useEffect(() => {
-    if (highlight) {
+    if (!highlight) return;
+    const hasDraft =
+      sessionStorage.getItem(`${draftKey}_quote`) !== null ||
+      sessionStorage.getItem(`${draftKey}_tags`) !== null ||
+      sessionStorage.getItem(`${draftKey}_notes`) !== null ||
+      sessionStorage.getItem(`${draftKey}_visibility`) !== null;
+    if (!hasDraft) {
       setQuote(highlight.quote);
       setTags(highlight.tags ?? []);
       setNotes(highlight.my_notes ?? "");
       setVisibility(highlight.visibility ?? "public");
-      setTagInput("");
     }
-  }, [highlight]);
+    setTagInput("");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [highlight?.id]);
+
+  const clearDraft = () => {
+    clearQuote();
+    clearTags();
+    clearNotes();
+    clearVisibility();
+  };
 
   const addTag = (tag: string) => {
     const t = tag.trim().toLowerCase();
@@ -883,10 +903,16 @@ const EditPanel = ({ highlight, allTags, onClose, onSave, saving }: EditPanelPro
       my_notes: notes || null,
       visibility,
     });
+    clearDraft();
+  };
+
+  const handleClose = () => {
+    clearDraft();
+    onClose();
   };
 
   return (
-    <Sheet open={!!highlight} onOpenChange={(open) => { if (!open) onClose(); }}>
+    <Sheet open={!!highlight} onOpenChange={(open) => { if (!open) handleClose(); }}>
       <SheetContent side="right" className="w-full sm:w-[480px] sm:max-w-[480px] overflow-y-auto">
         <SheetHeader>
           <SheetTitle>Edit Highlight</SheetTitle>
@@ -957,7 +983,7 @@ const EditPanel = ({ highlight, allTags, onClose, onSave, saving }: EditPanelPro
 
           <div className="flex gap-3">
             <Button onClick={handleSave} disabled={saving} className="flex-1">{saving ? "Saving…" : "Save"}</Button>
-            <Button variant="outline" onClick={onClose} className="flex-1">Cancel</Button>
+            <Button variant="outline" onClick={handleClose} className="flex-1">Cancel</Button>
           </div>
         </div>
       </SheetContent>

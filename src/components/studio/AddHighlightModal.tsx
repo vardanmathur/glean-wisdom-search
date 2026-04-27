@@ -10,6 +10,9 @@ import { Loader2, Camera, X } from "lucide-react";
 import { toast } from "sonner";
 import BookLookup, { type SelectedBook } from "./BookLookup";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useSessionStorageState } from "@/hooks/useSessionStorageState";
+
+const DRAFT_KEY = "glean_add_highlight_draft";
 
 interface AddHighlightModalProps {
   open: boolean;
@@ -21,14 +24,14 @@ interface AddHighlightModalProps {
 const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags }: AddHighlightModalProps) => {
   const { user } = useAuth();
   const isMobile = useIsMobile();
-  const [tab, setTab] = useState<"type" | "scan">("type");
+  const [tab, setTab, clearTab] = useSessionStorageState<"type" | "scan">(`${DRAFT_KEY}_tab`, "type");
 
-  const [quote, setQuote] = useState("");
-  const [book, setBook] = useState<SelectedBook | null>(null);
-  const [tags, setTags] = useState<string[]>([]);
-  const [tagInput, setTagInput] = useState("");
-  const [notes, setNotes] = useState("");
-  const [visibility, setVisibility] = useState<"private" | "public">("private");
+  const [quote, setQuote, clearQuote] = useSessionStorageState<string>(`${DRAFT_KEY}_quote`, "");
+  const [book, setBook, clearBook] = useSessionStorageState<SelectedBook | null>(`${DRAFT_KEY}_book`, null);
+  const [tags, setTags, clearTags] = useSessionStorageState<string[]>(`${DRAFT_KEY}_tags`, []);
+  const [tagInput, setTagInput, clearTagInput] = useSessionStorageState<string>(`${DRAFT_KEY}_tagInput`, "");
+  const [notes, setNotes, clearNotes] = useSessionStorageState<string>(`${DRAFT_KEY}_notes`, "");
+  const [visibility, setVisibility, clearVisibility] = useSessionStorageState<"private" | "public">(`${DRAFT_KEY}_visibility`, "private");
   const [saving, setSaving] = useState(false);
 
   // Scan tab state — Tesseract loaded lazily on first open
@@ -39,13 +42,13 @@ const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags }: Add
   const [ocrInitialised, setOcrInitialised] = useState(false);
 
   const reset = () => {
-    setQuote("");
-    setBook(null);
-    setTags([]);
-    setTagInput("");
-    setNotes("");
-    setVisibility("private");
-    setTab("type");
+    clearQuote();
+    clearBook();
+    clearTags();
+    clearTagInput();
+    clearNotes();
+    clearVisibility();
+    clearTab();
     stopCamera();
   };
 
