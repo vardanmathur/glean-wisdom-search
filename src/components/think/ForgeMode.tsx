@@ -3,6 +3,15 @@ import { Link } from "react-router-dom";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
+import { useSessionStorageState } from "@/hooks/useSessionStorageState";
+
+/**
+ * Persisted state (sessionStorage) — survives mobile PWA backgrounding / window switch.
+ *   • input     → glean_think_forge_<highlightId>_input
+ *   • response  → glean_think_forge_<highlightId>_response
+ *   • done      → glean_think_forge_<highlightId>_done
+ * Cleared on: skip (refetches new highlight) and "Start a new session" (onComplete).
+ */
 
 export interface ForgeHighlight {
   id: string;
@@ -22,12 +31,13 @@ interface ForgeModeProps {
 const FORGE_PROMPT = "What does this mean to you right now?";
 
 const ForgeMode = ({ highlights, onSubmit, onComplete, onSkip, disabled }: ForgeModeProps) => {
-  const [input, setInput] = useState("");
+  const hlId = highlights[0]?.id ?? "none";
+  const [input, setInput, clearInput] = useSessionStorageState<string>(`glean_think_forge_${hlId}_input`, "");
   const [submitting, setSubmitting] = useState(false);
   const [skipping, setSkipping] = useState(false);
-  const [response, setResponse] = useState<string | null>(null);
+  const [response, setResponse, clearResponse] = useSessionStorageState<string | null>(`glean_think_forge_${hlId}_response`, null);
   const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState(false);
+  const [done, setDone, clearDone] = useSessionStorageState<boolean>(`glean_think_forge_${hlId}_done`, false);
 
   const highlight = highlights[0];
 
@@ -49,7 +59,9 @@ const ForgeMode = ({ highlights, onSubmit, onComplete, onSkip, disabled }: Forge
     if (skipping || submitting || done) return;
     setSkipping(true);
     setError(null);
-    setInput("");
+    clearInput();
+    clearResponse();
+    clearDone();
     await onSkip();
     setSkipping(false);
   };
@@ -124,7 +136,7 @@ const ForgeMode = ({ highlights, onSubmit, onComplete, onSkip, disabled }: Forge
         <div className="pt-4 border-t space-y-3">
           <p className="text-sm text-muted-foreground">That's a wrap for this session.</p>
           <div className="flex flex-wrap items-center gap-4">
-            <Button onClick={onComplete}>Start a new session</Button>
+            <Button onClick={() => { clearInput(); clearResponse(); clearDone(); onComplete(); }}>Start a new session</Button>
             <Link
               to="/"
               className="text-sm text-muted-foreground hover:text-primary transition-colors underline-offset-2 hover:underline"

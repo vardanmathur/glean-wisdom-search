@@ -5,6 +5,14 @@ import { Input } from "@/components/ui/input";
 import { Loader2 } from "lucide-react";
 import { useSessionStorageState } from "@/hooks/useSessionStorageState";
 
+/**
+ * Persisted state (sessionStorage) — survives mobile PWA backgrounding / window switch.
+ *   • history       → glean_think_opponent_<highlightId>_history
+ *   • input         → glean_think_opponent_<highlightId>_input
+ *   • pickerPersona → glean_think_opponent_<highlightId>_pickerPersona
+ *   • nameInput     → glean_think_opponent_<highlightId>_nameInput
+ * Cleared on: persona confirm (picker fields) and "Start a new session" (all fields).
+ */
 const OPPONENT_HISTORY_KEY = "glean_think_opponent_history";
 
 export interface OpponentHighlight {
@@ -50,9 +58,11 @@ const OpponentMode = ({
   onComplete,
   disabled,
 }: OpponentModeProps) => {
-  // Local picker state — only used until persona is confirmed
-  const [pickerPersona, setPickerPersona] = useState<OpponentPersona | null>(null);
-  const [nameInput, setNameInput] = useState("");
+  // Local picker state — persisted so backgrounding the app mid-pick doesn't lose progress.
+  const pickerPersonaKey = `${OPPONENT_HISTORY_KEY}_${highlight.id}_pickerPersona`;
+  const nameInputKey = `${OPPONENT_HISTORY_KEY}_${highlight.id}_nameInput`;
+  const [pickerPersona, setPickerPersona, clearPickerPersona] = useSessionStorageState<OpponentPersona | null>(pickerPersonaKey, null);
+  const [nameInput, setNameInput, clearNameInput] = useSessionStorageState<string>(nameInputKey, "");
 
   // Conversation persisted across mobile PWA backgrounding. Keyed on the
   // highlight id so unrelated sessions don't bleed into each other.
@@ -118,6 +128,8 @@ const OpponentMode = ({
           <Button
             onClick={() => {
               const finalName = nameInput.trim() || pickerPersona.defaultName;
+              clearPickerPersona();
+              clearNameInput();
               onPersonaConfirm(pickerPersona, finalName);
             }}
           >
@@ -125,8 +137,8 @@ const OpponentMode = ({
           </Button>
           <button
             onClick={() => {
-              setPickerPersona(null);
-              setNameInput("");
+              clearPickerPersona();
+              clearNameInput();
             }}
             className="text-sm text-muted-foreground hover:text-foreground transition-colors"
           >
@@ -248,7 +260,7 @@ const OpponentMode = ({
       {sessionComplete && (
         <div className="pt-4 border-t">
           <p className="text-sm text-muted-foreground mb-3">That's a wrap for this session.</p>
-          <Button variant="outline" onClick={() => { clearHistory(); clearInput(); onComplete(); }}>Start a new session</Button>
+          <Button variant="outline" onClick={() => { clearHistory(); clearInput(); clearPickerPersona(); clearNameInput(); onComplete(); }}>Start a new session</Button>
         </div>
       )}
     </div>
