@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Loader2, Check, LogOut, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { useAuthGate } from "@/hooks/useAuthGate";
 
 const Settings = () => {
   const { user, authLoading, signOut } = useAuth();
@@ -93,11 +94,7 @@ const Settings = () => {
   };
 
   // Redirect if not logged in
-  useEffect(() => {
-    if (!authLoading && !user) {
-      navigate("/auth");
-    }
-  }, [authLoading, user, navigate]);
+  useAuthGate("/auth", (u) => !!u);
 
   // Load profile + stats
   useEffect(() => {

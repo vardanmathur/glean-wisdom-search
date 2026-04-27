@@ -23,6 +23,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useSessionStorageState } from "@/hooks/useSessionStorageState";
+import { useAuthGate } from "@/hooks/useAuthGate";
 
 const ADMIN_EDIT_DRAFT_PREFIX = "glean_admin_studio_edit_draft";
 
@@ -200,11 +201,7 @@ const AdminStudioHighlights = () => {
   const [generatingEmbeddings, setGeneratingEmbeddings] = useState(false);
   const [forceRegenerating, setForceRegenerating] = useState(false);
 
-  useEffect(() => {
-    if (!authLoading && (!user || user.email !== ADMIN_EMAIL)) {
-      navigate("/", { replace: true });
-    }
-  }, [user, authLoading, navigate]);
+  useAuthGate("/", (u) => !!u && u.email === ADMIN_EMAIL);
 
   const { data: books } = useQuery({
     queryKey: ["studio-books"],
