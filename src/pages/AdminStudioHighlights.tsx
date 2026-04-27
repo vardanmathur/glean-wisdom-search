@@ -62,6 +62,8 @@ interface DuplicateGroup {
   quote: string;
   rows: DuplicateRow[];
 }
+const NO_TAGS_SENTINEL = "__no_tags__";
+
 interface MultiTagFilterProps {
   allTags: string[];
   selected: string[];
