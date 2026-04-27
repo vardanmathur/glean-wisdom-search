@@ -62,6 +62,8 @@ interface DuplicateGroup {
   quote: string;
   rows: DuplicateRow[];
 }
+const NO_TAGS_SENTINEL = "__no_tags__";
+
 interface MultiTagFilterProps {
   allTags: string[];
   selected: string[];
@@ -83,7 +85,7 @@ const MultiTagFilter = ({ allTags, selected, onChange }: MultiTagFilterProps) =>
 
   const input = search.toLowerCase();
   const filtered = allTags
-    .filter((t) => t.toLowerCase().includes(input))
+    .filter((t) => t !== NO_TAGS_SENTINEL && t.toLowerCase().includes(input))
     .sort((a, b) => {
       const aStarts = a.toLowerCase().startsWith(input);
       const bStarts = b.toLowerCase().startsWith(input);
@@ -92,8 +94,19 @@ const MultiTagFilter = ({ allTags, selected, onChange }: MultiTagFilterProps) =>
       return a.localeCompare(b);
     });
 
+  const noTagsSelected = selected.includes(NO_TAGS_SENTINEL);
+
   const toggle = (tag: string) => {
-    onChange(selected.includes(tag) ? selected.filter((t) => t !== tag) : [...selected, tag]);
+    if (tag === NO_TAGS_SENTINEL) {
+      onChange(noTagsSelected ? [] : [NO_TAGS_SENTINEL]);
+      return;
+    }
+    const withoutSentinel = selected.filter((t) => t !== NO_TAGS_SENTINEL);
+    onChange(
+      withoutSentinel.includes(tag)
+        ? withoutSentinel.filter((t) => t !== tag)
+        : [...withoutSentinel, tag],
+    );
   };
 
   return (
@@ -103,7 +116,11 @@ const MultiTagFilter = ({ allTags, selected, onChange }: MultiTagFilterProps) =>
         className="flex h-10 w-[180px] items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
       >
         <span className="truncate text-muted-foreground">
-          {selected.length === 0 ? "All tags" : `Tags (${selected.length})`}
+          {selected.length === 0
+            ? "All tags"
+            : noTagsSelected
+              ? "No tags"
+              : `Tags (${selected.length})`}
         </span>
         <div className="flex items-center gap-1">
           {selected.length > 0 && (
@@ -130,6 +147,14 @@ const MultiTagFilter = ({ allTags, selected, onChange }: MultiTagFilterProps) =>
             </div>
           </div>
           <div className="max-h-56 overflow-y-auto p-1">
+            <button
+              key={NO_TAGS_SENTINEL}
+              className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent transition-colors"
+              onClick={() => toggle(NO_TAGS_SENTINEL)}
+            >
+              <Checkbox checked={noTagsSelected} className="pointer-events-none" />
+              <span className="italic text-muted-foreground">No tags</span>
+            </button>
             {filtered.length === 0 ? (
               <p className="px-3 py-2 text-sm text-muted-foreground">No tags found</p>
             ) : (
@@ -234,7 +259,11 @@ const AdminStudioHighlights = () => {
         .select("id, quote, tags, my_notes, visibility, created_at, book_id, embedding_refreshed_at, books(title)", { count: "exact" });
 
       if (filterBook !== "all") query = query.eq("book_id", filterBook);
-      if (filterTags.length > 0) query = query.contains("tags", filterTags);
+      if (filterTags.includes(NO_TAGS_SENTINEL)) {
+        query = query.or("tags.eq.{},tags.is.null");
+      } else if (filterTags.length > 0) {
+        query = query.contains("tags", filterTags);
+      }
       if (filterNoNotes) query = query.or("my_notes.is.null,my_notes.eq.");
       if (filterUnrefreshed) query = query.is("embedding_refreshed_at", null);
 
