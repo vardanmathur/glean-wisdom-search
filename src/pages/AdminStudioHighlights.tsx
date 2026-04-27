@@ -888,6 +888,13 @@ const AdminStudioHighlights = () => {
 
 // --- Slide-out edit panel ---
 
+/**
+ * EditPanel persisted state (sessionStorage) — survives window switch / PWA backgrounding.
+ * Keys derived from `${ADMIN_EDIT_DRAFT_PREFIX}_${highlight.id}`:
+ *   • _quote, _tags, _notes, _visibility, _tagInput
+ * Cleared on: save success and cancel (via clearDraft()).
+ * Hydrated from the `highlight` prop on mount / id change.
+ */
 interface EditPanelProps {
   highlight: HighlightRow | null;
   allTags: string[];
@@ -903,7 +910,7 @@ const EditPanel = ({ highlight, allTags, onClose, onSave, saving }: EditPanelPro
   const [tags, setTags, clearTags] = useSessionStorageState<string[]>(`${draftKey}_tags`, []);
   const [notes, setNotes, clearNotes] = useSessionStorageState<string>(`${draftKey}_notes`, "");
   const [visibility, setVisibility, clearVisibility] = useSessionStorageState<string>(`${draftKey}_visibility`, "public");
-  const [tagInput, setTagInput] = useState("");
+  const [tagInput, setTagInput, clearTagInput] = useSessionStorageState<string>(`${draftKey}_tagInput`, "");
 
   // Always hydrate from the highlight prop on open / id change. sessionStorage
   // is for surviving window switches mid-edit, not for restoring a previous
@@ -923,6 +930,7 @@ const EditPanel = ({ highlight, allTags, onClose, onSave, saving }: EditPanelPro
     clearTags();
     clearNotes();
     clearVisibility();
+    clearTagInput();
   };
 
   const addTag = (tag: string) => {
