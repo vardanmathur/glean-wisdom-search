@@ -493,7 +493,7 @@ const EditPanel = ({ highlight, allTags, onClose, onSave, saving }: EditPanelPro
   };
 
   return (
-    <Sheet open={!!highlight} onOpenChange={(open) => { if (!open) onClose(); }}>
+    <Sheet open={!!highlight} onOpenChange={(open) => { if (!open) handleClose(); }}>
       <SheetContent side="right" className="w-full sm:w-[480px] sm:max-w-[480px] overflow-y-auto">
         <SheetHeader>
           <SheetTitle>Edit Highlight</SheetTitle>
