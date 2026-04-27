@@ -437,20 +437,15 @@ const EditPanel = ({ highlight, allTags, onClose, onSave, saving }: EditPanelPro
   const [visibility, setVisibility, clearVisibility] = useSessionStorageState<string>(`${draftKey}_visibility`, "private");
   const [tagInput, setTagInput] = useState("");
 
-  // Hydrate from row only when there is no existing draft for this id.
+  // Always hydrate from the highlight prop on open / id change. sessionStorage
+  // is for surviving window switches mid-edit, not for restoring a previous
+  // session's draft over fresh server data.
   useEffect(() => {
     if (!highlight) return;
-    const hasDraft =
-      sessionStorage.getItem(`${draftKey}_quote`) !== null ||
-      sessionStorage.getItem(`${draftKey}_tags`) !== null ||
-      sessionStorage.getItem(`${draftKey}_notes`) !== null ||
-      sessionStorage.getItem(`${draftKey}_visibility`) !== null;
-    if (!hasDraft) {
-      setQuote(highlight.quote);
-      setTags(highlight.tags ?? []);
-      setNotes(highlight.my_notes ?? "");
-      setVisibility(highlight.visibility ?? "private");
-    }
+    setQuote(highlight.quote);
+    setTags(highlight.tags ?? []);
+    setNotes(highlight.my_notes ?? "");
+    setVisibility(highlight.visibility ?? "private");
     setTagInput("");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [highlight?.id]);
