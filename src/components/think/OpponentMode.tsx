@@ -3,6 +3,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Loader2 } from "lucide-react";
+import { useSessionStorageState } from "@/hooks/useSessionStorageState";
+
+const OPPONENT_HISTORY_KEY = "glean_think_opponent_history";
 
 export interface OpponentHighlight {
   id: string;
