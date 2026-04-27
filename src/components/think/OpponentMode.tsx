@@ -248,7 +248,7 @@ const OpponentMode = ({
       {sessionComplete && (
         <div className="pt-4 border-t">
           <p className="text-sm text-muted-foreground mb-3">That's a wrap for this session.</p>
-          <Button variant="outline" onClick={onComplete}>Start a new session</Button>
+          <Button variant="outline" onClick={() => { clearHistory(); clearInput(); onComplete(); }}>Start a new session</Button>
         </div>
       )}
     </div>
