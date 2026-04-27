@@ -567,7 +567,7 @@ const EditPanel = ({ highlight, allTags, onClose, onSave, saving }: EditPanelPro
 
           <div className="flex gap-3">
             <Button onClick={handleSave} disabled={saving} className="flex-1">{saving ? "Saving…" : "Save"}</Button>
-            <Button variant="outline" onClick={onClose} className="flex-1">Cancel</Button>
+            <Button variant="outline" onClick={handleClose} className="flex-1">Cancel</Button>
           </div>
         </div>
       </SheetContent>
