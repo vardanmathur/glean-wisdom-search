@@ -54,8 +54,12 @@ const OpponentMode = ({
   const [pickerPersona, setPickerPersona] = useState<OpponentPersona | null>(null);
   const [nameInput, setNameInput] = useState("");
 
-  const [history, setHistory] = useState<Msg[]>([]);
-  const [input, setInput] = useState("");
+  // Conversation persisted across mobile PWA backgrounding. Keyed on the
+  // highlight id so unrelated sessions don't bleed into each other.
+  const historyKey = `${OPPONENT_HISTORY_KEY}_${highlight.id}_history`;
+  const inputKey = `${OPPONENT_HISTORY_KEY}_${highlight.id}_input`;
+  const [history, setHistory, clearHistory] = useSessionStorageState<Msg[]>(historyKey, []);
+  const [input, setInput, clearInput] = useSessionStorageState<string>(inputKey, "");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
