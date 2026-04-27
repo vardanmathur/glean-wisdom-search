@@ -10,6 +10,9 @@ import { Loader2, Camera, X } from "lucide-react";
 import { toast } from "sonner";
 import BookLookup, { type SelectedBook } from "./BookLookup";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useSessionStorageState } from "@/hooks/useSessionStorageState";
+
+const DRAFT_KEY = "glean_add_highlight_draft";
 
 interface AddHighlightModalProps {
   open: boolean;
