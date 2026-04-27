@@ -380,6 +380,12 @@ const Think = () => {
   };
 
   const startNewSession = () => {
+    // Clear persisted draft before reloading so we land back on mode selection.
+    clearMode();
+    clearForgeHighlights();
+    clearOpponentHighlight();
+    clearOpponentPersona();
+    clearOpponentName();
     window.location.reload();
   };
 
