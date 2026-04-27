@@ -259,7 +259,11 @@ const AdminStudioHighlights = () => {
         .select("id, quote, tags, my_notes, visibility, created_at, book_id, embedding_refreshed_at, books(title)", { count: "exact" });
 
       if (filterBook !== "all") query = query.eq("book_id", filterBook);
-      if (filterTags.length > 0) query = query.contains("tags", filterTags);
+      if (filterTags.includes(NO_TAGS_SENTINEL)) {
+        query = query.or("tags.eq.{},tags.is.null");
+      } else if (filterTags.length > 0) {
+        query = query.contains("tags", filterTags);
+      }
       if (filterNoNotes) query = query.or("my_notes.is.null,my_notes.eq.");
       if (filterUnrefreshed) query = query.is("embedding_refreshed_at", null);
 
