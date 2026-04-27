@@ -147,6 +147,14 @@ const MultiTagFilter = ({ allTags, selected, onChange }: MultiTagFilterProps) =>
             </div>
           </div>
           <div className="max-h-56 overflow-y-auto p-1">
+            <button
+              key={NO_TAGS_SENTINEL}
+              className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent transition-colors"
+              onClick={() => toggle(NO_TAGS_SENTINEL)}
+            >
+              <Checkbox checked={noTagsSelected} className="pointer-events-none" />
+              <span className="italic text-muted-foreground">No tags</span>
+            </button>
             {filtered.length === 0 ? (
               <p className="px-3 py-2 text-sm text-muted-foreground">No tags found</p>
             ) : (
