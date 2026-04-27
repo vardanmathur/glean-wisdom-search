@@ -93,10 +93,18 @@ const Think = () => {
     useSessionStorageState<string>(`${THINK_SESSION_KEY}_personaName`, "");
 
   // ===== Auth gate =====
+  // Wait briefly before redirecting to ride out the transient null-user
+  // states that Supabase emits during token refresh on mobile PWA resume
+  // / window switch. Only navigate away if there's genuinely no session.
   useEffect(() => {
-    if (!authLoading && !user) {
-      navigate("/auth");
-    }
+    if (authLoading) return;
+    if (user) return;
+    const t = setTimeout(() => {
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (!session?.user) navigate("/auth");
+      });
+    }, 1500);
+    return () => clearTimeout(t);
   }, [authLoading, user, navigate]);
 
   const isAdmin = user?.email === ADMIN_EMAIL;
@@ -380,13 +388,14 @@ const Think = () => {
   };
 
   const startNewSession = () => {
-    // Clear persisted draft before reloading so we land back on mode selection.
+    // Clearing persisted state returns the user to the mode-selection
+    // screen (mode === null) — no reload needed.
     clearMode();
     clearForgeHighlights();
     clearOpponentHighlight();
     clearOpponentPersona();
     clearOpponentName();
-    window.location.reload();
+    setLoadError(null);
   };
 
   // ===== Render =====
