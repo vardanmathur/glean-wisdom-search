@@ -238,16 +238,16 @@ const UserStudio = () => {
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-7xl">
-      <div className="flex items-start justify-between gap-4 mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
         <div>
           <h1 className="font-display text-3xl font-semibold text-foreground mb-2">My Studio</h1>
           <p className="text-muted-foreground">Your private highlights — add, edit, and curate.</p>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <Button onClick={() => navigate("/import")} className="gap-1.5">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full sm:w-auto shrink-0">
+          <Button onClick={() => navigate("/import")} className="gap-1.5 w-full sm:w-auto">
             <Upload className="h-4 w-4" /> Import from Kindle
           </Button>
-          <Button onClick={() => setShowAdd(true)} className="gap-1.5">
+          <Button onClick={() => setShowAdd(true)} className="gap-1.5 w-full sm:w-auto">
             <Plus className="h-4 w-4" /> Add highlight
           </Button>
         </div>

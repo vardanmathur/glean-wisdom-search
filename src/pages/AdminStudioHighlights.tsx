@@ -30,7 +30,7 @@ const ADMIN_EDIT_DRAFT_PREFIX = "glean_admin_studio_edit_draft";
 const ADMIN_EMAIL = "vardan@gmail.com";
 const PAGE_SIZE = 20;
 
-type SortOption = "recent" | "oldest" | "no_notes" | "no_tags";
+type SortOption = "recent" | "oldest" | "no_notes" | "no_tags" | "oldest_embedding";
 type ColumnSortState = { col: string; dir: "asc" | "desc" } | null;
 
 interface HighlightRow {
@@ -186,6 +186,7 @@ const AdminStudioHighlights = () => {
   const [filterBook, setFilterBook] = useState<string>("all");
   const [filterTags, setFilterTags] = useState<string[]>([]);
   const [filterNoNotes, setFilterNoNotes] = useState(false);
+  const [filterUnrefreshed, setFilterUnrefreshed] = useState(false);
   const [sortBy, setSortBy] = useState<SortOption>("recent");
   const [columnSort, setColumnSort] = useState<ColumnSortState>(null);
   const [feedback, setFeedback] = useState<Record<string, "success" | "error">>({});
@@ -200,6 +201,8 @@ const AdminStudioHighlights = () => {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [generatingEmbeddings, setGeneratingEmbeddings] = useState(false);
   const [forceRegenerating, setForceRegenerating] = useState(false);
+  const [pageInput, setPageInput] = useState("1");
+  useEffect(() => { setPageInput(String(page + 1)); }, [page]);
 
   useAuthGate("/", (u) => !!u && u.email === ADMIN_EMAIL);
 
@@ -224,7 +227,7 @@ const AdminStudioHighlights = () => {
   });
 
   const { data: highlightsData, isLoading } = useQuery({
-    queryKey: ["studio-highlights", page, filterBook, filterTags, filterNoNotes, sortBy, searchQuery],
+    queryKey: ["studio-highlights", page, filterBook, filterTags, filterNoNotes, filterUnrefreshed, sortBy, searchQuery],
     queryFn: async () => {
       let query = supabase
         .from("highlights")
@@ -233,6 +236,7 @@ const AdminStudioHighlights = () => {
       if (filterBook !== "all") query = query.eq("book_id", filterBook);
       if (filterTags.length > 0) query = query.contains("tags", filterTags);
       if (filterNoNotes) query = query.or("my_notes.is.null,my_notes.eq.");
+      if (filterUnrefreshed) query = query.is("embedding_refreshed_at", null);
 
       const trimmedSearch = searchQuery.trim();
       if (trimmedSearch) {
@@ -271,6 +275,13 @@ const AdminStudioHighlights = () => {
           query = query
             .order("tags", { ascending: true, nullsFirst: true })
             .order("created_at", { ascending: false });
+          break;
+        case "oldest_embedding":
+          // NULL-refreshed first, then oldest refresh date — surfaces highlights
+          // that need re-embedding the most.
+          query = query
+            .order("embedding_refreshed_at", { ascending: true, nullsFirst: true })
+            .order("created_at", { ascending: true });
           break;
       }
 
@@ -524,7 +535,7 @@ const AdminStudioHighlights = () => {
 
   useEffect(() => {
     setPage(0);
-  }, [filterBook, filterTags, filterNoNotes, sortBy, searchQuery]);
+  }, [filterBook, filterTags, filterNoNotes, filterUnrefreshed, sortBy, searchQuery]);
 
   const truncate = (text: string, max: number) =>
     text.length > max ? text.slice(0, max) + "…" : text;
@@ -588,15 +599,21 @@ const AdminStudioHighlights = () => {
           No notes only
         </label>
 
+        <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer">
+          <Checkbox checked={filterUnrefreshed} onCheckedChange={(v) => setFilterUnrefreshed(v === true)} />
+          Unrefreshed only
+        </label>
+
         <Separator orientation="vertical" className="h-8 hidden sm:block" />
 
         <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortOption)}>
-          <SelectTrigger className="w-[160px]"><SelectValue placeholder="Sort by" /></SelectTrigger>
+          <SelectTrigger className="w-[180px]"><SelectValue placeholder="Sort by" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="recent">Most recent</SelectItem>
             <SelectItem value="oldest">Oldest first</SelectItem>
             <SelectItem value="no_notes">No notes first</SelectItem>
             <SelectItem value="no_tags">No tags first</SelectItem>
+            <SelectItem value="oldest_embedding">Oldest embedding first</SelectItem>
           </SelectContent>
         </Select>
 
@@ -832,11 +849,45 @@ const AdminStudioHighlights = () => {
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div className="flex items-center justify-center gap-4 mt-6">
+        <div className="flex items-center justify-center gap-3 mt-6">
           <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(page - 1)}>
             <ChevronLeft className="h-4 w-4 mr-1" /> Prev
           </Button>
-          <span className="text-sm text-muted-foreground">Page {page + 1} of {totalPages}</span>
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <span>Page</span>
+            <input
+              type="number"
+              min={1}
+              max={totalPages}
+              value={pageInput}
+              onChange={(e) => setPageInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  const n = parseInt(pageInput, 10);
+                  if (Number.isFinite(n)) {
+                    const clamped = Math.max(1, Math.min(totalPages, n));
+                    setPage(clamped - 1);
+                    setPageInput(String(clamped));
+                  } else {
+                    setPageInput(String(page + 1));
+                  }
+                  (e.target as HTMLInputElement).blur();
+                }
+              }}
+              onBlur={() => {
+                const n = parseInt(pageInput, 10);
+                if (Number.isFinite(n)) {
+                  const clamped = Math.max(1, Math.min(totalPages, n));
+                  setPage(clamped - 1);
+                  setPageInput(String(clamped));
+                } else {
+                  setPageInput(String(page + 1));
+                }
+              }}
+              className="h-8 w-16 rounded-md border border-input bg-background px-2 text-center text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            />
+            <span>of {totalPages}</span>
+          </div>
           <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage(page + 1)}>
             Next <ChevronRight className="h-4 w-4 ml-1" />
           </Button>
