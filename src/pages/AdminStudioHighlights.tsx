@@ -230,7 +230,7 @@ const AdminStudioHighlights = () => {
     queryFn: async () => {
       let query = supabase
         .from("highlights")
-        .select("id, quote, tags, my_notes, visibility, created_at, book_id, books(title)", { count: "exact" });
+        .select("id, quote, tags, my_notes, visibility, created_at, book_id, embedding_refreshed_at, books(title)", { count: "exact" });
 
       if (filterBook !== "all") query = query.eq("book_id", filterBook);
       if (filterTags.length > 0) query = query.contains("tags", filterTags);
