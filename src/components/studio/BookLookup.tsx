@@ -58,25 +58,32 @@ const BookLookup = ({ selectedBook, onSelect, onClear }: BookLookupProps) => {
     const stripped = term.replace(/['\-\.]/g, "");
     setLoading(true);
     const t = setTimeout(async () => {
-      const queries = [supabase
+      const rawQuery = supabase
         .from("books")
         .select("id, title, author")
         .ilike("title", `%${term}%`)
         .order("title")
-        .limit(8)];
-      if (stripped !== term) {
-        queries.push(supabase
-          .from("books")
-          .select("id, title, author")
-          .ilike("title", `%${stripped}%`)
-          .order("title")
-          .limit(8));
-      }
-      const results = await Promise.all(queries);
+        .limit(8);
+
+      const strippedQuery = stripped !== term
+        ? supabase
+            .from("books")
+            .select("id, title, author")
+            .ilike("title", `%${stripped}%`)
+            .order("title")
+            .limit(8)
+        : null;
+
+      // Server-side apostrophe-insensitive match — catches e.g. "mans"
+      // → "Man's Search for Meaning" where the DB stores curly/straight
+      // apostrophes that the client-side stripped query can't normalise.
+      const fuzzyQuery = supabase.rpc("search_books_fuzzy", { search_term: term });
+
+      const results = await Promise.all([rawQuery, strippedQuery, fuzzyQuery]);
       const merged = new Map<string, BookSuggestion>();
-      for (const { data, error } of results) {
-        if (error) continue;
-        (data ?? []).forEach((b) => merged.set(b.id, b));
+      for (const res of results) {
+        if (!res || res.error) continue;
+        ((res.data as BookSuggestion[] | null) ?? []).forEach((b) => merged.set(b.id, b));
       }
       setSuggestions(Array.from(merged.values()).slice(0, 8));
       setLoading(false);
