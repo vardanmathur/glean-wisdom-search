@@ -7,9 +7,11 @@ import ThinkHeader from "@/components/think/ThinkHeader";
 import ForgeMode, { ForgeHighlight } from "@/components/think/ForgeMode";
 import OpponentMode, { OpponentHighlight, OpponentPersona } from "@/components/think/OpponentMode";
 import { Loader2, Flame, Swords } from "lucide-react";
+import { useSessionStorageState } from "@/hooks/useSessionStorageState";
 
 const ADMIN_EMAIL = "vardan@gmail.com";
 const DEFAULT_DAILY_LIMIT = 3;
+const THINK_SESSION_KEY = "glean_think_session";
 
 const FORGE_PROMPT =
   "You are a warm thinking partner. The user has read a book highlight and shared what it means to them personally right now. In maximum 150 words: reflect back what you hear in their response, add one dimension or question that deepens their thinking, and end with one gentle challenge. No preamble. Be warm and intellectually honest.";
