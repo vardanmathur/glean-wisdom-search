@@ -368,6 +368,14 @@ export type Database = {
           vector_score: number
         }[]
       }
+      search_books_fuzzy: {
+        Args: { search_term: string }
+        Returns: {
+          author: string
+          id: string
+          title: string
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never
