@@ -427,21 +427,40 @@ interface EditPanelProps {
 }
 
 const EditPanel = ({ highlight, allTags, onClose, onSave, saving }: EditPanelProps) => {
-  const [quote, setQuote] = useState("");
-  const [tags, setTags] = useState<string[]>([]);
-  const [notes, setNotes] = useState("");
-  const [visibility, setVisibility] = useState("private");
+  // Persistence keyed on highlight id so concurrent unrelated edits don't
+  // collide. Survives mobile PWA backgrounding; cleared explicitly on save/cancel.
+  const draftKey = `${EDIT_DRAFT_PREFIX}_${highlight?.id ?? "none"}`;
+
+  const [quote, setQuote, clearQuote] = useSessionStorageState<string>(`${draftKey}_quote`, "");
+  const [tags, setTags, clearTags] = useSessionStorageState<string[]>(`${draftKey}_tags`, []);
+  const [notes, setNotes, clearNotes] = useSessionStorageState<string>(`${draftKey}_notes`, "");
+  const [visibility, setVisibility, clearVisibility] = useSessionStorageState<string>(`${draftKey}_visibility`, "private");
   const [tagInput, setTagInput] = useState("");
 
+  // Hydrate from row only when there is no existing draft for this id.
   useEffect(() => {
-    if (highlight) {
+    if (!highlight) return;
+    const hasDraft =
+      sessionStorage.getItem(`${draftKey}_quote`) !== null ||
+      sessionStorage.getItem(`${draftKey}_tags`) !== null ||
+      sessionStorage.getItem(`${draftKey}_notes`) !== null ||
+      sessionStorage.getItem(`${draftKey}_visibility`) !== null;
+    if (!hasDraft) {
       setQuote(highlight.quote);
       setTags(highlight.tags ?? []);
       setNotes(highlight.my_notes ?? "");
       setVisibility(highlight.visibility ?? "private");
-      setTagInput("");
     }
-  }, [highlight]);
+    setTagInput("");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [highlight?.id]);
+
+  const clearDraft = () => {
+    clearQuote();
+    clearTags();
+    clearNotes();
+    clearVisibility();
+  };
 
   const addTag = (tag: string) => {
     const t = tag.trim().toLowerCase();
@@ -465,6 +484,12 @@ const EditPanel = ({ highlight, allTags, onClose, onSave, saving }: EditPanelPro
   const handleSave = () => {
     if (!highlight) return;
     onSave(highlight.id, { quote, tags, my_notes: notes || null, visibility });
+    clearDraft();
+  };
+
+  const handleClose = () => {
+    clearDraft();
+    onClose();
   };
 
   return (
