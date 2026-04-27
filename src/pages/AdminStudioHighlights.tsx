@@ -22,6 +22,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { useSessionStorageState } from "@/hooks/useSessionStorageState";
+
+const ADMIN_EDIT_DRAFT_PREFIX = "glean_admin_studio_edit_draft";
 
 const ADMIN_EMAIL = "vardan@gmail.com";
 const PAGE_SIZE = 20;
