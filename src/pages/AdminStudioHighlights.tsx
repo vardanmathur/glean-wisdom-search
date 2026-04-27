@@ -40,6 +40,7 @@ interface HighlightRow {
   visibility: string | null;
   created_at: string;
   book_id: string | null;
+  embedding_refreshed_at: string | null;
   books: { title: string } | null;
 }
 
