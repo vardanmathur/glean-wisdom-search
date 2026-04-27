@@ -174,7 +174,7 @@ serve(async (req) => {
         const vectorStr = `[${normalized.join(",")}]`;
         const { error: updateError } = await supabase
           .from("highlights")
-          .update({ embedding: vectorStr })
+          .update({ embedding: vectorStr, embedding_refreshed_at: new Date().toISOString() })
           .eq("id", highlight.id);
 
         if (updateError) {
