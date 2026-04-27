@@ -40,6 +40,7 @@ interface HighlightRow {
   visibility: string | null;
   created_at: string;
   book_id: string | null;
+  embedding_refreshed_at: string | null;
   books: { title: string } | null;
 }
 
@@ -197,6 +198,7 @@ const AdminStudioHighlights = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [generatingEmbeddings, setGeneratingEmbeddings] = useState(false);
+  const [forceRegenerating, setForceRegenerating] = useState(false);
 
   useEffect(() => {
     if (!authLoading && (!user || user.email !== ADMIN_EMAIL)) {
@@ -229,7 +231,7 @@ const AdminStudioHighlights = () => {
     queryFn: async () => {
       let query = supabase
         .from("highlights")
-        .select("id, quote, tags, my_notes, visibility, created_at, book_id, books(title)", { count: "exact" });
+        .select("id, quote, tags, my_notes, visibility, created_at, book_id, embedding_refreshed_at, books(title)", { count: "exact" });
 
       if (filterBook !== "all") query = query.eq("book_id", filterBook);
       if (filterTags.length > 0) query = query.contains("tags", filterTags);
@@ -318,11 +320,34 @@ const AdminStudioHighlights = () => {
       toast.success(`Embeddings generated for ${processed} highlight${processed === 1 ? "" : "s"}`);
       setSelectedIds(new Set());
       queryClient.invalidateQueries({ queryKey: ["studio-missing-embeddings"] });
+      queryClient.invalidateQueries({ queryKey: ["studio-highlights"] });
     } catch (err) {
       console.error(err);
       toast.error("Failed to generate embeddings — please try again");
     } finally {
       setGeneratingEmbeddings(false);
+    }
+  };
+
+  const forceRegenerateForSelected = async () => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    setForceRegenerating(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("generate-embeddings", {
+        body: { ids, force: true },
+      });
+      if (error) throw error;
+      const processed = (data as { processed?: number })?.processed ?? ids.length;
+      toast.success(`Force-regenerated embeddings for ${processed} highlight${processed === 1 ? "" : "s"}`);
+      setSelectedIds(new Set());
+      queryClient.invalidateQueries({ queryKey: ["studio-missing-embeddings"] });
+      queryClient.invalidateQueries({ queryKey: ["studio-highlights"] });
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to force regenerate — please try again");
+    } finally {
+      setForceRegenerating(false);
     }
   };
 
@@ -507,6 +532,23 @@ const AdminStudioHighlights = () => {
   const truncate = (text: string, max: number) =>
     text.length > max ? text.slice(0, max) + "…" : text;
 
+  const formatRelativeTime = (iso: string | null): string => {
+    if (!iso) return "Never";
+    const then = new Date(iso).getTime();
+    const now = Date.now();
+    const diffSec = Math.max(0, Math.floor((now - then) / 1000));
+    if (diffSec < 60) return "just now";
+    const diffMin = Math.floor(diffSec / 60);
+    if (diffMin < 60) return `${diffMin}m ago`;
+    const diffHr = Math.floor(diffMin / 60);
+    if (diffHr < 24) return `${diffHr}h ago`;
+    const diffDay = Math.floor(diffHr / 24);
+    if (diffDay < 30) return `${diffDay}d ago`;
+    const diffMo = Math.floor(diffDay / 30);
+    if (diffMo < 12) return `${diffMo}mo ago`;
+    return `${Math.floor(diffMo / 12)}y ago`;
+  };
+
   if (authLoading || !user || user.email !== ADMIN_EMAIL) return null;
 
   return (
@@ -573,16 +615,28 @@ const AdminStudioHighlights = () => {
         </Button>
 
         {selectedIds.size > 0 && (
-          <Button
-            variant="default"
-            size="sm"
-            onClick={generateEmbeddingsForSelected}
-            disabled={generatingEmbeddings || selectedMissingCount === 0}
-            className="gap-2"
-          >
-            {generatingEmbeddings ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-            {generatingEmbeddings ? "Generating…" : `Generate embeddings (${selectedMissingCount})`}
-          </Button>
+          <>
+            <Button
+              variant="default"
+              size="sm"
+              onClick={generateEmbeddingsForSelected}
+              disabled={generatingEmbeddings || forceRegenerating || selectedMissingCount === 0}
+              className="gap-2"
+            >
+              {generatingEmbeddings ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+              {generatingEmbeddings ? "Generating…" : `Generate embeddings (${selectedMissingCount})`}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={forceRegenerateForSelected}
+              disabled={generatingEmbeddings || forceRegenerating}
+              className="gap-2"
+            >
+              {forceRegenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+              {forceRegenerating ? "Regenerating…" : `Force regenerate (${selectedIds.size})`}
+            </Button>
+          </>
         )}
 
         <span className="ml-auto text-xs text-muted-foreground whitespace-nowrap">
@@ -749,6 +803,12 @@ const AdminStudioHighlights = () => {
                         {isMissingEmbedding && (
                           <Sparkles className="h-3.5 w-3.5 text-destructive" aria-label="Missing embedding" />
                         )}
+                        <span
+                          className="text-[10px] text-muted-foreground/70 whitespace-nowrap"
+                          title={h.embedding_refreshed_at ? new Date(h.embedding_refreshed_at).toLocaleString() : "Never refreshed"}
+                        >
+                          {formatRelativeTime(h.embedding_refreshed_at)}
+                        </span>
                         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditingHighlight(h)}>
                           <Pencil className="h-3.5 w-3.5" />
                         </Button>

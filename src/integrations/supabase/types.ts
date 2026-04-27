@@ -70,6 +70,7 @@ export type Database = {
           book_id: string | null
           created_at: string
           embedding: string | null
+          embedding_refreshed_at: string | null
           id: string
           my_notes: string | null
           quote: string
@@ -84,6 +85,7 @@ export type Database = {
           book_id?: string | null
           created_at?: string
           embedding?: string | null
+          embedding_refreshed_at?: string | null
           id?: string
           my_notes?: string | null
           quote: string
@@ -98,6 +100,7 @@ export type Database = {
           book_id?: string | null
           created_at?: string
           embedding?: string | null
+          embedding_refreshed_at?: string | null
           id?: string
           my_notes?: string | null
           quote?: string

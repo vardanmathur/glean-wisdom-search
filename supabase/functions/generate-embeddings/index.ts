@@ -43,14 +43,20 @@ serve(async (req) => {
   const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-  // Optional: { ids: string[] } body to target specific highlights.
+  // Optional body:
+  //   { ids: string[] }            — target specific highlights (still skips rows that already have embeddings)
+  //   { ids: string[], force: true } — regenerate embeddings for those IDs even if non-null
   // When omitted, falls back to scanning all rows with NULL embedding.
   let targetIds: string[] | null = null;
+  let force = false;
   if (req.method === "POST") {
     try {
       const body = await req.json();
       if (body && Array.isArray(body.ids) && body.ids.length > 0) {
         targetIds = body.ids.filter((x: unknown) => typeof x === "string");
+      }
+      if (body && body.force === true) {
+        force = true;
       }
     } catch {
       // no body / invalid json — ignore, fall back to global scan
@@ -62,11 +68,12 @@ serve(async (req) => {
     let totalCount: number | null = null;
 
     if (targetIds) {
-      const { count, error: countError } = await supabase
+      let countQuery = supabase
         .from("highlights")
         .select("id", { count: "exact", head: true })
-        .in("id", targetIds)
-        .is("embedding", null);
+        .in("id", targetIds);
+      if (!force) countQuery = countQuery.is("embedding", null);
+      const { count, error: countError } = await countQuery;
       if (countError) throw countError;
       remaining = count ?? 0;
       totalCount = targetIds.length;
@@ -97,8 +104,11 @@ serve(async (req) => {
 
     let fetchQuery = supabase
       .from("highlights")
-      .select("id, quote, tags")
-      .is("embedding", null);
+      .select("id, quote, tags");
+
+    if (!force) {
+      fetchQuery = fetchQuery.is("embedding", null);
+    }
 
     if (targetIds) {
       fetchQuery = fetchQuery.in("id", targetIds);
@@ -164,7 +174,7 @@ serve(async (req) => {
         const vectorStr = `[${normalized.join(",")}]`;
         const { error: updateError } = await supabase
           .from("highlights")
-          .update({ embedding: vectorStr })
+          .update({ embedding: vectorStr, embedding_refreshed_at: new Date().toISOString() })
           .eq("id", highlight.id);
 
         if (updateError) {
