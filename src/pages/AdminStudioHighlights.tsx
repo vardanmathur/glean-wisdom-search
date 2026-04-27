@@ -85,7 +85,7 @@ const MultiTagFilter = ({ allTags, selected, onChange }: MultiTagFilterProps) =>
 
   const input = search.toLowerCase();
   const filtered = allTags
-    .filter((t) => t.toLowerCase().includes(input))
+    .filter((t) => t !== NO_TAGS_SENTINEL && t.toLowerCase().includes(input))
     .sort((a, b) => {
       const aStarts = a.toLowerCase().startsWith(input);
       const bStarts = b.toLowerCase().startsWith(input);
@@ -94,8 +94,19 @@ const MultiTagFilter = ({ allTags, selected, onChange }: MultiTagFilterProps) =>
       return a.localeCompare(b);
     });
 
+  const noTagsSelected = selected.includes(NO_TAGS_SENTINEL);
+
   const toggle = (tag: string) => {
-    onChange(selected.includes(tag) ? selected.filter((t) => t !== tag) : [...selected, tag]);
+    if (tag === NO_TAGS_SENTINEL) {
+      onChange(noTagsSelected ? [] : [NO_TAGS_SENTINEL]);
+      return;
+    }
+    const withoutSentinel = selected.filter((t) => t !== NO_TAGS_SENTINEL);
+    onChange(
+      withoutSentinel.includes(tag)
+        ? withoutSentinel.filter((t) => t !== tag)
+        : [...withoutSentinel, tag],
+    );
   };
 
   return (
