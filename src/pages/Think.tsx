@@ -242,11 +242,11 @@ const Think = () => {
 
   // ===== Back to mode selection (replaces shuffle behaviour) =====
   const handleBackToSelection = () => {
-    setMode(null);
-    setForgeHighlights([]);
-    setOpponentHighlight(null);
-    setOpponentPersona(null);
-    setOpponentName("");
+    clearMode();
+    clearForgeHighlights();
+    clearOpponentHighlight();
+    clearOpponentPersona();
+    clearOpponentName();
     setLoadError(null);
   };
 
