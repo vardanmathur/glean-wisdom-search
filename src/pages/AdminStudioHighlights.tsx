@@ -198,6 +198,7 @@ const AdminStudioHighlights = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [generatingEmbeddings, setGeneratingEmbeddings] = useState(false);
+  const [forceRegenerating, setForceRegenerating] = useState(false);
 
   useEffect(() => {
     if (!authLoading && (!user || user.email !== ADMIN_EMAIL)) {
