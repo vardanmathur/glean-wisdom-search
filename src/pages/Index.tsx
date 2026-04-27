@@ -43,7 +43,10 @@ const Index = () => {
   const isAdmin = user?.email === ADMIN_EMAIL;
   const hasThink = !!user && !isAdmin && hasPermission("think");
   const hasImport = !!user && !isAdmin && hasPermission("import");
-  const hideEarlyAccess = !isAdmin && hasThink && hasImport;
+  // Always keep the Early Access section visible. It's the home page's
+  // permanent entry point to Studio for granted import users — once the
+  // What's new banner is dismissed, this section is the only way back in.
+  const hideEarlyAccess = false;
 
   // What's new banner — one per newly granted feature, dismissible per-feature
   const [bannerFeatures, setBannerFeatures] = useState<string[]>([]);
