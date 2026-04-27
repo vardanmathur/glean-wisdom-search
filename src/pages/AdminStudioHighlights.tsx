@@ -803,6 +803,12 @@ const AdminStudioHighlights = () => {
                         {isMissingEmbedding && (
                           <Sparkles className="h-3.5 w-3.5 text-destructive" aria-label="Missing embedding" />
                         )}
+                        <span
+                          className="text-[10px] text-muted-foreground/70 whitespace-nowrap"
+                          title={h.embedding_refreshed_at ? new Date(h.embedding_refreshed_at).toLocaleString() : "Never refreshed"}
+                        >
+                          {formatRelativeTime(h.embedding_refreshed_at)}
+                        </span>
                         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditingHighlight(h)}>
                           <Pencil className="h-3.5 w-3.5" />
                         </Button>
