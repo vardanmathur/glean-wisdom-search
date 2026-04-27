@@ -320,11 +320,34 @@ const AdminStudioHighlights = () => {
       toast.success(`Embeddings generated for ${processed} highlight${processed === 1 ? "" : "s"}`);
       setSelectedIds(new Set());
       queryClient.invalidateQueries({ queryKey: ["studio-missing-embeddings"] });
+      queryClient.invalidateQueries({ queryKey: ["studio-highlights"] });
     } catch (err) {
       console.error(err);
       toast.error("Failed to generate embeddings — please try again");
     } finally {
       setGeneratingEmbeddings(false);
+    }
+  };
+
+  const forceRegenerateForSelected = async () => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    setForceRegenerating(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("generate-embeddings", {
+        body: { ids, force: true },
+      });
+      if (error) throw error;
+      const processed = (data as { processed?: number })?.processed ?? ids.length;
+      toast.success(`Force-regenerated embeddings for ${processed} highlight${processed === 1 ? "" : "s"}`);
+      setSelectedIds(new Set());
+      queryClient.invalidateQueries({ queryKey: ["studio-missing-embeddings"] });
+      queryClient.invalidateQueries({ queryKey: ["studio-highlights"] });
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to force regenerate — please try again");
+    } finally {
+      setForceRegenerating(false);
     }
   };
 
