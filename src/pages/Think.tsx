@@ -8,6 +8,7 @@ import ForgeMode, { ForgeHighlight } from "@/components/think/ForgeMode";
 import OpponentMode, { OpponentHighlight, OpponentPersona } from "@/components/think/OpponentMode";
 import { Loader2, Flame, Swords } from "lucide-react";
 import { useSessionStorageState } from "@/hooks/useSessionStorageState";
+import { useAuthGate } from "@/hooks/useAuthGate";
 
 const ADMIN_EMAIL = "vardan@gmail.com";
 const DEFAULT_DAILY_LIMIT = 3;
@@ -93,19 +94,8 @@ const Think = () => {
     useSessionStorageState<string>(`${THINK_SESSION_KEY}_personaName`, "");
 
   // ===== Auth gate =====
-  // Wait briefly before redirecting to ride out the transient null-user
-  // states that Supabase emits during token refresh on mobile PWA resume
-  // / window switch. Only navigate away if there's genuinely no session.
-  useEffect(() => {
-    if (authLoading) return;
-    if (user) return;
-    const t = setTimeout(() => {
-      supabase.auth.getSession().then(({ data: { session } }) => {
-        if (!session?.user) navigate("/auth");
-      });
-    }, 1500);
-    return () => clearTimeout(t);
-  }, [authLoading, user, navigate]);
+  // Resilient against transient null-user states during PWA resume / token refresh.
+  useAuthGate("/auth", (u) => !!u);
 
   const isAdmin = user?.email === ADMIN_EMAIL;
 

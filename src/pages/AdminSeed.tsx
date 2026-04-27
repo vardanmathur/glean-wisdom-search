@@ -6,6 +6,7 @@ import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { normaliseAllTags } from "@/lib/normaliseTags";
+import { useAuthGate } from "@/hooks/useAuthGate";
 
 const ADMIN_EMAIL = "vardan@gmail.com";
 
@@ -47,11 +48,7 @@ const AdminSeed = () => {
     errors: number;
   } | null>(null);
 
-  useEffect(() => {
-    if (!authLoading && (!user || user.email !== ADMIN_EMAIL)) {
-      navigate("/", { replace: true });
-    }
-  }, [user, authLoading, navigate]);
+  useAuthGate("/", (u) => !!u && u.email === ADMIN_EMAIL);
 
   if (authLoading) {
     return <div className="container mx-auto max-w-xl px-4 py-12 text-muted-foreground">Loading...</div>;
