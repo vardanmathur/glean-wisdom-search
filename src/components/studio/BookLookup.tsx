@@ -51,17 +51,34 @@ const BookLookup = ({ selectedBook, onSelect, onClear }: BookLookupProps) => {
       setSearched(false);
       return;
     }
-    // Strip punctuation so "mans" matches "Man's Search for Meaning"
+    // Some DB titles contain punctuation (e.g. "Man's Search for Meaning")
+    // and some users type without it ("mans"). Run two parallel queries —
+    // one with the raw term and one with punctuation stripped — then merge
+    // by id. Catches both directions of the mismatch.
     const stripped = term.replace(/['\-\.]/g, "");
     setLoading(true);
     const t = setTimeout(async () => {
-      const { data, error } = await supabase
+      const queries = [supabase
         .from("books")
         .select("id, title, author")
-        .ilike("title", `%${stripped}%`)
+        .ilike("title", `%${term}%`)
         .order("title")
-        .limit(8);
-      if (!error) setSuggestions(data ?? []);
+        .limit(8)];
+      if (stripped !== term) {
+        queries.push(supabase
+          .from("books")
+          .select("id, title, author")
+          .ilike("title", `%${stripped}%`)
+          .order("title")
+          .limit(8));
+      }
+      const results = await Promise.all(queries);
+      const merged = new Map<string, BookSuggestion>();
+      for (const { data, error } of results) {
+        if (error) continue;
+        (data ?? []).forEach((b) => merged.set(b.id, b));
+      }
+      setSuggestions(Array.from(merged.values()).slice(0, 8));
       setLoading(false);
       setSearched(true);
     }, 250);
