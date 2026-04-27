@@ -116,7 +116,11 @@ const MultiTagFilter = ({ allTags, selected, onChange }: MultiTagFilterProps) =>
         className="flex h-10 w-[180px] items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
       >
         <span className="truncate text-muted-foreground">
-          {selected.length === 0 ? "All tags" : `Tags (${selected.length})`}
+          {selected.length === 0
+            ? "All tags"
+            : noTagsSelected
+              ? "No tags"
+              : `Tags (${selected.length})`}
         </span>
         <div className="flex items-center gap-1">
           {selected.length > 0 && (
