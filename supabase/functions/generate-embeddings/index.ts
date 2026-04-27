@@ -68,11 +68,12 @@ serve(async (req) => {
     let totalCount: number | null = null;
 
     if (targetIds) {
-      const { count, error: countError } = await supabase
+      let countQuery = supabase
         .from("highlights")
         .select("id", { count: "exact", head: true })
-        .in("id", targetIds)
-        .is("embedding", null);
+        .in("id", targetIds);
+      if (!force) countQuery = countQuery.is("embedding", null);
+      const { count, error: countError } = await countQuery;
       if (countError) throw countError;
       remaining = count ?? 0;
       totalCount = targetIds.length;
@@ -103,8 +104,11 @@ serve(async (req) => {
 
     let fetchQuery = supabase
       .from("highlights")
-      .select("id, quote, tags")
-      .is("embedding", null);
+      .select("id, quote, tags");
+
+    if (!force) {
+      fetchQuery = fetchQuery.is("embedding", null);
+    }
 
     if (targetIds) {
       fetchQuery = fetchQuery.in("id", targetIds);
