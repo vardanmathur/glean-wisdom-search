@@ -74,18 +74,23 @@ const Think = () => {
   const { hasPermission, loading: permsLoading } = usePermissions();
   const navigate = useNavigate();
 
-  const [mode, setMode] = useState<Mode | null>(null);
-  const [forgeHighlights, setForgeHighlights] = useState<ForgeHighlight[]>([]);
-  const [opponentHighlight, setOpponentHighlight] = useState<OpponentHighlight | null>(null);
+  const [mode, setMode, clearMode] = useSessionStorageState<Mode | null>(`${THINK_SESSION_KEY}_mode`, null);
+  const [forgeHighlights, setForgeHighlights, clearForgeHighlights] =
+    useSessionStorageState<ForgeHighlight[]>(`${THINK_SESSION_KEY}_forge`, []);
+  const [opponentHighlight, setOpponentHighlight, clearOpponentHighlight] =
+    useSessionStorageState<OpponentHighlight | null>(`${THINK_SESSION_KEY}_opponentHl`, null);
   const [modeLoading, setModeLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const [creditsUsed, setCreditsUsed] = useState<number | null>(null);
   const [dailyLimit, setDailyLimit] = useState<number | null>(null);
 
-  // Opponent persona state — fresh every session, never persisted
-  const [opponentPersona, setOpponentPersona] = useState<OpponentPersona | null>(null);
-  const [opponentName, setOpponentName] = useState<string>("");
+  // Opponent persona state — persisted across mobile PWA backgrounding so
+  // an in-progress sparring session isn't wiped by a window switch.
+  const [opponentPersona, setOpponentPersona, clearOpponentPersona] =
+    useSessionStorageState<OpponentPersona | null>(`${THINK_SESSION_KEY}_persona`, null);
+  const [opponentName, setOpponentName, clearOpponentName] =
+    useSessionStorageState<string>(`${THINK_SESSION_KEY}_personaName`, "");
 
   // ===== Auth gate =====
   useEffect(() => {
