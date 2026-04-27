@@ -113,13 +113,20 @@ serve(async (req) => {
 
     for (const highlight of batch!) {
       try {
+        // Enrich the embedding input with topic tags so semantic search
+        // weighs both the quote text and its categorisation. Existing rows
+        // continue to use quote-only embeddings until manually regenerated.
+        const textToEmbed = highlight.tags && highlight.tags.length > 0
+          ? `${highlight.quote}\n\nTopics: ${highlight.tags.join(", ")}`
+          : highlight.quote;
+
         const embResponse = await fetch(
           `https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=${GEMINI_API_KEY}`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              content: { parts: [{ text: highlight.quote }] },
+              content: { parts: [{ text: textToEmbed }] },
               outputDimensionality: 768,
             }),
           }
