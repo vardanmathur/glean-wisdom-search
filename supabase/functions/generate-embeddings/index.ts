@@ -43,14 +43,20 @@ serve(async (req) => {
   const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-  // Optional: { ids: string[] } body to target specific highlights.
+  // Optional body:
+  //   { ids: string[] }            — target specific highlights (still skips rows that already have embeddings)
+  //   { ids: string[], force: true } — regenerate embeddings for those IDs even if non-null
   // When omitted, falls back to scanning all rows with NULL embedding.
   let targetIds: string[] | null = null;
+  let force = false;
   if (req.method === "POST") {
     try {
       const body = await req.json();
       if (body && Array.isArray(body.ids) && body.ids.length > 0) {
         targetIds = body.ids.filter((x: unknown) => typeof x === "string");
+      }
+      if (body && body.force === true) {
+        force = true;
       }
     } catch {
       // no body / invalid json — ignore, fall back to global scan
