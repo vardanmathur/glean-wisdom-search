@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Camera, X } from "lucide-react";
+import { Loader2, Camera, X, Mic } from "lucide-react";
 import { toast } from "sonner";
 import BookLookup, { type SelectedBook } from "./BookLookup";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -24,7 +24,7 @@ interface AddHighlightModalProps {
 const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags }: AddHighlightModalProps) => {
   const { user } = useAuth();
   const isMobile = useIsMobile();
-  const [tab, setTab, clearTab] = useSessionStorageState<"type" | "scan">(`${DRAFT_KEY}_tab`, "type");
+  const [tab, setTab, clearTab] = useSessionStorageState<"type" | "dictate" | "scan">(`${DRAFT_KEY}_tab`, "type");
 
   const [quote, setQuote, clearQuote] = useSessionStorageState<string>(`${DRAFT_KEY}_quote`, "");
   const [book, setBook, clearBook] = useSessionStorageState<SelectedBook | null>(`${DRAFT_KEY}_book`, null);
@@ -41,6 +41,18 @@ const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags }: Add
   const [ocrLoading, setOcrLoading] = useState(false);
   const [ocrInitialised, setOcrInitialised] = useState(false);
 
+  // Dictate tab state
+  const [dictatedText, setDictatedText, clearDictatedText] = useSessionStorageState<string>(
+    "glean_add_highlight_draft_dictated",
+    "",
+  );
+  const [interimText, setInterimText] = useState("");
+  const [listening, setListening] = useState(false);
+  const recognitionRef = useRef<any>(null);
+  const speechSupported =
+    typeof window !== "undefined" &&
+    !!((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
+
   const reset = () => {
     clearQuote();
     clearBook();
@@ -49,7 +61,9 @@ const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags }: Add
     clearNotes();
     clearVisibility();
     clearTab();
+    clearDictatedText();
     stopCamera();
+    stopDictation();
   };
 
   // Track previous open state so reset only fires on an explicit open→close
@@ -66,9 +80,77 @@ const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags }: Add
 
   // Always release the camera on unmount
   useEffect(() => {
-    return () => stopCamera();
+    return () => {
+      stopCamera();
+      stopDictation();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const startDictation = () => {
+    if (!speechSupported) return;
+    const Ctor: any =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    try {
+      const rec = new Ctor();
+      rec.continuous = true;
+      rec.interimResults = true;
+      rec.lang = navigator.language || "en-US";
+      rec.onresult = (event: any) => {
+        let interim = "";
+        let finalChunk = "";
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const res = event.results[i];
+          const transcript = res[0]?.transcript ?? "";
+          if (res.isFinal) finalChunk += transcript;
+          else interim += transcript;
+        }
+        if (finalChunk) {
+          setDictatedText((prev) => {
+            const sep = prev && !/\s$/.test(prev) ? " " : "";
+            const next = (prev + sep + finalChunk).replace(/\s+/g, " ").trimStart();
+            // Auto-mirror finals into the shared quote so save flow works.
+            setQuote(next);
+            return next;
+          });
+        }
+        setInterimText(interim);
+      };
+      rec.onerror = (e: any) => {
+        console.warn("SpeechRecognition error:", e?.error);
+        setInterimText("");
+        setListening(false);
+      };
+      rec.onend = () => {
+        setInterimText("");
+        setListening(false);
+      };
+      recognitionRef.current = rec;
+      rec.start();
+      setListening(true);
+    } catch (err) {
+      console.error("Failed to start dictation:", err);
+      toast.error("Couldn't start dictation");
+      setListening(false);
+    }
+  };
+
+  const stopDictation = () => {
+    const rec = recognitionRef.current;
+    if (rec) {
+      try {
+        rec.onresult = null;
+        rec.onerror = null;
+        rec.onend = null;
+        rec.stop();
+      } catch {
+        /* noop */
+      }
+      recognitionRef.current = null;
+    }
+    setInterimText("");
+    setListening(false);
+  };
 
   const stopCamera = () => {
     streamRef.current?.getTracks().forEach((t) => t.stop());
@@ -189,9 +271,18 @@ const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags }: Add
           <DialogTitle className="font-display text-xl">Add a highlight</DialogTitle>
         </DialogHeader>
 
-        <Tabs value={tab} onValueChange={(v) => setTab(v as "type" | "scan")} className="mt-2">
-          <TabsList className="grid w-full grid-cols-2">
+        <Tabs
+          value={tab}
+          onValueChange={(v) => {
+            const next = v as "type" | "dictate" | "scan";
+            if (next !== "dictate" && listening) stopDictation();
+            setTab(next);
+          }}
+          className="mt-2"
+        >
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="type">Type it</TabsTrigger>
+            <TabsTrigger value="dictate">Dictate</TabsTrigger>
             <TabsTrigger value="scan">Scan text</TabsTrigger>
           </TabsList>
 
@@ -205,6 +296,57 @@ const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags }: Add
                 placeholder="Type or paste the passage…"
               />
             </div>
+          </TabsContent>
+
+          <TabsContent value="dictate" className="space-y-3 mt-4">
+            {!speechSupported ? (
+              <div className="rounded-md border bg-card p-3">
+                <p className="text-sm text-muted-foreground">
+                  Voice input is not supported on this browser — try Chrome on Android.
+                </p>
+              </div>
+            ) : (
+              <>
+                <div className="rounded-md border bg-card p-3 space-y-2">
+                  <div className="flex items-center gap-2">
+                    {!listening ? (
+                      <Button type="button" onClick={startDictation} className="gap-1.5">
+                        <Mic className="h-4 w-4" /> Start dictating
+                      </Button>
+                    ) : (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={stopDictation}
+                        className="gap-1.5"
+                      >
+                        <span className="relative flex h-2.5 w-2.5">
+                          <span className="absolute inline-flex h-full w-full rounded-full bg-destructive opacity-75 animate-ping" />
+                          <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-destructive" />
+                        </span>
+                        Stop
+                      </Button>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground">Works best on Chrome.</p>
+                  {listening && interimText && (
+                    <p className="text-sm italic text-muted-foreground">{interimText}</p>
+                  )}
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">Dictated text — edit before saving</label>
+                  <Textarea
+                    value={dictatedText}
+                    onChange={(e) => {
+                      setDictatedText(e.target.value);
+                      setQuote(e.target.value);
+                    }}
+                    rows={5}
+                    placeholder="Your dictation will appear here…"
+                  />
+                </div>
+              </>
+            )}
           </TabsContent>
 
           <TabsContent value="scan" className="space-y-3 mt-4">
