@@ -224,6 +224,34 @@ const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags }: Add
   };
   const removeTag = (t: string) => setTags(tags.filter((x) => x !== t));
 
+  const handleSuggestTags = async () => {
+    const q = quote.trim();
+    if (q.length < 20 || suggesting) return;
+    setSuggesting(true);
+    try {
+      const { data, error } = await supabase.rpc("suggest_tags_for_quote", { quote_text: q });
+      if (error) throw error;
+      setSuggestedTags(Array.isArray(data) ? (data as string[]) : []);
+      setLastSuggestedQuote(q);
+      setHasFetchedSuggestions(true);
+    } catch (err) {
+      console.error(err);
+      toast.error("Couldn't fetch suggestions");
+    } finally {
+      setSuggesting(false);
+    }
+  };
+
+  // Clear suggestions when quote drifts >10 chars from when fetched
+  useEffect(() => {
+    if (!hasFetchedSuggestions) return;
+    if (Math.abs(quote.length - lastSuggestedQuote.length) > 10) {
+      setSuggestedTags([]);
+      setHasFetchedSuggestions(false);
+      setLastSuggestedQuote("");
+    }
+  }, [quote, hasFetchedSuggestions, lastSuggestedQuote]);
+
   const tagSuggestions = (() => {
     const q = tagInput.trim().toLowerCase();
     if (!q) return [];
