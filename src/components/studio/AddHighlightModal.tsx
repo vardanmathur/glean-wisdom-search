@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import BookLookup, { type SelectedBook } from "./BookLookup";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useSessionStorageState } from "@/hooks/useSessionStorageState";
+import { synonymMap } from "@/lib/data";
 
 const DRAFT_KEY = "glean_add_highlight_draft"; // suggest-tags v1
 
