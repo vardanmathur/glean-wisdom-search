@@ -751,6 +751,17 @@ const AdminStudioHighlights = () => {
           Find Duplicates
         </Button>
 
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleExportCsv}
+          disabled={exporting}
+          className="gap-2"
+        >
+          {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+          {exporting ? "Exporting…" : "Export CSV"}
+        </Button>
+
         {selectedIds.size > 0 && (
           <>
             <Button
