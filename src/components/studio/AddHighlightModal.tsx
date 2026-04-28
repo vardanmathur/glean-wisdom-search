@@ -50,6 +50,7 @@ const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags }: Add
   const [interimText, setInterimText] = useState("");
   const [listening, setListening] = useState(false);
   const recognitionRef = useRef<any>(null);
+  const lastResultIndexRef = useRef<number>(0);
   const speechSupported =
     typeof window !== "undefined" &&
     !!((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
