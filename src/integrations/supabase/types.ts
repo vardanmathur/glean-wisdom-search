@@ -376,6 +376,10 @@ export type Database = {
           title: string
         }[]
       }
+      suggest_tags_for_quote: {
+        Args: { quote_text: string }
+        Returns: string[]
+      }
     }
     Enums: {
       [_ in never]: never
