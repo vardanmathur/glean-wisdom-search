@@ -97,7 +97,7 @@ const normaliseQuery = (q: string): string => {
     .trim();
 };
 
-const synonymMap: Record<string, string[]> = {
+export const synonymMap: Record<string, string[]> = {
   "stuck": ["Career", "Purpose", "Clarity", "Motivation", "Ambition", "Priorities"],
   "career": ["Career", "Work", "Working", "Ambition", "Purpose", "Success", "Learning"],
   "job": ["Career", "Work", "Working", "Hiring", "Success"],
