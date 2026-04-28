@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import BookLookup, { type SelectedBook } from "./BookLookup";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useSessionStorageState } from "@/hooks/useSessionStorageState";
+import { synonymMap } from "@/lib/data";
 
 const DRAFT_KEY = "glean_add_highlight_draft"; // suggest-tags v1
 
@@ -224,6 +225,31 @@ const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags }: Add
   };
   const removeTag = (t: string) => setTags(tags.filter((x) => x !== t));
 
+  const suggestTagsFromSynonyms = (text: string): string[] => {
+    const words = Array.from(
+      new Set(
+        text
+          .split(/\s+/)
+          .map((w) => w.replace(/[^a-zA-Z0-9]/g, "").toLowerCase())
+          .filter((w) => w.length >= 4),
+      ),
+    );
+    const freq = new Map<string, number>();
+    for (const word of words) {
+      for (const [key, mappedTags] of Object.entries(synonymMap)) {
+        if (word === key || word.startsWith(key) || key.startsWith(word)) {
+          for (const tag of mappedTags) {
+            freq.set(tag, (freq.get(tag) ?? 0) + 1);
+          }
+        }
+      }
+    }
+    return Array.from(freq.entries())
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .slice(0, 6)
+      .map(([tag]) => tag);
+  };
+
   const handleSuggestTags = async () => {
     const q = quote.trim();
     if (q.length < 20 || suggesting) return;
@@ -231,7 +257,9 @@ const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags }: Add
     try {
       const { data, error } = await supabase.rpc("suggest_tags_for_quote", { quote_text: q });
       if (error) throw error;
-      setSuggestedTags(Array.isArray(data) ? (data as string[]) : []);
+      const rpcTags = Array.isArray(data) ? (data as string[]) : [];
+      const finalTags = rpcTags.length > 0 ? rpcTags : suggestTagsFromSynonyms(q);
+      setSuggestedTags(finalTags);
       setLastSuggestedQuote(q);
       setHasFetchedSuggestions(true);
     } catch (err) {
