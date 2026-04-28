@@ -12,7 +12,7 @@ import BookLookup, { type SelectedBook } from "./BookLookup";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useSessionStorageState } from "@/hooks/useSessionStorageState";
 
-const DRAFT_KEY = "glean_add_highlight_draft";
+const DRAFT_KEY = "glean_add_highlight_draft"; // suggest-tags v1
 
 interface AddHighlightModalProps {
   open: boolean;
