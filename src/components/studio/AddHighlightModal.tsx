@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Camera, X, Mic } from "lucide-react";
+import { Loader2, Camera, X, Mic, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import BookLookup, { type SelectedBook } from "./BookLookup";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -52,6 +52,12 @@ const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags }: Add
   const speechSupported =
     typeof window !== "undefined" &&
     !!((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
+
+  // Tag suggestion state (ephemeral — not persisted)
+  const [suggestedTags, setSuggestedTags] = useState<string[]>([]);
+  const [suggesting, setSuggesting] = useState(false);
+  const [hasFetchedSuggestions, setHasFetchedSuggestions] = useState(false);
+  const [lastSuggestedQuote, setLastSuggestedQuote] = useState<string>("");
 
   const reset = () => {
     clearQuote();
@@ -217,6 +223,34 @@ const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags }: Add
     setTagInput("");
   };
   const removeTag = (t: string) => setTags(tags.filter((x) => x !== t));
+
+  const handleSuggestTags = async () => {
+    const q = quote.trim();
+    if (q.length < 20 || suggesting) return;
+    setSuggesting(true);
+    try {
+      const { data, error } = await supabase.rpc("suggest_tags_for_quote", { quote_text: q });
+      if (error) throw error;
+      setSuggestedTags(Array.isArray(data) ? (data as string[]) : []);
+      setLastSuggestedQuote(q);
+      setHasFetchedSuggestions(true);
+    } catch (err) {
+      console.error(err);
+      toast.error("Couldn't fetch suggestions");
+    } finally {
+      setSuggesting(false);
+    }
+  };
+
+  // Clear suggestions when quote drifts >10 chars from when fetched
+  useEffect(() => {
+    if (!hasFetchedSuggestions) return;
+    if (Math.abs(quote.length - lastSuggestedQuote.length) > 10) {
+      setSuggestedTags([]);
+      setHasFetchedSuggestions(false);
+      setLastSuggestedQuote("");
+    }
+  }, [quote, hasFetchedSuggestions, lastSuggestedQuote]);
 
   const tagSuggestions = (() => {
     const q = tagInput.trim().toLowerCase();
@@ -414,6 +448,45 @@ const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags }: Add
 
           <div className="space-y-1.5">
             <label className="text-sm font-medium">Tags</label>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleSuggestTags}
+                disabled={quote.trim().length < 20 || suggesting}
+                className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:text-primary/80 disabled:text-muted-foreground disabled:cursor-not-allowed transition-colors"
+              >
+                {suggesting ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Sparkles className="h-3.5 w-3.5" />
+                )}
+                {suggesting ? "Suggesting…" : "Suggest tags"}
+              </button>
+            </div>
+            <div className="min-h-[2rem] flex flex-wrap gap-1.5">
+              {!suggesting && suggestedTags.filter((s) => !tags.includes(s)).length > 0 && (
+                suggestedTags
+                  .filter((s) => !tags.includes(s))
+                  .map((s) => (
+                    <button
+                      key={s}
+                      type="button"
+                      onClick={() => {
+                        addTag(s);
+                        setSuggestedTags((prev) => prev.filter((x) => x !== s));
+                      }}
+                      className="rounded-full bg-primary/10 text-primary hover:bg-primary/20 px-3 py-1 text-xs font-medium transition-colors"
+                    >
+                      + {s}
+                    </button>
+                  ))
+              )}
+              {!suggesting &&
+                hasFetchedSuggestions &&
+                suggestedTags.filter((s) => !tags.includes(s)).length === 0 && (
+                  <span className="text-xs text-muted-foreground italic">No suggestions available</span>
+                )}
+            </div>
             <div className="flex flex-wrap gap-1.5 mb-1">
               {tags.map((t) => (
                 <Badge key={t} variant="secondary" className="gap-1 cursor-pointer" onClick={() => removeTag(t)}>
