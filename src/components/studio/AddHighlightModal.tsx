@@ -152,6 +152,7 @@ const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags }: Add
   };
 
   const stopDictation = () => {
+    shouldKeepListeningRef.current = false;
     const rec = recognitionRef.current;
     if (rec) {
       try {
