@@ -229,7 +229,9 @@ const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags }: Add
     if (q.length < 20 || suggesting) return;
     setSuggesting(true);
     try {
+      console.debug("[suggest-tags] sending quote:", q);
       const { data, error } = await supabase.rpc("suggest_tags_for_quote", { quote_text: q });
+      console.debug("[suggest-tags] raw response:", { data, error });
       if (error) throw error;
       setSuggestedTags(Array.isArray(data) ? (data as string[]) : []);
       setLastSuggestedQuote(q);
@@ -446,9 +448,9 @@ const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags }: Add
             <BookLookup selectedBook={book} onSelect={setBook} onClear={() => setBook(null)} />
           </div>
 
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium">Tags</label>
-            <div className="flex items-center gap-2">
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-medium">Tags</label>
               <button
                 type="button"
                 onClick={handleSuggestTags}
@@ -463,9 +465,9 @@ const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags }: Add
                 {suggesting ? "Suggesting…" : "Suggest tags"}
               </button>
             </div>
-            <div className="min-h-[2rem] flex flex-wrap gap-1.5">
-              {!suggesting && suggestedTags.filter((s) => !tags.includes(s)).length > 0 && (
-                suggestedTags
+            {!suggesting && suggestedTags.filter((s) => !tags.includes(s)).length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {suggestedTags
                   .filter((s) => !tags.includes(s))
                   .map((s) => (
                     <button
@@ -479,22 +481,24 @@ const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags }: Add
                     >
                       + {s}
                     </button>
-                  ))
+                  ))}
+              </div>
+            )}
+            {!suggesting &&
+              hasFetchedSuggestions &&
+              suggestedTags.filter((s) => !tags.includes(s)).length === 0 && (
+                <span className="block text-xs text-muted-foreground italic">No suggestions available</span>
               )}
-              {!suggesting &&
-                hasFetchedSuggestions &&
-                suggestedTags.filter((s) => !tags.includes(s)).length === 0 && (
-                  <span className="text-xs text-muted-foreground italic">No suggestions available</span>
-                )}
-            </div>
-            <div className="flex flex-wrap gap-1.5 mb-1">
-              {tags.map((t) => (
-                <Badge key={t} variant="secondary" className="gap-1 cursor-pointer" onClick={() => removeTag(t)}>
-                  {t}
-                  <X className="h-3 w-3" />
-                </Badge>
-              ))}
-            </div>
+            {tags.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {tags.map((t) => (
+                  <Badge key={t} variant="secondary" className="gap-1 cursor-pointer" onClick={() => removeTag(t)}>
+                    {t}
+                    <X className="h-3 w-3" />
+                  </Badge>
+                ))}
+              </div>
+            )}
             <div className="relative">
               <input
                 value={tagInput}
