@@ -107,11 +107,15 @@ const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags }: Add
       rec.onresult = (event: any) => {
         let interim = "";
         let finalChunk = "";
-        for (let i = event.resultIndex; i < event.results.length; i++) {
+        for (let i = lastResultIndexRef.current; i < event.results.length; i++) {
           const res = event.results[i];
           const transcript = res[0]?.transcript ?? "";
-          if (res.isFinal) finalChunk += transcript;
-          else interim += transcript;
+          if (res.isFinal) {
+            finalChunk += transcript;
+            lastResultIndexRef.current = i + 1;
+          } else {
+            interim += transcript;
+          }
         }
         if (finalChunk) {
           setDictatedText((prev) => {
@@ -134,6 +138,7 @@ const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags }: Add
         setListening(false);
       };
       recognitionRef.current = rec;
+      lastResultIndexRef.current = 0;
       rec.start();
       setListening(true);
     } catch (err) {
