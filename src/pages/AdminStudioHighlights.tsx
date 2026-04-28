@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Check, AlertCircle, ChevronLeft, ChevronRight, Pencil, X, ChevronDown, Search, ArrowUpDown, ArrowUp, ArrowDown, Trash2, Copy, Loader2, Sparkles } from "lucide-react";
+import { Check, AlertCircle, ChevronLeft, ChevronRight, Pencil, X, ChevronDown, Search, ArrowUpDown, ArrowUp, ArrowDown, Trash2, Copy, Loader2, Sparkles, Download } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -219,6 +219,7 @@ const AdminStudioHighlights = () => {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [showDuplicates, setShowDuplicates] = useState(false);
   const [loadingDuplicates, setLoadingDuplicates] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [duplicateGroups, setDuplicateGroups] = useState<DuplicateGroup[]>([]);
   const [keepIds, setKeepIds] = useState<Record<string, string>>({}); // groupKey -> highlight id to keep
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -468,6 +469,99 @@ const AdminStudioHighlights = () => {
     }), 2000);
   };
 
+  const handleExportCsv = async () => {
+    setExporting(true);
+    try {
+      const PAGE = 1000;
+      let from = 0;
+      const all: Array<{
+        id: string;
+        quote: string;
+        tags: string[] | null;
+        my_notes: string | null;
+        visibility: string | null;
+        source: string | null;
+        created_at: string;
+        embedding_refreshed_at: string | null;
+        user_id: string | null;
+        books: { title: string | null; author: string | null } | null;
+      }> = [];
+
+      while (true) {
+        const { data, error } = await supabase
+          .from("highlights")
+          .select(
+            "id, quote, tags, my_notes, visibility, source, created_at, embedding_refreshed_at, user_id, books(title, author)",
+          )
+          .range(from, from + PAGE - 1);
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        all.push(...(data as any));
+        if (data.length < PAGE) break;
+        from += PAGE;
+      }
+
+      const escape = (val: unknown) => {
+        const s = val === null || val === undefined ? "" : String(val);
+        return `"${s.replace(/"/g, '""')}"`;
+      };
+
+      const headers = [
+        "id",
+        "quote",
+        "book_title",
+        "book_author",
+        "tags",
+        "my_notes",
+        "visibility",
+        "source",
+        "created_at",
+        "embedding_refreshed_at",
+        "user_id",
+      ];
+
+      const lines = [headers.map(escape).join(",")];
+      for (const h of all) {
+        lines.push(
+          [
+            h.id,
+            h.quote,
+            h.books?.title ?? "",
+            h.books?.author ?? "",
+            (h.tags ?? []).join("|"),
+            h.my_notes ?? "",
+            h.visibility ?? "",
+            h.source ?? "",
+            h.created_at,
+            h.embedding_refreshed_at ?? "",
+            h.user_id ?? "",
+          ]
+            .map(escape)
+            .join(","),
+        );
+      }
+
+      const csv = lines.join("\n");
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const today = new Date().toISOString().slice(0, 10);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `glean_highlights_export_${today}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      toast.success(`Exported ${all.length} highlights`);
+    } catch (err) {
+      console.error("CSV export failed", err);
+      toast.error("Export failed — please try again");
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const loadDuplicates = async () => {
     setLoadingDuplicates(true);
     try {
@@ -655,6 +749,17 @@ const AdminStudioHighlights = () => {
         >
           {loadingDuplicates ? <Loader2 className="h-4 w-4 animate-spin" /> : <Copy className="h-4 w-4" />}
           Find Duplicates
+        </Button>
+
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleExportCsv}
+          disabled={exporting}
+          className="gap-2"
+        >
+          {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+          {exporting ? "Exporting…" : "Export CSV"}
         </Button>
 
         {selectedIds.size > 0 && (
