@@ -229,9 +229,7 @@ const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags }: Add
     if (q.length < 20 || suggesting) return;
     setSuggesting(true);
     try {
-      console.debug("[suggest-tags] sending quote:", q);
       const { data, error } = await supabase.rpc("suggest_tags_for_quote", { quote_text: q });
-      console.debug("[suggest-tags] raw response:", { data, error });
       if (error) throw error;
       setSuggestedTags(Array.isArray(data) ? (data as string[]) : []);
       setLastSuggestedQuote(q);
