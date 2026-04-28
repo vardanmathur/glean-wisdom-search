@@ -53,6 +53,12 @@ const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags }: Add
     typeof window !== "undefined" &&
     !!((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
 
+  // Tag suggestion state (ephemeral — not persisted)
+  const [suggestedTags, setSuggestedTags] = useState<string[]>([]);
+  const [suggesting, setSuggesting] = useState(false);
+  const [hasFetchedSuggestions, setHasFetchedSuggestions] = useState(false);
+  const [lastSuggestedQuote, setLastSuggestedQuote] = useState<string>("");
+
   const reset = () => {
     clearQuote();
     clearBook();
