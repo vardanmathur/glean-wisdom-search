@@ -50,7 +50,7 @@ const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags }: Add
   const [interimText, setInterimText] = useState("");
   const [listening, setListening] = useState(false);
   const recognitionRef = useRef<any>(null);
-  const lastResultIndexRef = useRef<number>(0);
+  const shouldKeepListeningRef = useRef<boolean>(false);
   const speechSupported =
     typeof window !== "undefined" &&
     !!((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
@@ -101,44 +101,47 @@ const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags }: Add
       (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     try {
       const rec = new Ctor();
-      rec.continuous = true;
+      rec.continuous = false;
       rec.interimResults = true;
       rec.lang = navigator.language || "en-US";
       rec.onresult = (event: any) => {
-        let interim = "";
-        let finalChunk = "";
-        for (let i = lastResultIndexRef.current; i < event.results.length; i++) {
-          const res = event.results[i];
-          const transcript = res[0]?.transcript ?? "";
-          if (res.isFinal) {
-            finalChunk += transcript;
-            lastResultIndexRef.current = i + 1;
-          } else {
-            interim += transcript;
-          }
-        }
-        if (finalChunk) {
+        const last = event.results[event.results.length - 1];
+        const transcript = last?.[0]?.transcript ?? "";
+        if (last?.isFinal) {
           setDictatedText((prev) => {
             const sep = prev && !/\s$/.test(prev) ? " " : "";
-            const next = (prev + sep + finalChunk).replace(/\s+/g, " ").trimStart();
+            const next = (prev + sep + transcript).replace(/\s+/g, " ").trimStart();
             // Auto-mirror finals into the shared quote so save flow works.
             setQuote(next);
             return next;
           });
+          setInterimText("");
+        } else {
+          setInterimText(transcript);
         }
-        setInterimText(interim);
       };
       rec.onerror = (e: any) => {
         console.warn("SpeechRecognition error:", e?.error);
+        shouldKeepListeningRef.current = false;
         setInterimText("");
         setListening(false);
       };
       rec.onend = () => {
         setInterimText("");
-        setListening(false);
+        if (shouldKeepListeningRef.current) {
+          try {
+            rec.start();
+          } catch (err) {
+            console.warn("Could not restart dictation:", err);
+            shouldKeepListeningRef.current = false;
+            setListening(false);
+          }
+        } else {
+          setListening(false);
+        }
       };
       recognitionRef.current = rec;
-      lastResultIndexRef.current = 0;
+      shouldKeepListeningRef.current = true;
       rec.start();
       setListening(true);
     } catch (err) {
@@ -149,6 +152,7 @@ const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags }: Add
   };
 
   const stopDictation = () => {
+    shouldKeepListeningRef.current = false;
     const rec = recognitionRef.current;
     if (rec) {
       try {
