@@ -219,6 +219,7 @@ const AdminStudioHighlights = () => {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [showDuplicates, setShowDuplicates] = useState(false);
   const [loadingDuplicates, setLoadingDuplicates] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [duplicateGroups, setDuplicateGroups] = useState<DuplicateGroup[]>([]);
   const [keepIds, setKeepIds] = useState<Record<string, string>>({}); // groupKey -> highlight id to keep
   const [deletingId, setDeletingId] = useState<string | null>(null);
