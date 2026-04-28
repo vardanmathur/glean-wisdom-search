@@ -469,6 +469,99 @@ const AdminStudioHighlights = () => {
     }), 2000);
   };
 
+  const handleExportCsv = async () => {
+    setExporting(true);
+    try {
+      const PAGE = 1000;
+      let from = 0;
+      const all: Array<{
+        id: string;
+        quote: string;
+        tags: string[] | null;
+        my_notes: string | null;
+        visibility: string | null;
+        source: string | null;
+        created_at: string;
+        embedding_refreshed_at: string | null;
+        user_id: string | null;
+        books: { title: string | null; author: string | null } | null;
+      }> = [];
+
+      while (true) {
+        const { data, error } = await supabase
+          .from("highlights")
+          .select(
+            "id, quote, tags, my_notes, visibility, source, created_at, embedding_refreshed_at, user_id, books(title, author)",
+          )
+          .range(from, from + PAGE - 1);
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        all.push(...(data as any));
+        if (data.length < PAGE) break;
+        from += PAGE;
+      }
+
+      const escape = (val: unknown) => {
+        const s = val === null || val === undefined ? "" : String(val);
+        return `"${s.replace(/"/g, '""')}"`;
+      };
+
+      const headers = [
+        "id",
+        "quote",
+        "book_title",
+        "book_author",
+        "tags",
+        "my_notes",
+        "visibility",
+        "source",
+        "created_at",
+        "embedding_refreshed_at",
+        "user_id",
+      ];
+
+      const lines = [headers.map(escape).join(",")];
+      for (const h of all) {
+        lines.push(
+          [
+            h.id,
+            h.quote,
+            h.books?.title ?? "",
+            h.books?.author ?? "",
+            (h.tags ?? []).join("|"),
+            h.my_notes ?? "",
+            h.visibility ?? "",
+            h.source ?? "",
+            h.created_at,
+            h.embedding_refreshed_at ?? "",
+            h.user_id ?? "",
+          ]
+            .map(escape)
+            .join(","),
+        );
+      }
+
+      const csv = lines.join("\n");
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const today = new Date().toISOString().slice(0, 10);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `glean_highlights_export_${today}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      toast.success(`Exported ${all.length} highlights`);
+    } catch (err) {
+      console.error("CSV export failed", err);
+      toast.error("Export failed — please try again");
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const loadDuplicates = async () => {
     setLoadingDuplicates(true);
     try {
