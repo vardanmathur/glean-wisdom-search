@@ -24,6 +24,26 @@ const BookDetail = () => {
     enabled: !!book?.id,
   });
 
+  const [sort, setSort] = useState<SortOption>("most-saved");
+  const highlightIds = useMemo(() => bookHighlights.map((h) => h.id), [bookHighlights]);
+  const { data: saveCounts } = useHighlightSaveCounts(highlightIds);
+
+  const sortedHighlights = useMemo(() => {
+    const list = [...bookHighlights];
+    switch (sort) {
+      case "most-saved":
+        return list.sort(
+          (a, b) => (saveCounts?.get(b.id) ?? 0) - (saveCounts?.get(a.id) ?? 0)
+        );
+      case "longest":
+        return list.sort((a, b) => b.text.length - a.text.length);
+      case "shortest":
+        return list.sort((a, b) => a.text.length - b.text.length);
+      default:
+        return list;
+    }
+  }, [bookHighlights, sort, saveCounts]);
+
   if (isLoading) {
     return (
       <div className="flex justify-center py-12">
