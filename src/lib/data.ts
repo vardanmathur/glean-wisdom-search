@@ -1,6 +1,34 @@
 // Glean data layer — search, scoring, synonym map, book and topic fetching
 import { supabase } from "@/integrations/supabase/client";
 
+/**
+ * Fetch the current user's feedback once per search invocation.
+ * Returns sets of highlight ids for thumbs_up (+0.5 boost) and thumbs_down (-0.5 penalty).
+ * Returns empty sets when the user is not authenticated.
+ */
+export async function getUserFeedback(): Promise<{
+  thumbsUp: Set<string>;
+  thumbsDown: Set<string>;
+}> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { thumbsUp: new Set(), thumbsDown: new Set() };
+
+  const { data, error } = await supabase
+    .from("feedback")
+    .select("highlight_id, feedback_type")
+    .eq("user_id", user.id);
+
+  if (error || !data) return { thumbsUp: new Set(), thumbsDown: new Set() };
+
+  const thumbsUp = new Set<string>();
+  const thumbsDown = new Set<string>();
+  for (const row of data) {
+    if (row.feedback_type === "thumbs_up") thumbsUp.add(row.highlight_id);
+    else if (row.feedback_type === "thumbs_down") thumbsDown.add(row.highlight_id);
+  }
+  return { thumbsUp, thumbsDown };
+}
+
 // AI-powered wisdom synthesis via edge function
 export async function synthesiseWisdom(
   question: string,
