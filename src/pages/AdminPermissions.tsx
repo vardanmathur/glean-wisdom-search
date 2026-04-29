@@ -45,7 +45,6 @@ const AdminPermissions = () => {
 
   useEffect(() => {
     if (!user || !isAdmin) return;
-    void adminLoading;
     const load = async () => {
       setLoading(true);
       setInterestLoading(true);
