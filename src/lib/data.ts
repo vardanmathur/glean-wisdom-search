@@ -1,6 +1,34 @@
 // Glean data layer — search, scoring, synonym map, book and topic fetching
 import { supabase } from "@/integrations/supabase/client";
 
+/**
+ * Fetch the current user's feedback once per search invocation.
+ * Returns sets of highlight ids for thumbs_up (+0.5 boost) and thumbs_down (-0.5 penalty).
+ * Returns empty sets when the user is not authenticated.
+ */
+export async function getUserFeedback(): Promise<{
+  thumbsUp: Set<string>;
+  thumbsDown: Set<string>;
+}> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { thumbsUp: new Set(), thumbsDown: new Set() };
+
+  const { data, error } = await supabase
+    .from("feedback")
+    .select("highlight_id, feedback_type")
+    .eq("user_id", user.id);
+
+  if (error || !data) return { thumbsUp: new Set(), thumbsDown: new Set() };
+
+  const thumbsUp = new Set<string>();
+  const thumbsDown = new Set<string>();
+  for (const row of data) {
+    if (row.feedback_type === "thumbs_up") thumbsUp.add(row.highlight_id);
+    else if (row.feedback_type === "thumbs_down") thumbsDown.add(row.highlight_id);
+  }
+  return { thumbsUp, thumbsDown };
+}
+
 // AI-powered wisdom synthesis via edge function
 export async function synthesiseWisdom(
   question: string,
@@ -329,6 +357,13 @@ export async function searchHighlights(
     return { row: h, score };
   });
 
+  // Apply user feedback adjustments: thumbs up +0.5, thumbs down -0.5
+  const { thumbsUp, thumbsDown } = await getUserFeedback();
+  for (const s of scored) {
+    if (thumbsUp.has(s.row.id)) s.score += 0.5;
+    if (thumbsDown.has(s.row.id)) s.score -= 0.5;
+  }
+
   const keywordRanked = scored
     .filter((s) => s.score > 2)
     .sort((a, b) => b.score - a.score);
@@ -555,8 +590,11 @@ export async function searchHighlightsSemantic(
 
   if (cached) {
     try {
-      const { byId } = await fetchHighlightsById();
-      return hydrateSemanticResponse(cached, byId);
+      const [{ byId }, feedback] = await Promise.all([
+        fetchHighlightsById(),
+        getUserFeedback(),
+      ]);
+      return hydrateSemanticResponse(cached, byId, feedback);
     } catch {
       return await silentFallback();
     }
@@ -573,13 +611,14 @@ export async function searchHighlightsSemantic(
     const semanticPromise = supabase.functions.invoke("search-semantic", {
       body: { query, wordCount },
     });
+    const feedbackPromise = getUserFeedback();
 
-    const [{ byId }, semResult] = (await Promise.race([
-      Promise.all([hydrationPromise, semanticPromise]),
+    const [{ byId }, semResult, feedback] = (await Promise.race([
+      Promise.all([hydrationPromise, semanticPromise, feedbackPromise]),
       timeoutPromise.then(() => {
         throw new Error("semantic timeout");
       }),
-    ])) as [{ byId: Map<string, any> }, any];
+    ])) as [{ byId: Map<string, any> }, any, { thumbsUp: Set<string>; thumbsDown: Set<string> }];
 
     const { data: semData, error: semError } = semResult;
     if (semError || !semData) {
@@ -600,7 +639,7 @@ export async function searchHighlightsSemantic(
       console.log("[semantic] edge timings:", semData.timings);
     }
 
-    return hydrateSemanticResponse(entry, byId);
+    return hydrateSemanticResponse(entry, byId, feedback);
   } catch (err) {
     console.warn("[semantic] timed out or threw, falling back to keyword:", err);
     return await silentFallback();
@@ -609,7 +648,11 @@ export async function searchHighlightsSemantic(
 
 function hydrateSemanticResponse(
   entry: SemanticCacheEntry,
-  byId: Map<string, any>
+  byId: Map<string, any>,
+  feedback: { thumbsUp: Set<string>; thumbsDown: Set<string> } = {
+    thumbsUp: new Set(),
+    thumbsDown: new Set(),
+  }
 ): {
   highlights: Highlight[];
   totalFound: number;
@@ -637,15 +680,27 @@ function hydrateSemanticResponse(
   }
 
   const totalFound = entry.results.length;
-  const hydrated = entry.results
-    .map((r) => {
+
+  // Apply user feedback as a rank adjustment. The semantic path returns ids in
+  // descending score order (no numeric score exposed), so we use position as a
+  // pseudo-score and nudge by ±0.5 of the score range to produce a stable re-ranking.
+  type Scored = { h: Highlight; score: number };
+  const scored: Scored[] = entry.results
+    .map((r, i) => {
       const row = byId.get(r.id);
       if (!row) return null;
       const h = toHighlight(row);
       h.tier = r.tier;
-      return h;
+      // Pseudo-score: top result = N, bottom = 1. Range is N, so ±0.5 ≈ half-rank shift.
+      let score = entry.results.length - i;
+      if (feedback.thumbsUp.has(r.id)) score += 0.5;
+      if (feedback.thumbsDown.has(r.id)) score -= 0.5;
+      return { h, score };
     })
-    .filter((h): h is Highlight => h !== null);
+    .filter((s): s is Scored => s !== null);
+
+  scored.sort((a, b) => b.score - a.score);
+  const hydrated = scored.map((s) => s.h);
 
   return {
     highlights: hydrated.slice(0, 10),

@@ -1,24 +1,46 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { useNavigate, Link } from "react-router-dom";
 import { Highlight, getAmazonUrl } from "@/lib/data";
-import { useSavedHighlights } from "@/context/SavedHighlightsContext";
 import { useAuth } from "@/context/AuthContext";
+import { useIsAdmin } from "@/hooks/useIsAdmin";
+import {
+  useIsHighlightSaved,
+  useToggleSave,
+  useHighlightSaveCount,
+} from "@/hooks/useHighlightSaves";
+import {
+  useIsThumbsUp,
+  useIsThumbsDown,
+  useToggleThumbsUp,
+  useToggleThumbsDown,
+} from "@/hooks/useHighlightFeedback";
 import { Bookmark, ThumbsUp, ThumbsDown, Flag } from "lucide-react";
-import { Link } from "react-router-dom";
-import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
 interface HighlightCardProps {
   highlight: Highlight;
   index?: number;
+  /** Toggle to reveal the per-card save count. Hidden by default until we want to expose it. */
+  showSaveCount?: boolean;
 }
 
-const HighlightCard = ({ highlight, index = 0 }: HighlightCardProps) => {
-  const { isSaved, toggleSave } = useSavedHighlights();
+const HighlightCard = ({ highlight, index = 0, showSaveCount = false }: HighlightCardProps) => {
+  const navigate = useNavigate();
   const { user } = useAuth();
+  const { isAdmin } = useIsAdmin();
   const { toast } = useToast();
-  const saved = isSaved(highlight.id);
-  const [feedback, setFeedback] = useState<"up" | "down" | null>(null);
+
+  const saved = useIsHighlightSaved(highlight.id);
+  const toggleSave = useToggleSave();
+  const isUp = useIsThumbsUp(highlight.id);
+  const isDown = useIsThumbsDown(highlight.id);
+  const toggleUp = useToggleThumbsUp();
+  const toggleDown = useToggleThumbsDown();
+
+  // Only fetch the count when we actually render it
+  const { data: saveCount } = useHighlightSaveCount(highlight.id, showSaveCount);
+
   const [showReportConfirm, setShowReportConfirm] = useState(false);
   const [reported, setReported] = useState(false);
   const [displayName, setDisplayName] = useState<string | null>(highlight.displayName || null);
@@ -39,6 +61,26 @@ const HighlightCard = ({ highlight, index = 0 }: HighlightCardProps) => {
   const isOwnHighlight = user && highlight.userId === user.id;
   const canReport = user && !isOwnHighlight && highlight.source !== "private";
 
+  const handleSaveClick = () => {
+    if (!user) {
+      navigate("/auth");
+      return;
+    }
+    toggleSave.mutate(highlight.id);
+  };
+
+  const handleThumbsUpClick = () => {
+    if (!user) {
+      navigate("/auth");
+      return;
+    }
+    toggleUp.mutate(highlight.id);
+  };
+
+  const handleThumbsDownClick = () => {
+    toggleDown.mutate(highlight.id);
+  };
+
   const handleReport = async () => {
     const { error } = await supabase
       .from("highlights")
@@ -57,20 +99,73 @@ const HighlightCard = ({ highlight, index = 0 }: HighlightCardProps) => {
       className="group relative rounded-lg border bg-card p-6 card-shadow hover:card-shadow-hover transition-all duration-300 animate-fade-in"
       style={{ animationDelay: `${index * 80}ms` }}
     >
-      {/* Report button */}
-      {canReport && !reported && (
+      {/* Persistent action cluster — top right, always visible (mobile + desktop) */}
+      <div className="absolute top-3 right-3 flex items-center gap-1">
+        {/* Save — always visible */}
         <button
-          onClick={() => setShowReportConfirm(true)}
-          className="absolute top-3 right-3 p-1 rounded text-muted-foreground/40 hover:text-destructive opacity-0 group-hover:opacity-100 transition-all"
-          title="Report highlight"
+          onClick={handleSaveClick}
+          className={`p-1.5 rounded-md transition-colors ${
+            saved
+              ? "text-primary"
+              : "text-muted-foreground/60 hover:text-primary hover:bg-secondary"
+          }`}
+          title={saved ? "Saved" : "Save highlight"}
+          aria-label={saved ? "Saved" : "Save highlight"}
         >
-          <Flag className="h-3.5 w-3.5" />
+          <Bookmark className={`h-4 w-4 ${saved ? "fill-current" : ""}`} />
         </button>
-      )}
+
+        {/* Hidden save count — toggle showSaveCount prop to reveal */}
+        <span className={showSaveCount ? "text-xs text-muted-foreground tabular-nums" : "hidden"}>
+          {saveCount ?? 0}
+        </span>
+
+        {/* Thumbs up — always visible to authenticated users (redirects others to /auth) */}
+        <button
+          onClick={handleThumbsUpClick}
+          className={`p-1.5 rounded-md transition-colors ${
+            isUp
+              ? "text-primary"
+              : "text-muted-foreground/60 hover:text-primary hover:bg-secondary"
+          }`}
+          title={isUp ? "You marked this helpful" : "Mark as helpful"}
+          aria-label="Mark as helpful"
+        >
+          <ThumbsUp className={`h-4 w-4 ${isUp ? "fill-current" : ""}`} />
+        </button>
+
+        {/* Thumbs down — admin only, always visible */}
+        {isAdmin && (
+          <button
+            onClick={handleThumbsDownClick}
+            className={`p-1.5 rounded-md transition-colors ${
+              isDown
+                ? "text-destructive"
+                : "text-muted-foreground/60 hover:text-destructive hover:bg-secondary"
+            }`}
+            title={isDown ? "Thumbs down active" : "Thumbs down (admin)"}
+            aria-label="Thumbs down"
+          >
+            <ThumbsDown className={`h-4 w-4 ${isDown ? "fill-current" : ""}`} />
+          </button>
+        )}
+
+        {/* Report — hover-only */}
+        {canReport && !reported && (
+          <button
+            onClick={() => setShowReportConfirm(true)}
+            className="p-1.5 rounded-md text-muted-foreground/40 hover:text-destructive opacity-0 group-hover:opacity-100 transition-all"
+            title="Report highlight"
+            aria-label="Report highlight"
+          >
+            <Flag className="h-4 w-4" />
+          </button>
+        )}
+      </div>
 
       {/* Report confirmation */}
       {showReportConfirm && (
-        <div className="absolute top-3 right-3 z-10 rounded-lg border bg-popover p-3 shadow-md text-sm">
+        <div className="absolute top-12 right-3 z-10 rounded-lg border bg-popover p-3 shadow-md text-sm">
           <p className="text-foreground mb-2">Report as inappropriate?</p>
           <div className="flex gap-2">
             <button
@@ -89,7 +184,7 @@ const HighlightCard = ({ highlight, index = 0 }: HighlightCardProps) => {
         </div>
       )}
 
-      <div className="flex gap-4">
+      <div className="flex gap-4 pr-20">
         {/* Book cover thumbnail — links to Amazon affiliate */}
         <a
           href={getAmazonUrl(highlight.bookTitle, highlight.author)}
@@ -160,40 +255,6 @@ const HighlightCard = ({ highlight, index = 0 }: HighlightCardProps) => {
                 {tag}
               </Link>
             ))}
-          </div>
-
-          <div className="mt-4 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-            <button
-              onClick={() => setFeedback(feedback === "up" ? null : "up")}
-              className={`flex items-center gap-1 rounded-md px-2.5 py-1 text-xs transition-colors ${
-                feedback === "up"
-                  ? "bg-primary/10 text-primary"
-                  : "text-muted-foreground hover:text-foreground hover:bg-secondary"
-              }`}
-            >
-              <ThumbsUp className="h-3.5 w-3.5" /> Helpful
-            </button>
-            <button
-              onClick={() => setFeedback(feedback === "down" ? null : "down")}
-              className={`flex items-center gap-1 rounded-md px-2.5 py-1 text-xs transition-colors ${
-                feedback === "down"
-                  ? "bg-destructive/10 text-destructive"
-                  : "text-muted-foreground hover:text-foreground hover:bg-secondary"
-              }`}
-            >
-              <ThumbsDown className="h-3.5 w-3.5" /> Not relevant
-            </button>
-            <button
-              onClick={() => toggleSave(highlight.id)}
-              className={`ml-auto flex items-center gap-1 rounded-md px-2.5 py-1 text-xs transition-colors ${
-                saved
-                  ? "bg-primary/10 text-primary"
-                  : "text-muted-foreground hover:text-foreground hover:bg-secondary"
-              }`}
-            >
-              <Bookmark className={`h-3.5 w-3.5 ${saved ? "fill-current" : ""}`} />
-              {saved ? "Saved" : "Save"}
-            </button>
           </div>
         </div>
       </div>

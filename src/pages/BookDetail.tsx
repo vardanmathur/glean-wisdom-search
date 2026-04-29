@@ -1,7 +1,10 @@
+import { useMemo, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { getAmazonUrl, getBookByTitle, getGoodreadsUrl, getHighlightsByBook } from "@/lib/data";
 import HighlightCard from "@/components/HighlightCard";
+import SortFilterBar, { SortOption } from "@/components/SortFilterBar";
+import { useHighlightSaveCounts } from "@/hooks/useHighlightSaves";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { BookOpen, ExternalLink, ArrowLeft, Loader2, ShoppingCart } from "lucide-react";
 
@@ -20,6 +23,26 @@ const BookDetail = () => {
     queryFn: () => getHighlightsByBook(book!.id),
     enabled: !!book?.id,
   });
+
+  const [sort, setSort] = useState<SortOption>("most-saved");
+  const highlightIds = useMemo(() => bookHighlights.map((h) => h.id), [bookHighlights]);
+  const { data: saveCounts } = useHighlightSaveCounts(highlightIds);
+
+  const sortedHighlights = useMemo(() => {
+    const list = [...bookHighlights];
+    switch (sort) {
+      case "most-saved":
+        return list.sort(
+          (a, b) => (saveCounts?.get(b.id) ?? 0) - (saveCounts?.get(a.id) ?? 0)
+        );
+      case "longest":
+        return list.sort((a, b) => b.text.length - a.text.length);
+      case "shortest":
+        return list.sort((a, b) => a.text.length - b.text.length);
+      default:
+        return list;
+    }
+  }, [bookHighlights, sort, saveCounts]);
 
   if (isLoading) {
     return (
@@ -102,8 +125,15 @@ const BookDetail = () => {
       <h2 className="font-display text-xl text-foreground mb-4">
         Highlights ({bookHighlights.length})
       </h2>
+      {bookHighlights.length > 1 && (
+        <SortFilterBar
+          sort={sort}
+          onSortChange={setSort}
+          options={["most-saved", "longest", "shortest"]}
+        />
+      )}
       <div className="space-y-4">
-        {bookHighlights.map((h, i) => (
+        {sortedHighlights.map((h, i) => (
           <HighlightCard key={h.id} highlight={h} index={i} />
         ))}
       </div>

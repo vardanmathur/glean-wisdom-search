@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useSavedHighlights } from "@/context/SavedHighlightsContext";
+import { useSavedHighlightIds } from "@/hooks/useHighlightSaves";
 import { useAuth } from "@/context/AuthContext";
 import HighlightCard from "@/components/HighlightCard";
 import { Bookmark, Loader2 } from "lucide-react";
@@ -8,19 +8,21 @@ import { Link } from "react-router-dom";
 import type { Highlight } from "@/lib/data";
 
 const SavedHighlights = () => {
-  const { savedIds } = useSavedHighlights();
   const { user, authLoading } = useAuth();
+  const { data: savedIds, isLoading: idsLoading } = useSavedHighlightIds();
 
-  const { data: savedHighlights = [], isLoading } = useQuery({
-    queryKey: ["saved-highlights", savedIds],
+  const { data: savedHighlights = [], isLoading: highlightsLoading } = useQuery({
+    queryKey: ["saved-highlights-list", user?.id, savedIds ? [...savedIds].sort().join(",") : ""],
     queryFn: async (): Promise<Highlight[]> => {
-      if (savedIds.length === 0) return [];
+      if (!savedIds || savedIds.size === 0) return [];
       const { data, error } = await supabase
         .from("highlights")
-        .select("*, books(title, author, cover_image_url)")
-        .in("id", savedIds);
+        .select(
+          "id, book_id, quote, tags, my_notes, source, user_id, books(title, author, cover_image_url), user_profiles(display_name)"
+        )
+        .in("id", [...savedIds]);
       if (error || !data) return [];
-      return data.map((row) => ({
+      return data.map((row: any) => ({
         id: row.id,
         text: row.quote,
         bookTitle: row.books?.title || "Unknown",
@@ -28,11 +30,13 @@ const SavedHighlights = () => {
         tags: row.tags || [],
         bookId: row.book_id || undefined,
         coverImageUrl: row.books?.cover_image_url || undefined,
+        myNotes: row.my_notes || undefined,
         source: row.source || "curated",
         userId: row.user_id || undefined,
+        displayName: row.user_profiles?.display_name || undefined,
       }));
     },
-    enabled: savedIds.length > 0,
+    enabled: !!user && !!savedIds,
   });
 
   if (authLoading) {
@@ -61,6 +65,8 @@ const SavedHighlights = () => {
       </div>
     );
   }
+
+  const isLoading = idsLoading || highlightsLoading;
 
   return (
     <div className="container mx-auto max-w-2xl px-4 py-8">
