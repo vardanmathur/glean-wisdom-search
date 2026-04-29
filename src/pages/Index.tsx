@@ -9,8 +9,8 @@ import { useQuery } from "@tanstack/react-query";
 import { getGleanStats } from "@/lib/data";
 import { useAuth } from "@/context/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useIsAdmin } from "@/hooks/useIsAdmin";
 
-const ADMIN_EMAIL = "vardan@gmail.com";
 
 const FEATURE_META: Record<string, { label: string; route: string }> = {
   think: { label: "Think!", route: "/think" },
