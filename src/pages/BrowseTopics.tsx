@@ -4,6 +4,7 @@ import { getAllTopics, getHighlightsByTag, getRelatedTopics } from "@/lib/data";
 import { Link, useParams } from "react-router-dom";
 import HighlightCard from "@/components/HighlightCard";
 import SortFilterBar, { SortOption } from "@/components/SortFilterBar";
+import { useHighlightSaveCounts } from "@/hooks/useHighlightSaves";
 import { ArrowLeft, Leaf, Loader2 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
@@ -107,6 +108,26 @@ const TopicDetail = ({ tag }: { tag: string }) => {
     }
     return list;
   }, [highlights]);
+
+  const [sort, setSort] = useState<SortOption>("most-saved");
+  const highlightIds = useMemo(() => highlights.map((h) => h.id), [highlights]);
+  const { data: saveCounts } = useHighlightSaveCounts(highlightIds);
+
+  const sortedHighlights = useMemo(() => {
+    const list = [...highlights];
+    switch (sort) {
+      case "most-saved":
+        return list.sort(
+          (a, b) => (saveCounts?.get(b.id) ?? 0) - (saveCounts?.get(a.id) ?? 0)
+        );
+      case "longest":
+        return list.sort((a, b) => b.text.length - a.text.length);
+      case "shortest":
+        return list.sort((a, b) => a.text.length - b.text.length);
+      default:
+        return list;
+    }
+  }, [highlights, sort, saveCounts]);
 
   return (
     <div className="container mx-auto max-w-2xl px-4 py-8">

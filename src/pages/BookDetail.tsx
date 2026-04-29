@@ -125,8 +125,15 @@ const BookDetail = () => {
       <h2 className="font-display text-xl text-foreground mb-4">
         Highlights ({bookHighlights.length})
       </h2>
+      {bookHighlights.length > 1 && (
+        <SortFilterBar
+          sort={sort}
+          onSortChange={setSort}
+          options={["most-saved", "longest", "shortest"]}
+        />
+      )}
       <div className="space-y-4">
-        {bookHighlights.map((h, i) => (
+        {sortedHighlights.map((h, i) => (
           <HighlightCard key={h.id} highlight={h} index={i} />
         ))}
       </div>
