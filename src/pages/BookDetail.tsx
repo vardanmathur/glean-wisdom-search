@@ -1,7 +1,10 @@
+import { useMemo, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { getAmazonUrl, getBookByTitle, getGoodreadsUrl, getHighlightsByBook } from "@/lib/data";
 import HighlightCard from "@/components/HighlightCard";
+import SortFilterBar, { SortOption } from "@/components/SortFilterBar";
+import { useHighlightSaveCounts } from "@/hooks/useHighlightSaves";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { BookOpen, ExternalLink, ArrowLeft, Loader2, ShoppingCart } from "lucide-react";
 
