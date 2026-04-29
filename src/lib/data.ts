@@ -357,6 +357,13 @@ export async function searchHighlights(
     return { row: h, score };
   });
 
+  // Apply user feedback adjustments: thumbs up +0.5, thumbs down -0.5
+  const { thumbsUp, thumbsDown } = await getUserFeedback();
+  for (const s of scored) {
+    if (thumbsUp.has(s.row.id)) s.score += 0.5;
+    if (thumbsDown.has(s.row.id)) s.score -= 0.5;
+  }
+
   const keywordRanked = scored
     .filter((s) => s.score > 2)
     .sort((a, b) => b.score - a.score);
