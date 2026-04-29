@@ -4,14 +4,13 @@ import { Check, X, Loader2 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import FeatureInterestTable from "@/components/admin/FeatureInterestTable";
+import { useIsAdmin } from "@/hooks/useIsAdmin";
 
 const FEATURES = [
   { key: "import", label: "Import" },
   { key: "think", label: "Think!" },
   { key: "contribute", label: "Contribute" },
 ] as const;
-
-const ADMIN_EMAIL = "vardan@gmail.com";
 
 interface ProfileRow {
   id: string;
@@ -35,6 +34,7 @@ type FeedbackKind = "success" | "error";
 
 const AdminPermissions = () => {
   const { user, authLoading } = useAuth();
+  const { isAdmin, loading: adminLoading } = useIsAdmin();
   const [profiles, setProfiles] = useState<ProfileRow[]>([]);
   const [permissions, setPermissions] = useState<PermissionRow[]>([]);
   const [interestRows, setInterestRows] = useState<InterestRow[]>([]);
@@ -44,7 +44,7 @@ const AdminPermissions = () => {
   const [pending, setPending] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
-    if (!user || user.email !== ADMIN_EMAIL) return;
+    if (!user || !isAdmin) return;
     const load = async () => {
       setLoading(true);
       setInterestLoading(true);
@@ -79,7 +79,7 @@ const AdminPermissions = () => {
       setInterestLoading(false);
     };
     load();
-  }, [user]);
+  }, [user, isAdmin]);
 
   const permSet = useMemo(() => {
     const s = new Set<string>();
@@ -87,7 +87,7 @@ const AdminPermissions = () => {
     return s;
   }, [permissions]);
 
-  if (authLoading) {
+  if (authLoading || adminLoading) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -95,7 +95,7 @@ const AdminPermissions = () => {
     );
   }
 
-  if (!user || user.email !== ADMIN_EMAIL) {
+  if (!user || !isAdmin) {
     return <Navigate to="/" replace />;
   }
 

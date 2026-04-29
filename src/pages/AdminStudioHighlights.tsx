@@ -24,10 +24,10 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useSessionStorageState } from "@/hooks/useSessionStorageState";
 import { useAuthGate } from "@/hooks/useAuthGate";
+import { useIsAdmin } from "@/hooks/useIsAdmin";
 
 const ADMIN_EDIT_DRAFT_PREFIX = "glean_admin_studio_edit_draft";
 
-const ADMIN_EMAIL = "vardan@gmail.com";
 const PAGE_SIZE = 20;
 
 type SortOption = "recent" | "oldest" | "no_notes" | "no_tags" | "oldest_embedding";
@@ -204,6 +204,7 @@ const SortableHeader = ({ label, colKey, columnSort, onSort, className }: Sortab
 // --- Main page ---
 const AdminStudioHighlights = () => {
   const { user, authLoading } = useAuth();
+  const { isAdmin, loading: adminLoading } = useIsAdmin();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
@@ -230,7 +231,13 @@ const AdminStudioHighlights = () => {
   const [pageInput, setPageInput] = useState("1");
   useEffect(() => { setPageInput(String(page + 1)); }, [page]);
 
-  useAuthGate("/", (u) => !!u && u.email === ADMIN_EMAIL);
+  useAuthGate("/auth", (u) => !!u);
+
+  useEffect(() => {
+    if (!authLoading && !adminLoading && user && !isAdmin) {
+      navigate("/", { replace: true });
+    }
+  }, [authLoading, adminLoading, user, isAdmin, navigate]);
 
   const { data: books } = useQuery({
     queryKey: ["studio-books"],
@@ -238,7 +245,7 @@ const AdminStudioHighlights = () => {
       const { data } = await supabase.from("books").select("id, title").order("title");
       return data ?? [];
     },
-    enabled: user?.email === ADMIN_EMAIL,
+    enabled: isAdmin,
   });
 
   const { data: allTags } = useQuery({
@@ -249,7 +256,7 @@ const AdminStudioHighlights = () => {
       data?.forEach((h) => h.tags?.forEach((t: string) => tagSet.add(t)));
       return Array.from(tagSet).sort();
     },
-    enabled: user?.email === ADMIN_EMAIL,
+    enabled: isAdmin,
   });
 
   const { data: highlightsData, isLoading } = useQuery({
@@ -322,7 +329,7 @@ const AdminStudioHighlights = () => {
       const rows = (data as unknown as HighlightRow[]) ?? [];
       return { rows, total: count ?? 0 };
     },
-    enabled: user?.email === ADMIN_EMAIL,
+    enabled: isAdmin,
   });
 
   // Lightweight query for which currently-visible IDs lack embeddings.
@@ -340,7 +347,7 @@ const AdminStudioHighlights = () => {
       if (error) throw error;
       return new Set((data ?? []).map((r) => r.id));
     },
-    enabled: user?.email === ADMIN_EMAIL && visibleIds.length > 0,
+    enabled: isAdmin && visibleIds.length > 0,
   });
 
   const selectedMissingCount = Array.from(selectedIds).filter((id) => missingEmbeddingIds?.has(id)).length;
@@ -680,7 +687,7 @@ const AdminStudioHighlights = () => {
     return `${Math.floor(diffMo / 12)}y ago`;
   };
 
-  if (authLoading || !user || user.email !== ADMIN_EMAIL) return null;
+  if (authLoading || adminLoading || !user || !isAdmin) return null;
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-7xl">

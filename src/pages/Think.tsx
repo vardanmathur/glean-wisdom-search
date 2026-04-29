@@ -9,8 +9,8 @@ import OpponentMode, { OpponentHighlight, OpponentPersona } from "@/components/t
 import { Loader2, Flame, Swords } from "lucide-react";
 import { useSessionStorageState } from "@/hooks/useSessionStorageState";
 import { useAuthGate } from "@/hooks/useAuthGate";
+import { useIsAdmin } from "@/hooks/useIsAdmin";
 
-const ADMIN_EMAIL = "vardan@gmail.com";
 const DEFAULT_DAILY_LIMIT = 3;
 const THINK_SESSION_KEY = "glean_think_session";
 
@@ -97,7 +97,7 @@ const Think = () => {
   // Resilient against transient null-user states during PWA resume / token refresh.
   useAuthGate("/auth", (u) => !!u);
 
-  const isAdmin = user?.email === ADMIN_EMAIL;
+  const { isAdmin } = useIsAdmin();
 
   // ===== Load credits =====
   const loadCredits = useCallback(async () => {

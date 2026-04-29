@@ -4,8 +4,8 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { useAuth } from "@/context/AuthContext";
 import { useFeatureInterest, type InterestFeature } from "@/hooks/useFeatureInterest";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useIsAdmin } from "@/hooks/useIsAdmin";
 
-const ADMIN_EMAIL = "vardan@gmail.com";
 const AVAILABLE_FEATURES: InterestFeature[] = ["think", "import"];
 const DISMISS_KEY = "glean_early_access_pill_dismissed";
 
@@ -14,6 +14,7 @@ const EarlyAccessPill = () => {
   const { user } = useAuth();
   const { hasInterest, loading: interestLoading } = useFeatureInterest();
   const { hasPermission, loading: permsLoading } = usePermissions();
+  const { isAdmin, loading: adminLoading } = useIsAdmin();
   const [dismissed, setDismissed] = useState(false);
   const [mounted, setMounted] = useState(false);
 
@@ -23,8 +24,7 @@ const EarlyAccessPill = () => {
     return () => clearTimeout(t);
   }, []);
 
-  const isAdmin = user?.email === ADMIN_EMAIL;
-  if (!isMobile || !user || isAdmin || interestLoading || permsLoading || dismissed) {
+  if (!isMobile || !user || isAdmin || adminLoading || interestLoading || permsLoading || dismissed) {
     return null;
   }
 

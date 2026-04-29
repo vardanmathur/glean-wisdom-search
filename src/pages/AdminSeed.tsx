@@ -7,8 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { normaliseAllTags } from "@/lib/normaliseTags";
 import { useAuthGate } from "@/hooks/useAuthGate";
+import { useIsAdmin } from "@/hooks/useIsAdmin";
 
-const ADMIN_EMAIL = "vardan@gmail.com";
 
 interface ParsedRow {
   record_id: string;
@@ -36,6 +36,7 @@ function parseBookField(bookField: string): { title: string; author: string } {
 
 const AdminSeed = () => {
   const { user, authLoading } = useAuth();
+  const { isAdmin, loading: adminLoading } = useIsAdmin();
   const navigate = useNavigate();
   const [rows, setRows] = useState<ParsedRow[]>([]);
   const [progress, setProgress] = useState(0);
@@ -48,13 +49,19 @@ const AdminSeed = () => {
     errors: number;
   } | null>(null);
 
-  useAuthGate("/", (u) => !!u && u.email === ADMIN_EMAIL);
+  useAuthGate("/auth", (u) => !!u);
 
-  if (authLoading) {
+  useEffect(() => {
+    if (!authLoading && !adminLoading && user && !isAdmin) {
+      navigate("/", { replace: true });
+    }
+  }, [authLoading, adminLoading, user, isAdmin, navigate]);
+
+  if (authLoading || adminLoading) {
     return <div className="container mx-auto max-w-xl px-4 py-12 text-muted-foreground">Loading...</div>;
   }
 
-  if (!user || user.email !== ADMIN_EMAIL) {
+  if (!user || !isAdmin) {
     return null;
   }
 

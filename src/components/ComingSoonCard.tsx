@@ -4,8 +4,7 @@ import { Lock, Loader2, ArrowRight, type LucideIcon } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useFeatureInterest, type InterestFeature } from "@/hooks/useFeatureInterest";
 import { usePermissions } from "@/hooks/usePermissions";
-
-const ADMIN_EMAIL = "vardan@gmail.com";
+import { useIsAdmin } from "@/hooks/useIsAdmin";
 
 interface ComingSoonCardProps {
   feature: InterestFeature;
@@ -26,9 +25,9 @@ const ComingSoonCard = ({
   const { user } = useAuth();
   const { hasInterest, register, loading } = useFeatureInterest();
   const { hasPermission, loading: permsLoading } = usePermissions();
+  const { isAdmin } = useIsAdmin();
   const [submitting, setSubmitting] = useState(false);
 
-  const isAdmin = user?.email === ADMIN_EMAIL;
   const granted = !!user && !isAdmin && hasPermission(feature);
   const registered = hasInterest(feature);
 

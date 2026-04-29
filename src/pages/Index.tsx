@@ -9,8 +9,8 @@ import { useQuery } from "@tanstack/react-query";
 import { getGleanStats } from "@/lib/data";
 import { useAuth } from "@/context/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useIsAdmin } from "@/hooks/useIsAdmin";
 
-const ADMIN_EMAIL = "vardan@gmail.com";
 
 const FEATURE_META: Record<string, { label: string; route: string }> = {
   think: { label: "Think!", route: "/think" },
@@ -35,12 +35,12 @@ const Index = () => {
   const [query, setQuery] = useState("");
   const { user } = useAuth();
   const { hasPermission, loading: permsLoading } = usePermissions();
+  const { isAdmin } = useIsAdmin();
   const { data: stats } = useQuery({
     queryKey: ["glean-stats"],
     queryFn: getGleanStats,
   });
 
-  const isAdmin = user?.email === ADMIN_EMAIL;
   const hasThink = !!user && !isAdmin && hasPermission("think");
   const hasImport = !!user && !isAdmin && hasPermission("import");
   // Always keep the Early Access section visible. It's the home page's
