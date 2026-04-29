@@ -35,12 +35,12 @@ const Index = () => {
   const [query, setQuery] = useState("");
   const { user } = useAuth();
   const { hasPermission, loading: permsLoading } = usePermissions();
+  const { isAdmin } = useIsAdmin();
   const { data: stats } = useQuery({
     queryKey: ["glean-stats"],
     queryFn: getGleanStats,
   });
 
-  const isAdmin = user?.email === ADMIN_EMAIL;
   const hasThink = !!user && !isAdmin && hasPermission("think");
   const hasImport = !!user && !isAdmin && hasPermission("import");
   // Always keep the Early Access section visible. It's the home page's

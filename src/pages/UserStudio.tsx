@@ -22,9 +22,10 @@ import {
 import StudioAddHighlightModal from "@/components/studio/AddHighlightModal";
 import { useSessionStorageState } from "@/hooks/useSessionStorageState";
 
+import { useIsAdmin } from "@/hooks/useIsAdmin";
+
 const EDIT_DRAFT_PREFIX = "glean_user_studio_edit_draft";
 
-const ADMIN_EMAIL = "vardan@gmail.com";
 const PAGE_SIZE = 20;
 
 type SortOption = "recent" | "oldest" | "no_notes" | "no_tags";
@@ -71,7 +72,7 @@ const UserStudio = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  const isAdmin = user?.email === ADMIN_EMAIL;
+  const { isAdmin } = useIsAdmin();
   const allowed = isAdmin || hasPermission("import");
 
   const [page, setPage] = useState(0);

@@ -1,20 +1,22 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
+import { useIsAdmin } from '@/hooks/useIsAdmin';
 
 export function usePermissions() {
   const { user } = useAuth();
+  const { isAdmin, loading: adminLoading } = useIsAdmin();
   const [permissions, setPermissions] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [permLoading, setPermLoading] = useState(true);
 
   useEffect(() => {
     if (!user) {
       setPermissions([]);
-      setLoading(false);
+      setPermLoading(false);
       return;
     }
     let cancelled = false;
-    setLoading(true);
+    setPermLoading(true);
     supabase
       .from('user_permissions')
       .select('feature')
@@ -22,7 +24,7 @@ export function usePermissions() {
       .then(({ data }) => {
         if (cancelled) return;
         setPermissions(data?.map((r) => r.feature as string) ?? []);
-        setLoading(false);
+        setPermLoading(false);
       });
     return () => {
       cancelled = true;
@@ -30,7 +32,7 @@ export function usePermissions() {
   }, [user]);
 
   const hasPermission = (feature: string) =>
-    user?.email === 'vardan@gmail.com' || permissions.includes(feature);
+    isAdmin || permissions.includes(feature);
 
-  return { hasPermission, permissions, loading };
+  return { hasPermission, permissions, loading: permLoading || adminLoading };
 }

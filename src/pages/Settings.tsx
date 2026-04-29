@@ -21,6 +21,7 @@ import {
 import { Loader2, Check, LogOut, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuthGate } from "@/hooks/useAuthGate";
+import { useIsAdmin } from "@/hooks/useIsAdmin";
 
 const Settings = () => {
   const { user, authLoading, signOut } = useAuth();
@@ -44,7 +45,7 @@ const Settings = () => {
   const [deleting, setDeleting] = useState(false);
 
   // Think! admin section
-  const isAdmin = user?.email === "vardan@gmail.com";
+  const { isAdmin } = useIsAdmin();
   const [thinkUsedToday, setThinkUsedToday] = useState<number | null>(null);
   const [thinkLimit, setThinkLimit] = useState<number>(3);
   const [thinkLimitInput, setThinkLimitInput] = useState<string>("3");

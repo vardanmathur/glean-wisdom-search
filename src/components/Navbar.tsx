@@ -3,6 +3,7 @@ import { Leaf, Search, Bookmark, User, LogOut, Settings, BookOpen, Wrench, Shiel
 import { useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -27,7 +28,7 @@ const Navbar = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const { user, signOut } = useAuth();
   const { hasPermission } = usePermissions();
-  const isAdmin = user?.email === "vardan@gmail.com";
+  const { isAdmin } = useIsAdmin();
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
