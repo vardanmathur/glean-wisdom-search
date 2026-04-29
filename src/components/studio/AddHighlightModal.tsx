@@ -51,6 +51,7 @@ const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags }: Add
   const [listening, setListening] = useState(false);
   const recognitionRef = useRef<any>(null);
   const shouldKeepListeningRef = useRef<boolean>(false);
+  const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const speechSupported =
     typeof window !== "undefined" &&
     !!((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
@@ -116,6 +117,8 @@ const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags }: Add
             return next;
           });
           setInterimText("");
+          if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+          silenceTimerRef.current = setTimeout(() => stopDictation(), 2500);
         } else {
           setInterimText(transcript);
         }
@@ -123,6 +126,7 @@ const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags }: Add
       rec.onerror = (e: any) => {
         console.warn("SpeechRecognition error:", e?.error);
         shouldKeepListeningRef.current = false;
+        if (silenceTimerRef.current) { clearTimeout(silenceTimerRef.current); silenceTimerRef.current = null; }
         setInterimText("");
         setListening(false);
       };
@@ -153,6 +157,7 @@ const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags }: Add
 
   const stopDictation = () => {
     shouldKeepListeningRef.current = false;
+    if (silenceTimerRef.current) { clearTimeout(silenceTimerRef.current); silenceTimerRef.current = null; }
     const rec = recognitionRef.current;
     if (rec) {
       try {
@@ -401,6 +406,9 @@ const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags }: Add
                     )}
                   </div>
                   <p className="text-xs text-muted-foreground">Works best on Chrome.</p>
+                  {listening && (
+                    <p className="text-xs text-muted-foreground">Stops automatically after a pause.</p>
+                  )}
                   {listening && interimText && (
                     <p className="text-sm italic text-muted-foreground">{interimText}</p>
                   )}
