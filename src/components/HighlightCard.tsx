@@ -38,7 +38,6 @@ const HighlightCard = ({ highlight, index = 0, showSaveCount = false }: Highligh
   const toggleUp = useToggleThumbsUp();
   const toggleDown = useToggleThumbsDown();
 
-  // Only fetch the count when we actually render it
   const { data: saveCount } = useHighlightSaveCount(highlight.id, showSaveCount);
 
   const [showReportConfirm, setShowReportConfirm] = useState(false);
@@ -99,73 +98,149 @@ const HighlightCard = ({ highlight, index = 0, showSaveCount = false }: Highligh
       className="group relative rounded-lg border bg-card p-6 card-shadow hover:card-shadow-hover transition-all duration-300 animate-fade-in"
       style={{ animationDelay: `${index * 80}ms` }}
     >
-      {/* Persistent action cluster — top right, always visible (mobile + desktop) */}
-      <div className="absolute top-3 right-3 flex items-center gap-1">
-        {/* Save — always visible */}
+      {/* 1. Floated cover — text wraps beside, then flows full width below */}
+      <a
+        href={getAmazonUrl(highlight.bookTitle, highlight.author)}
+        target="_blank"
+        rel="noopener noreferrer"
+        title="Find on Amazon"
+        className="float-left mr-4 mb-2 hover:opacity-90 transition-opacity"
+      >
+        {highlight.coverImageUrl ? (
+          <img
+            src={highlight.coverImageUrl}
+            alt={highlight.bookTitle}
+            className="w-16 h-auto rounded-md object-cover"
+          />
+        ) : (
+          <div className="w-16 h-[84px] rounded-md bg-primary/15 flex items-center justify-center">
+            <span className="text-lg font-semibold text-primary">
+              {highlight.bookTitle?.charAt(0) || "?"}
+            </span>
+          </div>
+        )}
+      </a>
+
+      {/* 2. Quote — wraps beside cover, flows full width below */}
+      <blockquote className="font-display text-lg leading-relaxed text-foreground italic">
+        "{highlight.text}"
+      </blockquote>
+
+      {/* 3. Notes box — warm stone, teal left border */}
+      {highlight.myNotes && (
+        <div
+          className="mt-4 rounded-md px-3 py-2 border-l-[3px] border-primary"
+          style={{ backgroundColor: "hsl(var(--notes-bg))" }}
+        >
+          <span className="text-xs font-medium text-muted-foreground">Note:</span>{" "}
+          <span className="text-sm text-foreground/90">{highlight.myNotes}</span>
+        </div>
+      )}
+
+      {/* 4. Clearfix — ensures everything below sits beneath the floated cover */}
+      <div className="clear-both" aria-hidden="true" />
+
+      {/* 5. Book title — Author */}
+      <div className="mt-4">
+        <Link
+          to={`/book/${encodeURIComponent(highlight.bookTitle)}`}
+          className="text-sm font-medium text-primary hover:underline"
+        >
+          {highlight.bookTitle}
+        </Link>
+        <span className="text-sm text-muted-foreground"> — {highlight.author}</span>
+      </div>
+
+      {/* 6. Attribution */}
+      <div className="mt-2">
+        {highlight.source === "user" && displayName ? (
+          <p className="text-xs text-muted-foreground">Added by {displayName}</p>
+        ) : highlight.source === "user" ? (
+          <p className="text-xs text-muted-foreground">Added by a reader</p>
+        ) : (
+          <span className="inline-flex items-center gap-1 text-xs font-medium text-primary/70">
+            ✦ Glean Pick
+          </span>
+        )}
+      </div>
+
+      {/* 7. Tags */}
+      {highlight.tags.length > 0 && (
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {highlight.tags.map((tag) => (
+            <Link
+              key={tag}
+              to={`/topics/${encodeURIComponent(tag)}`}
+              className="rounded-md bg-accent/15 px-2.5 py-0.5 text-xs font-medium text-accent-foreground hover:bg-accent/25 transition-colors"
+            >
+              {tag}
+            </Link>
+          ))}
+        </div>
+      )}
+
+      {/* 8. Bottom action row — left-aligned, always visible */}
+      <div className="mt-4 flex items-center gap-1">
         <button
           onClick={handleSaveClick}
           className={`p-1.5 rounded-md transition-colors ${
             saved
               ? "text-primary"
-              : "text-muted-foreground/60 hover:text-primary hover:bg-secondary"
+              : "text-muted-foreground hover:text-primary hover:bg-secondary"
           }`}
           title={saved ? "Saved" : "Save highlight"}
           aria-label={saved ? "Saved" : "Save highlight"}
         >
-          <Bookmark className={`h-4 w-4 ${saved ? "fill-current" : ""}`} />
+          <Bookmark className={`h-[18px] w-[18px] ${saved ? "fill-current" : ""}`} />
         </button>
 
-        {/* Hidden save count — toggle showSaveCount prop to reveal */}
-        <span className={showSaveCount ? "text-xs text-muted-foreground tabular-nums" : "hidden"}>
+        <span className={showSaveCount ? "text-xs text-muted-foreground tabular-nums mr-1" : "hidden"}>
           {saveCount ?? 0}
         </span>
 
-        {/* Thumbs up — always visible to authenticated users (redirects others to /auth) */}
         <button
           onClick={handleThumbsUpClick}
           className={`p-1.5 rounded-md transition-colors ${
             isUp
               ? "text-primary"
-              : "text-muted-foreground/60 hover:text-primary hover:bg-secondary"
+              : "text-muted-foreground hover:text-primary hover:bg-secondary"
           }`}
           title={isUp ? "You marked this helpful" : "Mark as helpful"}
           aria-label="Mark as helpful"
         >
-          <ThumbsUp className={`h-4 w-4 ${isUp ? "fill-current" : ""}`} />
+          <ThumbsUp className={`h-[18px] w-[18px] ${isUp ? "fill-current" : ""}`} />
         </button>
 
-        {/* Thumbs down — admin only, always visible */}
         {isAdmin && (
           <button
             onClick={handleThumbsDownClick}
             className={`p-1.5 rounded-md transition-colors ${
               isDown
                 ? "text-destructive"
-                : "text-muted-foreground/60 hover:text-destructive hover:bg-secondary"
+                : "text-muted-foreground hover:text-destructive hover:bg-secondary"
             }`}
             title={isDown ? "Thumbs down active" : "Thumbs down (admin)"}
             aria-label="Thumbs down"
           >
-            <ThumbsDown className={`h-4 w-4 ${isDown ? "fill-current" : ""}`} />
+            <ThumbsDown className={`h-[18px] w-[18px] ${isDown ? "fill-current" : ""}`} />
           </button>
         )}
 
-        {/* Report — hover-only */}
         {canReport && !reported && (
           <button
             onClick={() => setShowReportConfirm(true)}
-            className="p-1.5 rounded-md text-muted-foreground/40 hover:text-destructive opacity-0 group-hover:opacity-100 transition-all"
+            className="p-1.5 rounded-md text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 focus:opacity-100 transition-all"
             title="Report highlight"
             aria-label="Report highlight"
           >
-            <Flag className="h-4 w-4" />
+            <Flag className="h-[18px] w-[18px]" />
           </button>
         )}
       </div>
 
-      {/* Report confirmation */}
+      {/* Report confirmation popover — anchored to bottom action row */}
       {showReportConfirm && (
-        <div className="absolute top-12 right-3 z-10 rounded-lg border bg-popover p-3 shadow-md text-sm">
+        <div className="absolute bottom-14 left-3 z-10 rounded-lg border bg-popover p-3 shadow-md text-sm">
           <p className="text-foreground mb-2">Report as inappropriate?</p>
           <div className="flex gap-2">
             <button
@@ -183,81 +258,6 @@ const HighlightCard = ({ highlight, index = 0, showSaveCount = false }: Highligh
           </div>
         </div>
       )}
-
-      <div className="flex gap-4 pr-20">
-        {/* Book cover thumbnail — links to Amazon affiliate */}
-        <a
-          href={getAmazonUrl(highlight.bookTitle, highlight.author)}
-          target="_blank"
-          rel="noopener noreferrer"
-          title="Find on Amazon"
-          className="flex-shrink-0 hover:opacity-90 transition-opacity"
-        >
-          {highlight.coverImageUrl ? (
-            <img
-              src={highlight.coverImageUrl}
-              alt={highlight.bookTitle}
-              className="h-[70px] w-[53px] rounded-md object-cover"
-            />
-          ) : (
-            <div className="h-[70px] w-[53px] rounded-md bg-primary/15 flex items-center justify-center">
-              <span className="text-lg font-semibold text-primary">
-                {highlight.bookTitle?.charAt(0) || "?"}
-              </span>
-            </div>
-          )}
-        </a>
-
-        <div className="flex-1 min-w-0">
-          <blockquote className="font-display text-lg leading-relaxed text-foreground italic mb-4">
-            "{highlight.text}"
-          </blockquote>
-
-          {highlight.myNotes && (
-            <p className="text-sm text-muted-foreground bg-muted/50 rounded-md px-3 py-2 mb-4 border-l-2 border-primary/30">
-              <span className="font-medium text-foreground/70">Note:</span> {highlight.myNotes}
-            </p>
-          )}
-
-          <div className="flex items-center justify-between">
-            <div>
-              <Link
-                to={`/book/${encodeURIComponent(highlight.bookTitle)}`}
-                className="text-sm font-medium text-primary hover:underline"
-              >
-                {highlight.bookTitle}
-              </Link>
-              <span className="text-sm text-muted-foreground"> — {highlight.author}</span>
-            </div>
-          </div>
-
-          <div className="mt-2">
-            {highlight.source === "user" && displayName ? (
-              <p className="text-xs text-muted-foreground">
-                Added by {displayName}
-              </p>
-            ) : highlight.source === "user" ? (
-              <p className="text-xs text-muted-foreground">Added by a reader</p>
-            ) : (
-              <span className="inline-flex items-center gap-1 text-xs font-medium text-primary/70">
-                ✦ Glean Pick
-              </span>
-            )}
-          </div>
-
-          <div className="mt-3 flex flex-wrap gap-1.5">
-            {highlight.tags.map((tag) => (
-              <Link
-                key={tag}
-                to={`/topics/${encodeURIComponent(tag)}`}
-                className="rounded-md bg-accent/15 px-2.5 py-0.5 text-xs font-medium text-accent-foreground hover:bg-accent/25 transition-colors"
-              >
-                {tag}
-              </Link>
-            ))}
-          </div>
-        </div>
-      </div>
     </div>
   );
 };
