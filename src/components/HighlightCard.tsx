@@ -126,19 +126,19 @@ const HighlightCard = ({ highlight, index = 0, showSaveCount = false }: Highligh
         "{highlight.text}"
       </blockquote>
 
+      {/* 4. Clearfix — moved here - ensures everything below sits beneath the floated cover */}
+      <div className="clear-both" aria-hidden="true" />
+
       {/* 3. Notes box — warm stone, teal left border */}
       {highlight.myNotes && (
         <div
-          className="mt-4 rounded-md px-3 py-2 border-l-[3px] border-primary"
+          className="clear-both mt-4 rounded-md px-3 py-2 border-l-[3px] border-primary"
           style={{ backgroundColor: "hsl(var(--notes-bg))" }}
         >
           <span className="text-xs font-medium text-muted-foreground">Note:</span>{" "}
           <span className="text-sm text-foreground/90">{highlight.myNotes}</span>
         </div>
       )}
-
-      {/* 4. Clearfix — ensures everything below sits beneath the floated cover */}
-      <div className="clear-both" aria-hidden="true" />
 
       {/* 5. Book title — Author */}
       <div className="mt-4">
