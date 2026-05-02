@@ -102,6 +102,7 @@ function toHighlight(row: any): Highlight {
     source: row.source || "curated",
     userId: row.user_id || undefined,
     displayName: row.user_profiles?.display_name || undefined,
+    visibility: (row.visibility as "public" | "private") || undefined,
   };
 }
 
