@@ -65,6 +65,7 @@ export interface Highlight {
   source?: string;
   userId?: string;
   displayName?: string;
+  visibility?: "public" | "private";
   tier?: "strong" | "good" | "moderate" | "excluded";
 }
 
