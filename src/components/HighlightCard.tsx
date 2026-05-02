@@ -272,6 +272,14 @@ const HighlightCard = ({ highlight, index = 0, showSaveCount = false }: Highligh
           </div>
         </div>
       )}
+      {isAdmin && (
+        <HighlightEditPanel
+          highlight={highlight}
+          allTags={ALL_TAGS}
+          open={editOpen}
+          onOpenChange={setEditOpen}
+        />
+      )}
     </div>
   );
 };
