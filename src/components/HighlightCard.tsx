@@ -44,6 +44,7 @@ const HighlightCard = ({ highlight, index = 0, showSaveCount = false }: Highligh
 
   const [showReportConfirm, setShowReportConfirm] = useState(false);
   const [reported, setReported] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
   const [displayName, setDisplayName] = useState<string | null>(highlight.displayName || null);
 
   useEffect(() => {
