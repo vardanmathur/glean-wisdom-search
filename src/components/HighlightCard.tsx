@@ -14,9 +14,11 @@ import {
   useToggleThumbsUp,
   useToggleThumbsDown,
 } from "@/hooks/useHighlightFeedback";
-import { Bookmark, ThumbsUp, ThumbsDown, Flag } from "lucide-react";
+import { Bookmark, ThumbsUp, ThumbsDown, Flag, Pencil } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { ALL_TAGS } from "@/lib/tags";
+import HighlightEditPanel from "./HighlightEditPanel";
 
 interface HighlightCardProps {
   highlight: Highlight;
