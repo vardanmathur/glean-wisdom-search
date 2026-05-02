@@ -229,6 +229,17 @@ const HighlightCard = ({ highlight, index = 0, showSaveCount = false }: Highligh
           </button>
         )}
 
+        {isAdmin && (
+          <button
+            onClick={() => setEditOpen(true)}
+            className="p-1.5 rounded-md text-muted-foreground hover:text-primary hover:bg-secondary transition-colors"
+            title="Edit highlight (admin)"
+            aria-label="Edit highlight"
+          >
+            <Pencil className="h-[18px] w-[18px]" />
+          </button>
+        )}
+
         {canReport && !reported && (
           <button
             onClick={() => setShowReportConfirm(true)}
