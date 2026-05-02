@@ -9,26 +9,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { X } from "lucide-react";
+import { ALL_TAGS } from "@/lib/tags";
 
 interface AddHighlightModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
-
-const ALL_TAGS = [
-  "Ambition", "Anxiety", "Art", "Career", "Children", "Communication",
-  "Death", "Decision Making", "Desires", "Expectations", "Family",
-  "Forgiveness", "Friends", "Funny", "Habits", "Happiness", "Health",
-  "Hiring", "Honesty", "Humility", "Influence", "Investing",
-  "Leadership", "Learning", "Life", "Living with Others", "Love",
-  "Luck", "Marriage", "Mental Health", "Mistakes", "Money",
-  "Motivation", "Needs & Wants", "Negotiation", "Outcomes",
-  "Overwhelmed", "People", "Perseverance", "Pithy", "Positivity",
-  "Priorities", "Prioritization", "Procrastinating", "Productivity",
-  "Purpose", "Quality", "Reading", "Relationships", "Resilience",
-  "Stars", "Success", "Teaching", "Thinking", "Time Management",
-  "Trust", "Willpower", "Work",
-];
 
 interface BookSuggestion {
   id: string;

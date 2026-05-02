@@ -14,9 +14,11 @@ import {
   useToggleThumbsUp,
   useToggleThumbsDown,
 } from "@/hooks/useHighlightFeedback";
-import { Bookmark, ThumbsUp, ThumbsDown, Flag } from "lucide-react";
+import { Bookmark, ThumbsUp, ThumbsDown, Flag, Pencil } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { ALL_TAGS } from "@/lib/tags";
+import HighlightEditPanel from "./HighlightEditPanel";
 
 interface HighlightCardProps {
   highlight: Highlight;
@@ -42,6 +44,7 @@ const HighlightCard = ({ highlight, index = 0, showSaveCount = false }: Highligh
 
   const [showReportConfirm, setShowReportConfirm] = useState(false);
   const [reported, setReported] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
   const [displayName, setDisplayName] = useState<string | null>(highlight.displayName || null);
 
   useEffect(() => {
@@ -226,6 +229,17 @@ const HighlightCard = ({ highlight, index = 0, showSaveCount = false }: Highligh
           </button>
         )}
 
+        {isAdmin && (
+          <button
+            onClick={() => setEditOpen(true)}
+            className="p-1.5 rounded-md text-muted-foreground hover:text-primary hover:bg-secondary transition-colors"
+            title="Edit highlight (admin)"
+            aria-label="Edit highlight"
+          >
+            <Pencil className="h-[18px] w-[18px]" />
+          </button>
+        )}
+
         {canReport && !reported && (
           <button
             onClick={() => setShowReportConfirm(true)}
@@ -257,6 +271,14 @@ const HighlightCard = ({ highlight, index = 0, showSaveCount = false }: Highligh
             </button>
           </div>
         </div>
+      )}
+      {isAdmin && (
+        <HighlightEditPanel
+          highlight={highlight}
+          allTags={ALL_TAGS}
+          open={editOpen}
+          onOpenChange={setEditOpen}
+        />
       )}
     </div>
   );
