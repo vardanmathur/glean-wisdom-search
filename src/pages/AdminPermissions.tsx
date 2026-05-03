@@ -9,7 +9,7 @@ import { useIsAdmin } from "@/hooks/useIsAdmin";
 const FEATURES = [
   { key: "import", label: "Import" },
   { key: "think", label: "Think!" },
-  { key: "contribute", label: "Contribute" },
+//  { key: "contribute", label: "Contribute" },
 ] as const;
 
 interface ProfileRow {
@@ -42,6 +42,7 @@ const AdminPermissions = () => {
   const [interestLoading, setInterestLoading] = useState(true);
   const [feedback, setFeedback] = useState<Record<string, FeedbackKind>>({});
   const [pending, setPending] = useState<Record<string, boolean>>({});
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
     if (!user || !isAdmin) return;
@@ -210,11 +211,17 @@ const AdminPermissions = () => {
     }
   };
 
-  const sortedProfiles = [...profiles].sort((a, b) => {
-    const an = (a.display_name || a.id).toLowerCase();
-    const bn = (b.display_name || b.id).toLowerCase();
-    return an.localeCompare(bn);
-  });
+const sortedProfiles = [...profiles]
+.sort((a, b) => {
+  const an = (a.display_name || a.id).toLowerCase();
+  const bn = (b.display_name || b.id).toLowerCase();
+  return an.localeCompare(bn);
+})
+.filter((p) => {
+  if (search.trim().length === 0) return true;
+  const name = (p.display_name || p.id).toLowerCase();
+  return name.includes(search.toLowerCase());
+});
 
   return (
     <div className="container mx-auto max-w-5xl px-4 py-10">
@@ -225,6 +232,13 @@ const AdminPermissions = () => {
         <p className="mt-2 text-muted-foreground">
           Manage feature access for Glean users
         </p>
+        <input
+          type="search"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search users..."
+          className="mt-4 h-10 w-full max-w-sm rounded-md border border-input bg-background px-3 text-sm text-foreground"
+        />
       </div>
 
       {loading ? (
