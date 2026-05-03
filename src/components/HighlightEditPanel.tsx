@@ -64,7 +64,7 @@ const HighlightEditPanel = ({ highlight, allTags, open, onOpenChange }: Highligh
     setVisibility(highlight.visibility ?? "public");
     setTagInput("");
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [highlight?.id]);
+  }, [highlight?.id, open]);
 
   const isDirty =
     !!highlight &&
