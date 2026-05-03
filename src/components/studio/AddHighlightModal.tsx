@@ -11,7 +11,7 @@ import { toast } from "sonner";
 import BookLookup, { type SelectedBook } from "./BookLookup";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useSessionStorageState } from "@/hooks/useSessionStorageState";
-import { synonymMap } from "@/lib/data";
+
 
 const DRAFT_KEY = "glean_add_highlight_draft"; // suggest-tags v1
 
@@ -240,31 +240,6 @@ const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags }: Add
   };
   const removeTag = (t: string) => setTags(tags.filter((x) => x !== t));
 
-  const suggestTagsFromSynonyms = (text: string): string[] => {
-    const words = Array.from(
-      new Set(
-        text
-          .split(/\s+/)
-          .map((w) => w.replace(/[^a-zA-Z0-9]/g, "").toLowerCase())
-          .filter((w) => w.length >= 4),
-      ),
-    );
-    const freq = new Map<string, number>();
-    for (const word of words) {
-      for (const [key, mappedTags] of Object.entries(synonymMap)) {
-        if (word === key || word.startsWith(key) || key.startsWith(word)) {
-          for (const tag of mappedTags) {
-            freq.set(tag, (freq.get(tag) ?? 0) + 1);
-          }
-        }
-      }
-    }
-    return Array.from(freq.entries())
-      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-      .slice(0, 6)
-      .map(([tag]) => tag);
-  };
-
   const handleSuggestTags = async () => {
     const q = quote.trim();
     if (q.length < 20 || suggesting) return;
@@ -273,7 +248,28 @@ const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags }: Add
       const { data, error } = await supabase.rpc("suggest_tags_for_quote", { quote_text: q });
       if (error) throw error;
       const rpcTags = Array.isArray(data) ? (data as string[]) : [];
-      const finalTags = rpcTags.length > 0 ? rpcTags : suggestTagsFromSynonyms(q);
+      let finalTags: string[] = rpcTags;
+      if (rpcTags.length === 0) {
+        // Semantic fallback — silent on any failure
+        try {
+          const { data: sem } = await supabase.functions.invoke("search-semantic", {
+            body: { query: q, wordCount: q.split(/\s+/).filter(Boolean).length },
+          });
+          const rows: Array<{ tags?: string[] }> = Array.isArray(sem?.results)
+            ? sem.results.slice(0, 10)
+            : [];
+          const seen = new Set<string>();
+          for (const r of rows) {
+            for (const t of r.tags ?? []) {
+              const norm = String(t).trim().toLowerCase();
+              if (norm) seen.add(norm);
+            }
+          }
+          finalTags = Array.from(seen).slice(0, 8);
+        } catch {
+          finalTags = [];
+        }
+      }
       setSuggestedTags(finalTags);
       setLastSuggestedQuote(q);
       setHasFetchedSuggestions(true);
