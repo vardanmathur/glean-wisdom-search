@@ -1115,7 +1115,7 @@ const EditPanel = ({ highlight, allTags, onClose, onSave, saving }: EditPanelPro
     setVisibility(highlight.visibility ?? "public");
     setTagInput("");
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [highlight?.id]);
+  }, [highlight?.id, open]);
 
   const clearDraft = () => {
     clearQuote();
