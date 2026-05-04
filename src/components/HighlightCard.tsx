@@ -18,6 +18,7 @@ import { Bookmark, ThumbsUp, ThumbsDown, Flag, Pencil } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { ALL_TAGS } from "@/lib/tags";
+import { toTitleCase } from "@/lib/utils";
 import HighlightEditPanel from "./HighlightEditPanel";
 
 interface HighlightCardProps {
@@ -176,7 +177,7 @@ const HighlightCard = ({ highlight, index = 0, showSaveCount = false }: Highligh
               to={`/topics/${encodeURIComponent(tag)}`}
               className="rounded-md bg-accent/15 px-2.5 py-0.5 text-xs font-medium text-accent-foreground hover:bg-accent/25 transition-colors"
             >
-              {tag}
+              {toTitleCase(tag)}
             </Link>
           ))}
         </div>
