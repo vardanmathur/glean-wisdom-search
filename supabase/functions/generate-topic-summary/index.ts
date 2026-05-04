@@ -7,7 +7,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const CACHE_TTL_DAYS = 7;
+const CACHE_TTL_DAYS = 180;
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
