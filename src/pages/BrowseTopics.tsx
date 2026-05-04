@@ -9,6 +9,7 @@ import { ArrowLeft, Leaf, Loader2 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
 import { supabase } from "@/integrations/supabase/client";
+import { toTitleCase } from "@/lib/utils";
 
 const BrowseTopics = () => {
   const { tag } = useParams();
@@ -141,7 +142,7 @@ const TopicDetail = ({ tag }: { tag: string }) => {
       <div className="mb-8">
         <div className="flex items-center gap-2 mb-2">
           <Leaf className="h-5 w-5 text-primary" />
-          <h1 className="font-display text-3xl text-foreground">{tag}</h1>
+          <h1 className="font-display text-3xl text-foreground">{toTitleCase(tag)}</h1>
         </div>
         {!isLoading && (
           <p className="text-xs text-muted-foreground/60">
