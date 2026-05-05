@@ -43,6 +43,34 @@ serve(async (req) => {
   const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+  // Require authenticated admin user
+  const authHeader = req.headers.get("Authorization");
+  if (!authHeader?.startsWith("Bearer ")) {
+    return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+  const authClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!);
+  const { data: claimsData, error: claimsErr } = await authClient.auth.getClaims(
+    authHeader.replace("Bearer ", "")
+  );
+  if (claimsErr || !claimsData?.claims?.sub) {
+    return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+  const { data: roleRow } = await supabase
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", claimsData.claims.sub)
+    .eq("role", "admin")
+    .maybeSingle();
+  if (!roleRow) {
+    return new Response(JSON.stringify({ error: "Forbidden" }), {
+      status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
   // Optional body:
   //   { ids: string[] }            — target specific highlights (still skips rows that already have embeddings)
   //   { ids: string[], force: true } — regenerate embeddings for those IDs even if non-null
