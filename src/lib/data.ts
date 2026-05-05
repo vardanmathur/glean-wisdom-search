@@ -301,20 +301,13 @@ export async function searchHighlights(
   const words = normalisedQuery.split(/\s+/).filter((w) => w.length > 2);
   if (words.length === 0) return { highlights: [], totalFound: 0 };
 
-  // Paginate to fetch all highlights
-  const PAGE_SIZE = 1000;
-  let data: any[] = [];
-  let from = 0;
-  while (true) {
-    const { data: page, error } = await supabase
-      .from("highlights")
-      .select("id, book_id, quote, tags, my_notes, source, stars, visibility, created_at, user_id, books(title, author, cover_image_url), user_profiles(display_name)")
-      .range(from, from + PAGE_SIZE - 1);
-    if (error || !page || page.length === 0) break;
-    data = data.concat(page);
-    if (page.length < PAGE_SIZE) break;
-    from += PAGE_SIZE;
-  }
+  // Capped fetch (max 200 rows) to prevent unauthenticated bulk scraping
+  const MAX_ROWS = 200;
+  const { data: rows } = await supabase
+    .from("highlights")
+    .select("id, book_id, quote, tags, my_notes, source, stars, visibility, created_at, user_id, books(title, author, cover_image_url), user_profiles(display_name)")
+    .range(0, MAX_ROWS - 1);
+  const data: any[] = rows ?? [];
 
   if (data.length === 0) return { highlights: [], totalFound: 0 };
 
