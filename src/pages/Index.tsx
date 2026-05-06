@@ -80,6 +80,54 @@ const Index = () => {
     navigate(`/search?q=${encodeURIComponent(text)}`);
   };
 
+  const [sparkOpen, setSparkOpen] = useState(false);
+  const [sparkLoading, setSparkLoading] = useState(false);
+  const [sparkHighlight, setSparkHighlight] = useState<Highlight | null>(null);
+  const [sparkError, setSparkError] = useState(false);
+
+  const handleInspireMe = async () => {
+    setSparkOpen(true);
+    setSparkLoading(true);
+    setSparkError(false);
+    setSparkHighlight(null);
+    try {
+      const { count, error: countErr } = await supabase
+        .from("highlights")
+        .select("id", { count: "exact", head: true })
+        .eq("visibility", "public");
+      if (countErr || !count) throw countErr ?? new Error("no highlights");
+      const offset = Math.floor(Math.random() * count);
+      const { data, error } = await supabase
+        .from("highlights")
+        .select(
+          "id, quote, tags, my_notes, source, visibility, user_id, book_id, books(title, author, cover_image_url), user_profiles(display_name)"
+        )
+        .eq("visibility", "public")
+        .range(offset, offset)
+        .single();
+      if (error || !data) throw error ?? new Error("no row");
+      const row: any = data;
+      setSparkHighlight({
+        id: row.id,
+        text: row.quote,
+        bookTitle: row.books?.title || "Unknown",
+        author: row.books?.author || "Unknown",
+        tags: row.tags || [],
+        bookId: row.book_id,
+        coverImageUrl: row.books?.cover_image_url,
+        myNotes: row.my_notes || undefined,
+        source: row.source || "curated",
+        userId: row.user_id || undefined,
+        displayName: row.user_profiles?.display_name || undefined,
+        visibility: (row.visibility as "public" | "private") || undefined,
+      });
+    } catch {
+      setSparkError(true);
+    } finally {
+      setSparkLoading(false);
+    }
+  };
+
   return (
     <div className="flex min-h-[calc(100vh-4rem)] flex-col items-center px-4 pt-6">
       {bannerFeatures.length > 0 && (
