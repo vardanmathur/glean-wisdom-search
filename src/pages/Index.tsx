@@ -269,6 +269,32 @@ const Index = () => {
         <Link to="/privacy" className="underline hover:text-foreground transition-colors">Privacy Policy</Link>
       </footer>
       <EarlyAccessPill />
+      <Dialog open={sparkOpen} onOpenChange={setSparkOpen}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle className="font-display">Your daily spark</DialogTitle>
+          </DialogHeader>
+          {sparkLoading && (
+            <div className="flex items-center justify-center py-12 text-muted-foreground">
+              <Loader2 className="h-5 w-5 animate-spin" />
+            </div>
+          )}
+          {!sparkLoading && sparkError && (
+            <div className="flex flex-col items-center gap-3 py-8 text-center">
+              <p className="text-sm text-muted-foreground">Couldn't load a highlight. Try again.</p>
+              <button
+                onClick={handleInspireMe}
+                className="rounded-full border border-primary/30 bg-primary/5 px-4 py-2 text-sm font-medium text-primary hover:bg-primary/10 transition-all"
+              >
+                Retry
+              </button>
+            </div>
+          )}
+          {!sparkLoading && !sparkError && sparkHighlight && (
+            <HighlightCard highlight={sparkHighlight} />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
