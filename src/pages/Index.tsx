@@ -210,6 +210,13 @@ const Index = () => {
             {q}
           </button>
         ))}
+        <button
+          onClick={handleInspireMe}
+          className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/5 px-4 py-2 text-sm font-medium text-primary hover:bg-primary/10 transition-all card-shadow"
+        >
+          <Sparkles className="h-4 w-4" />
+          Inspire Me
+        </button>
       </div>
 
       <div className="flex flex-wrap justify-center gap-3 mb-10">
