@@ -1,12 +1,15 @@
 import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { Search, Leaf, Brain, Upload, X, ArrowRight } from "lucide-react";
+import { Search, Leaf, Brain, Upload, X, ArrowRight, Sparkles, Loader2 } from "lucide-react";
 import { Link } from "react-router-dom";
 import InstallPrompt from "@/components/InstallPrompt";
 import ComingSoonCard from "@/components/ComingSoonCard";
 import EarlyAccessPill from "@/components/EarlyAccessPill";
+import HighlightCard from "@/components/HighlightCard";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useQuery } from "@tanstack/react-query";
-import { getGleanStats } from "@/lib/data";
+import { getGleanStats, type Highlight } from "@/lib/data";
+import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
