@@ -270,7 +270,7 @@ const Index = () => {
       </footer>
       <EarlyAccessPill />
       <Dialog open={sparkOpen} onOpenChange={setSparkOpen}>
-        <DialogContent className="max-w-xl">
+        <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="font-display">Your daily spark</DialogTitle>
           </DialogHeader>
