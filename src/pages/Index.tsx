@@ -22,7 +22,6 @@ const FEATURE_META: Record<string, { label: string; route: string }> = {
 
 const exampleQueries = [
   "I'm struggling to motivate my team",
-  "I feel stuck in my career",
   "I can't stop procrastinating",
   "I'm anxious about a big decision",
 ];
