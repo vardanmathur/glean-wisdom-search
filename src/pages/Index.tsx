@@ -1,12 +1,15 @@
 import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { Search, Leaf, Brain, Upload, X, ArrowRight } from "lucide-react";
+import { Search, Leaf, Brain, Upload, X, ArrowRight, Sparkles, Loader2 } from "lucide-react";
 import { Link } from "react-router-dom";
 import InstallPrompt from "@/components/InstallPrompt";
 import ComingSoonCard from "@/components/ComingSoonCard";
 import EarlyAccessPill from "@/components/EarlyAccessPill";
+import HighlightCard from "@/components/HighlightCard";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useQuery } from "@tanstack/react-query";
-import { getGleanStats } from "@/lib/data";
+import { getGleanStats, type Highlight } from "@/lib/data";
+import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
@@ -19,7 +22,6 @@ const FEATURE_META: Record<string, { label: string; route: string }> = {
 
 const exampleQueries = [
   "I'm struggling to motivate my team",
-  "I feel stuck in my career",
   "I can't stop procrastinating",
   "I'm anxious about a big decision",
 ];
@@ -76,6 +78,54 @@ const Index = () => {
   const handleChipClick = (text: string) => {
     setQuery(text);
     navigate(`/search?q=${encodeURIComponent(text)}`);
+  };
+
+  const [sparkOpen, setSparkOpen] = useState(false);
+  const [sparkLoading, setSparkLoading] = useState(false);
+  const [sparkHighlight, setSparkHighlight] = useState<Highlight | null>(null);
+  const [sparkError, setSparkError] = useState(false);
+
+  const handleInspireMe = async () => {
+    setSparkOpen(true);
+    setSparkLoading(true);
+    setSparkError(false);
+    setSparkHighlight(null);
+    try {
+      const { count, error: countErr } = await supabase
+        .from("highlights")
+        .select("id", { count: "exact", head: true })
+        .eq("visibility", "public");
+      if (countErr || !count) throw countErr ?? new Error("no highlights");
+      const offset = Math.floor(Math.random() * count);
+      const { data, error } = await supabase
+        .from("highlights")
+        .select(
+          "id, quote, tags, my_notes, source, visibility, user_id, book_id, books(title, author, cover_image_url), user_profiles(display_name)"
+        )
+        .eq("visibility", "public")
+        .range(offset, offset)
+        .single();
+      if (error || !data) throw error ?? new Error("no row");
+      const row: any = data;
+      setSparkHighlight({
+        id: row.id,
+        text: row.quote,
+        bookTitle: row.books?.title || "Unknown",
+        author: row.books?.author || "Unknown",
+        tags: row.tags || [],
+        bookId: row.book_id,
+        coverImageUrl: row.books?.cover_image_url,
+        myNotes: row.my_notes || undefined,
+        source: row.source || "curated",
+        userId: row.user_id || undefined,
+        displayName: row.user_profiles?.display_name || undefined,
+        visibility: (row.visibility as "public" | "private") || undefined,
+      });
+    } catch {
+      setSparkError(true);
+    } finally {
+      setSparkLoading(false);
+    }
   };
 
   return (
@@ -160,6 +210,13 @@ const Index = () => {
             {q}
           </button>
         ))}
+        <button
+          onClick={handleInspireMe}
+          className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/5 px-4 py-2 text-sm font-medium text-primary hover:bg-primary/10 transition-all card-shadow"
+        >
+          <Sparkles className="h-4 w-4" />
+          Inspire Me
+        </button>
       </div>
 
       <div className="flex flex-wrap justify-center gap-3 mb-10">
@@ -212,6 +269,32 @@ const Index = () => {
         <Link to="/privacy" className="underline hover:text-foreground transition-colors">Privacy Policy</Link>
       </footer>
       <EarlyAccessPill />
+      <Dialog open={sparkOpen} onOpenChange={setSparkOpen}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle className="font-display">Your daily spark</DialogTitle>
+          </DialogHeader>
+          {sparkLoading && (
+            <div className="flex items-center justify-center py-12 text-muted-foreground">
+              <Loader2 className="h-5 w-5 animate-spin" />
+            </div>
+          )}
+          {!sparkLoading && sparkError && (
+            <div className="flex flex-col items-center gap-3 py-8 text-center">
+              <p className="text-sm text-muted-foreground">Couldn't load a highlight. Try again.</p>
+              <button
+                onClick={handleInspireMe}
+                className="rounded-full border border-primary/30 bg-primary/5 px-4 py-2 text-sm font-medium text-primary hover:bg-primary/10 transition-all"
+              >
+                Retry
+              </button>
+            </div>
+          )}
+          {!sparkLoading && !sparkError && sparkHighlight && (
+            <HighlightCard highlight={sparkHighlight} />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
