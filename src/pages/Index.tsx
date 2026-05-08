@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { Search, Leaf, Brain, Upload, X, ArrowRight, Sparkles, Loader2 } from "lucide-react";
+import { Search, Leaf, Brain, Upload, X, ArrowRight, Sparkles, Loader2, Shuffle } from "lucide-react";
 import { Link } from "react-router-dom";
 import InstallPrompt from "@/components/InstallPrompt";
 import ComingSoonCard from "@/components/ComingSoonCard";
@@ -271,9 +271,17 @@ const Index = () => {
       <EarlyAccessPill />
       <Dialog open={sparkOpen} onOpenChange={setSparkOpen}>
         <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="font-display">Your daily spark</DialogTitle>
-          </DialogHeader>
+        <DialogHeader className="flex flex-row items-center justify-between">
+          <DialogTitle className="font-display">Your daily spark</DialogTitle>
+          <button
+            onClick={handleInspireMe}
+            className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/5 px-3 py-1.5 text-sm font-medium text-primary hover:bg-primary/10 transition-all mr-6"
+            title="Shuffle"
+          >
+            <Shuffle className="h-4 w-4" />
+            Shuffle
+          </button>
+        </DialogHeader>
           {sparkLoading && (
             <div className="flex items-center justify-center py-12 text-muted-foreground">
               <Loader2 className="h-5 w-5 animate-spin" />
@@ -291,7 +299,7 @@ const Index = () => {
             </div>
           )}
           {!sparkLoading && !sparkError && sparkHighlight && (
-            <HighlightCard highlight={sparkHighlight} />
+            <HighlightCard highlight={sparkHighlight} index={0} />
           )}
         </DialogContent>
       </Dialog>
