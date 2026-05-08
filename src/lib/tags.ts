@@ -11,7 +11,7 @@ export const ALL_TAGS = [
   "Luck", "Marriage", "Mental Health", "Mistakes", "Money",
   "Motivation", "Needs & Wants", "Negotiation", "Outcomes",
   "Overwhelmed", "People", "Perseverance", "Pithy", "Positivity",
-  "Priorities", "Prioritization", "Procrastinating", "Productivity",
+  "Priorities", "Procrastinating", "Productivity",
   "Purpose", "Quality", "Reading", "Relationships", "Resilience",
   "Stars", "Success", "Teaching", "Thinking", "Time Management",
   "Trust", "Willpower", "Work",
