@@ -8,6 +8,7 @@ import {
 import type { Highlight } from "@/lib/data";
 import HighlightCard from "@/components/HighlightCard";
 import BookCard from "@/components/BookCard";
+import DownloadWorksheetButton from "@/components/DownloadWorksheetButton";
 import { ArrowLeft, Leaf } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
@@ -197,6 +198,17 @@ const SearchResults = () => {
       <h1 className="font-display text-2xl text-foreground mb-2">
         Results for "{query}"
       </h1>
+
+      {!isLoading && results.length > 0 && !!synthesis && (
+        <div className="mb-6 mt-2">
+          <DownloadWorksheetButton
+            query={query}
+            synthesis={synthesis}
+            highlights={results}
+            disabled={isSynthesising}
+          />
+        </div>
+      )}
 
       {isLoading ? (
         <div className="mt-6">
