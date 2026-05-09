@@ -165,12 +165,13 @@ export function generateWorksheetPdf(opts: BuildOpts): Blob {
         y += lh;
       }
       // Right-aligned attribution
-      doc.setFont("helvetica", "bold");
       doc.setFontSize(9);
       doc.setTextColor(...MUTED);
       const attr = `— ${h.bookTitle}, ${h.author}`;
+      doc.setFont("helvetica", "bold");
       const attrW = doc.getTextWidth(attr);
       ensureSpace(5);
+      doc.setFont("helvetica", "bold");
       doc.text(attr, MARGIN + CONTENT_W - attrW, y + 1);
       y += 7;
       doc.setTextColor(...TEXT);
@@ -205,10 +206,11 @@ export function generateWorksheetPdf(opts: BuildOpts): Blob {
       const lh = 10 * 0.3528 * 1.3;
       for (const tl of titleLines) {
         ensureSpace(lh);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(...TEAL);
         doc.text(tl, MARGIN + 3, y);
         y += lh;
       }
-      // Author in muted normal
       doc.setFont("helvetica", "italic");
       doc.setFontSize(9);
       doc.setTextColor(...MUTED);
@@ -252,7 +254,7 @@ export function generateWorksheetPdf(opts: BuildOpts): Blob {
   });
 
   // === SECTION 6 ===
-  ensureSpace(80);
+  ensureSpace(120);
   sectionHeader("Make it real");
   doc.setFont("helvetica", "normal");
   doc.setFontSize(10);
