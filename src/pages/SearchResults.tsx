@@ -199,6 +199,17 @@ const SearchResults = () => {
         Results for "{query}"
       </h1>
 
+      {!isLoading && results.length > 0 && !!synthesis && (
+        <div className="mb-6 mt-2">
+          <DownloadWorksheetButton
+            query={query}
+            synthesis={synthesis}
+            highlights={results}
+            disabled={isSynthesising}
+          />
+        </div>
+      )}
+
       {isLoading ? (
         <div className="mt-6">
           <p className="text-sm text-muted-foreground italic mb-4 animate-pulse">
