@@ -28,6 +28,14 @@ interface BuildOpts {
   questions: string[];
 }
 
+const sanitizeForPdf = (text: string) =>
+  text
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/[\u201C\u201D]/g, '"')
+    .replace(/[\u2013\u2014]/g, '-')
+    .replace(/[^\x00-\x7F]/g, '')
+    .trim();
+
 export function generateWorksheetPdf(opts: BuildOpts): Blob {
   const doc = new jsPDF({ unit: "mm", format: "a4" });
   doc.setFont("helvetica", "normal");
@@ -92,13 +100,17 @@ export function generateWorksheetPdf(opts: BuildOpts): Blob {
   doc.text(new Date().toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" }), MARGIN, y);
   y += 8;
   doc.setTextColor(...TEXT);
+  doc.setDrawColor(...TEAL);
+  doc.setLineWidth(0.5);
+  doc.line(MARGIN, y, MARGIN + CONTENT_W, y);
+  y += 6;
 
   // === SECTION 1: Query callout ===
   sectionHeader("Your question");
   {
     doc.setFont("helvetica", "italic");
     doc.setFontSize(12);
-    const lines = doc.splitTextToSize(`"${opts.query}"`, CONTENT_W - 8);
+    const lines = doc.splitTextToSize(`"${sanitizeForPdf(opts.query)}"`, CONTENT_W - 8);
     const lineHeight = 12 * 0.3528 * 1.3;
     const boxH = lines.length * lineHeight + 8;
     ensureSpace(boxH + 4);
@@ -120,7 +132,7 @@ export function generateWorksheetPdf(opts: BuildOpts): Blob {
   sectionHeader("What the wisdom says");
   if (opts.synthesis && opts.synthesis.trim().length > 0) {
     // Strip markdown artefacts for clean PDF rendering
-    const clean = opts.synthesis
+    const clean = sanitizeForPdf(opts.synthesis)
       .replace(/\*\*(.+?)\*\*/g, "$1")
       .replace(/\*(.+?)\*/g, "$1")
       .replace(/^#+\s*/gm, "")
@@ -140,7 +152,7 @@ export function generateWorksheetPdf(opts: BuildOpts): Blob {
     writeWrapped("(No highlights)", 10, "italic");
   } else {
     for (const h of top) {
-      const quoteText = h.text.length > 600 ? h.text.slice(0, 600).trimEnd() + "…" : h.text;
+      const quoteText = sanitizeForPdf(h.text);
       doc.setFont("helvetica", "italic");
       doc.setFontSize(10);
       doc.setTextColor(...TEXT);
@@ -153,7 +165,7 @@ export function generateWorksheetPdf(opts: BuildOpts): Blob {
         y += lh;
       }
       // Right-aligned attribution
-      doc.setFont("helvetica", "normal");
+      doc.setFont("helvetica", "bold");
       doc.setFontSize(9);
       doc.setTextColor(...MUTED);
       const attr = `— ${h.bookTitle}, ${h.author}`;
@@ -184,14 +196,25 @@ export function generateWorksheetPdf(opts: BuildOpts): Blob {
     doc.setFontSize(10);
     doc.setTextColor(...TEXT);
     for (const b of books) {
-      const line = `• ${b.title} — ${b.author}`;
-      const wrapped = doc.splitTextToSize(line, CONTENT_W);
+      ensureSpace(12);
+      // Title in bold teal
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(10);
+      doc.setTextColor(...TEAL);
+      const titleLines = doc.splitTextToSize(b.title, CONTENT_W - 4);
       const lh = 10 * 0.3528 * 1.3;
-      for (const wl of wrapped) {
+      for (const tl of titleLines) {
         ensureSpace(lh);
-        doc.text(wl, MARGIN, y);
+        doc.text(tl, MARGIN + 3, y);
         y += lh;
       }
+      // Author in muted normal
+      doc.setFont("helvetica", "italic");
+      doc.setFontSize(9);
+      doc.setTextColor(...MUTED);
+      doc.text(`by ${b.author}`, MARGIN + 3, y);
+      y += 5;
+      doc.setTextColor(...TEXT);
     }
   }
 
@@ -229,6 +252,7 @@ export function generateWorksheetPdf(opts: BuildOpts): Blob {
   });
 
   // === SECTION 6 ===
+  ensureSpace(80);
   sectionHeader("Make it real");
   doc.setFont("helvetica", "normal");
   doc.setFontSize(10);
@@ -265,7 +289,7 @@ export function generateWorksheetPdf(opts: BuildOpts): Blob {
     doc.setFontSize(8);
     doc.setTextColor(...MUTED);
     const footerY = PAGE_H - 10;
-    const left = "Glean — wisdom applied to life · Built by Vardan Mathur · linkedin.com/in/vardanmathur";
+    const left = "Glean — your personal wisdom library · Built by Vardan Mathur · linkedin.com/in/vardanmathur";
     const right = `Page ${p} of ${total}`;
     doc.text(left, MARGIN, footerY);
     const rW = doc.getTextWidth(right);
