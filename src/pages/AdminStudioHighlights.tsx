@@ -1087,6 +1087,7 @@ const AdminStudioHighlights = () => {
         }}
         saving={updateMutation.isPending}
       />
+      <FetchCoversDialog open={showCoversDialog} onOpenChange={setShowCoversDialog} />
     </div>
   );
 };
