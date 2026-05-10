@@ -36,6 +36,8 @@ const BookLookup = ({ selectedBook, onSelect, onClear }: BookLookupProps) => {
   const scannerRef = useRef<{ stop: () => void } | null>(null);
   const [scanError, setScanError] = useState<string | null>(null);
   const [resolvingIsbn, setResolvingIsbn] = useState(false);
+  const [manualIsbn, setManualIsbn] = useState("");
+  const [manualIsbnError, setManualIsbnError] = useState<string | null>(null);
 
   // Manual entry state
   const [manualTitle, setManualTitle] = useState("");
