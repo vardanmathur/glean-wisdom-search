@@ -25,6 +25,7 @@ import {
 import { useSessionStorageState } from "@/hooks/useSessionStorageState";
 import { useAuthGate } from "@/hooks/useAuthGate";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
+import FetchCoversDialog from "@/components/admin/FetchCoversDialog";
 
 const ADMIN_EDIT_DRAFT_PREFIX = "glean_admin_studio_edit_draft";
 
