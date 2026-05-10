@@ -184,35 +184,46 @@ const BookLookup = ({ selectedBook, onSelect, onClear }: BookLookupProps) => {
       let author = "Unknown";
       let coverUrl: string | null = null;
 
-      // Try Open Library first
-      try {
-        const res = await fetch(`https://openlibrary.org/isbn/${isbn}.json`);
-        if (!res.ok) throw new Error(`Open Library lookup failed (${res.status})`);
-        const ol = await res.json();
-        title = ol.title ?? null;
-        if (Array.isArray(ol.authors) && ol.authors.length > 0) {
-          const authorKey = ol.authors[0].key;
-          try {
-            const ar = await fetch(`https://openlibrary.org${authorKey}.json`);
-            if (ar.ok) {
-              const aj = await ar.json();
-              author = aj.name ?? author;
+        // Try Google Books first — single call returns title + author + cover
+        try {
+          const gb = await fetch(
+            `https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}`
+          );
+          if (gb.ok) {
+            const gj = await gb.json();
+            const item = gj.items?.[0]?.volumeInfo;
+            if (item?.title) {
+              title = item.title;
+              author = item.authors?.[0] ?? "Unknown";
+              coverUrl = item.imageLinks?.thumbnail ?? null;
             }
-          } catch { /* keep Unknown */ }
+          }
+        } catch { /* ignore */ }
+
+        // Fall back to Open Library if Google Books didn't return a title
+        if (!title) {
+          try {
+            const res = await fetch(`https://openlibrary.org/isbn/${isbn}.json`);
+            if (!res.ok) throw new Error(`Open Library lookup failed (${res.status})`);
+            const ol = await res.json();
+            title = ol.title ?? null;
+            if (Array.isArray(ol.authors) && ol.authors.length > 0) {
+              const authorKey = ol.authors[0].key;
+              try {
+                const ar = await fetch(`https://openlibrary.org${authorKey}.json`);
+                if (ar.ok) {
+                  const aj = await ar.json();
+                  author = aj.name ?? "Unknown";
+                }
+              } catch { /* keep Unknown */ }
+            }
+            coverUrl = `https://covers.openlibrary.org/b/isbn/${isbn}-L.jpg`;
+          } catch (olErr) {
+            throw new Error("Both Google Books and Open Library failed");
+          }
         }
-        coverUrl = `https://covers.openlibrary.org/b/isbn/${isbn}-L.jpg`;
-      } catch (olErr) {
-        console.warn("Open Library failed, trying Google Books", olErr);
-        // Google Books fallback
-        const gb = await fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}`);
-        if (!gb.ok) throw new Error("Both Open Library and Google Books failed");
-        const gj = await gb.json();
-        const item = gj.items?.[0]?.volumeInfo;
-        if (!item?.title) throw new Error("No book found for this ISBN");
-        title = item.title;
-        author = item.authors?.[0] ?? "Unknown";
-        coverUrl = item.imageLinks?.thumbnail ?? null;
-      }
+
+if (!title) throw new Error("No book found for this ISBN");
 
       const { data: created, error: insErr } = await supabase
         .from("books")
