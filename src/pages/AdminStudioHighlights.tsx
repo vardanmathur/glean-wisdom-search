@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Check, AlertCircle, ChevronLeft, ChevronRight, Pencil, X, ChevronDown, Search, ArrowUpDown, ArrowUp, ArrowDown, Trash2, Copy, Loader2, Sparkles, Download } from "lucide-react";
+import { Check, AlertCircle, ChevronLeft, ChevronRight, Pencil, X, ChevronDown, Search, ArrowUpDown, ArrowUp, ArrowDown, Trash2, Copy, Loader2, Sparkles, Download, Image as ImageIcon } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -25,6 +25,7 @@ import {
 import { useSessionStorageState } from "@/hooks/useSessionStorageState";
 import { useAuthGate } from "@/hooks/useAuthGate";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
+import FetchCoversDialog from "@/components/admin/FetchCoversDialog";
 
 const ADMIN_EDIT_DRAFT_PREFIX = "glean_admin_studio_edit_draft";
 
@@ -229,6 +230,7 @@ const AdminStudioHighlights = () => {
   const [generatingEmbeddings, setGeneratingEmbeddings] = useState(false);
   const [forceRegenerating, setForceRegenerating] = useState(false);
   const [pageInput, setPageInput] = useState("1");
+  const [showCoversDialog, setShowCoversDialog] = useState(false);
   useEffect(() => { setPageInput(String(page + 1)); }, [page]);
 
   useAuthGate("/auth", (u) => !!u);
@@ -769,6 +771,17 @@ const AdminStudioHighlights = () => {
           {exporting ? "Exporting…" : "Export CSV"}
         </Button>
 
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setShowCoversDialog(true)}
+          disabled={showCoversDialog}
+          className="gap-2"
+        >
+          <ImageIcon className="h-4 w-4" />
+          Fetch Missing Covers
+        </Button>
+
         {selectedIds.size > 0 && (
           <>
             <Button
@@ -1074,6 +1087,7 @@ const AdminStudioHighlights = () => {
         }}
         saving={updateMutation.isPending}
       />
+      <FetchCoversDialog open={showCoversDialog} onOpenChange={setShowCoversDialog} />
     </div>
   );
 };

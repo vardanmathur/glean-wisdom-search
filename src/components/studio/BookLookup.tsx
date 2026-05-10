@@ -36,6 +36,8 @@ const BookLookup = ({ selectedBook, onSelect, onClear }: BookLookupProps) => {
   const scannerRef = useRef<{ stop: () => void } | null>(null);
   const [scanError, setScanError] = useState<string | null>(null);
   const [resolvingIsbn, setResolvingIsbn] = useState(false);
+  const [manualIsbn, setManualIsbn] = useState("");
+  const [manualIsbnError, setManualIsbnError] = useState<string | null>(null);
 
   // Manual entry state
   const [manualTitle, setManualTitle] = useState("");
@@ -178,26 +180,43 @@ const BookLookup = ({ selectedBook, onSelect, onClear }: BookLookupProps) => {
     }
     setResolvingIsbn(true);
     try {
-      const res = await fetch(`https://openlibrary.org/isbn/${isbn}.json`);
-      if (!res.ok) throw new Error(`Open Library lookup failed (${res.status})`);
-      const ol = await res.json();
-      const title: string = ol.title ?? "Untitled";
+      let title: string | null = null;
       let author = "Unknown";
-      if (Array.isArray(ol.authors) && ol.authors.length > 0) {
-        const authorKey = ol.authors[0].key;
-        try {
-          const ar = await fetch(`https://openlibrary.org${authorKey}.json`);
-          if (ar.ok) {
-            const aj = await ar.json();
-            author = aj.name ?? author;
-          }
-        } catch { /* keep Unknown */ }
+      let coverUrl: string | null = null;
+
+      // Try Open Library first
+      try {
+        const res = await fetch(`https://openlibrary.org/isbn/${isbn}.json`);
+        if (!res.ok) throw new Error(`Open Library lookup failed (${res.status})`);
+        const ol = await res.json();
+        title = ol.title ?? null;
+        if (Array.isArray(ol.authors) && ol.authors.length > 0) {
+          const authorKey = ol.authors[0].key;
+          try {
+            const ar = await fetch(`https://openlibrary.org${authorKey}.json`);
+            if (ar.ok) {
+              const aj = await ar.json();
+              author = aj.name ?? author;
+            }
+          } catch { /* keep Unknown */ }
+        }
+        coverUrl = `https://covers.openlibrary.org/b/isbn/${isbn}-L.jpg`;
+      } catch (olErr) {
+        console.warn("Open Library failed, trying Google Books", olErr);
+        // Google Books fallback
+        const gb = await fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}`);
+        if (!gb.ok) throw new Error("Both Open Library and Google Books failed");
+        const gj = await gb.json();
+        const item = gj.items?.[0]?.volumeInfo;
+        if (!item?.title) throw new Error("No book found for this ISBN");
+        title = item.title;
+        author = item.authors?.[0] ?? "Unknown";
+        coverUrl = item.imageLinks?.thumbnail ?? null;
       }
-      const coverUrl = `https://covers.openlibrary.org/b/isbn/${isbn}-L.jpg`;
 
       const { data: created, error: insErr } = await supabase
         .from("books")
-        .insert({ title, author, isbn, cover_image_url: coverUrl })
+        .insert({ title: title ?? "Untitled", author, isbn, cover_image_url: coverUrl })
         .select("id, title, author")
         .single();
       if (insErr || !created) throw insErr ?? new Error("Insert failed");
@@ -209,6 +228,48 @@ const BookLookup = ({ selectedBook, onSelect, onClear }: BookLookupProps) => {
     } finally {
       setResolvingIsbn(false);
     }
+  };
+
+  // Fire-and-forget cover lookup for manually-created books
+  const fetchAndAttachCover = async (bookId: string, title: string, author: string) => {
+    try {
+      let coverUrl: string | null = null;
+      try {
+        const ol = await fetch(
+          `https://openlibrary.org/search.json?title=${encodeURIComponent(title)}&author=${encodeURIComponent(author)}&limit=1`,
+        );
+        if (ol.ok) {
+          const oj = await ol.json();
+          const coverId = oj.docs?.[0]?.cover_i;
+          if (coverId) coverUrl = `https://covers.openlibrary.org/b/id/${coverId}-M.jpg`;
+        }
+      } catch { /* ignore */ }
+      if (!coverUrl) {
+        try {
+          const gb = await fetch(
+            `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(title + " " + author)}&maxResults=1`,
+          );
+          if (gb.ok) {
+            const gj = await gb.json();
+            coverUrl = gj.items?.[0]?.volumeInfo?.imageLinks?.thumbnail ?? null;
+          }
+        } catch { /* ignore */ }
+      }
+      if (coverUrl) {
+        await supabase.from("books").update({ cover_image_url: coverUrl }).eq("id", bookId);
+      }
+    } catch { /* swallow */ }
+  };
+
+  const tryManualIsbn = async () => {
+    const cleaned = manualIsbn.replace(/[^0-9Xx]/g, "");
+    if (cleaned.length !== 10 && cleaned.length !== 13) {
+      setManualIsbnError("ISBN must be 10 or 13 digits");
+      return;
+    }
+    setManualIsbnError(null);
+    setScanError(null);
+    await resolveIsbn(cleaned);
   };
 
   const createManual = async () => {
@@ -228,6 +289,8 @@ const BookLookup = ({ selectedBook, onSelect, onClear }: BookLookupProps) => {
       if (error || !data) throw error;
       onSelect(data);
       toast.success(`Added "${data.title}"`);
+      // Fire and forget — never await
+      void fetchAndAttachCover(data.id, title, author);
     } catch (err) {
       console.error(err);
       toast.error("Failed to add book");
@@ -315,6 +378,21 @@ const BookLookup = ({ selectedBook, onSelect, onClear }: BookLookupProps) => {
               Enter manually instead
             </Button>
           </div>
+          <div className="flex items-center gap-2 pt-1 border-t">
+            <input
+              type="text"
+              inputMode="numeric"
+              value={manualIsbn}
+              onChange={(e) => { setManualIsbn(e.target.value); setManualIsbnError(null); }}
+              placeholder="Or type ISBN…"
+              className="h-9 flex-1 rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            />
+            <Button type="button" size="sm" variant="outline" onClick={tryManualIsbn} disabled={resolvingIsbn || !manualIsbn.trim()}>
+              {resolvingIsbn ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
+              Look Up
+            </Button>
+          </div>
+          {manualIsbnError && <p className="text-xs text-destructive">{manualIsbnError}</p>}
           {scanError && <p className="text-xs text-destructive">{scanError}</p>}
         </div>
       )}
