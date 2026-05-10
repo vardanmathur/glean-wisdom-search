@@ -78,10 +78,11 @@ export function generateWorksheetPdf(opts: BuildOpts): Blob {
   };
 
   const ruledLines = (count: number, gap = 7) => {
-    doc.setDrawColor(...GREY_RULE);
-    doc.setLineWidth(0.2);
     for (let i = 0; i < count; i++) {
       ensureSpace(gap);
+      // Re-set draw state after any addPage() call inside ensureSpace, which resets page state.
+      doc.setDrawColor(...GREY_RULE);
+      doc.setLineWidth(0.2);
       y += gap - 1;
       doc.line(MARGIN, y, MARGIN + CONTENT_W, y);
       y += 1;
@@ -139,7 +140,37 @@ export function generateWorksheetPdf(opts: BuildOpts): Blob {
       .replace(/^---+$/gm, "")
       .replace(/\n{3,}/g, "\n\n")
       .trim();
-    writeWrapped(clean, 10, "normal", 1.4);
+    const synthLh = 10 * 0.3528 * 1.4;
+    for (const rawLine of clean.split("\n")) {
+      const trimmed = rawLine.trim();
+      if (!trimmed) { y += synthLh * 0.5; continue; }
+      // Detect plain-text ALL CAPS section headers (e.g. "WHAT THE BOOKS SUGGEST")
+      const isAllCapsHeader =
+        trimmed.length > 8 &&
+        trimmed === trimmed.toUpperCase() &&
+        /^[A-Z][A-Z\s]+$/.test(trimmed);
+      if (isAllCapsHeader) {
+        y += synthLh * 0.5;
+        ensureSpace(synthLh * 2.5);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(10);
+        doc.setTextColor(...TEAL);
+        doc.text(trimmed, MARGIN, y);
+        y += 10 * 0.3528 * 1.8;
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(...TEXT);
+      } else {
+        const subLines = doc.splitTextToSize(rawLine, CONTENT_W);
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(10);
+        doc.setTextColor(...TEXT);
+        for (const sl of subLines) {
+          ensureSpace(synthLh);
+          doc.text(sl, MARGIN, y);
+          y += synthLh;
+        }
+      }
+    }
   } else {
     writeWrapped("(No synthesis available)", 10, "italic");
   }
@@ -164,14 +195,14 @@ export function generateWorksheetPdf(opts: BuildOpts): Blob {
         doc.text(line, MARGIN, y);
         y += lh;
       }
-      // Right-aligned attribution
-      doc.setFontSize(9);
-      doc.setTextColor(...MUTED);
+      // Right-aligned attribution — all state set after ensureSpace so a page break
+      // can't reset font/size before doc.text(), and attrW is computed in the same state.
       const attr = `— ${h.bookTitle}, ${h.author}`;
-      doc.setFont("helvetica", "bold");
-      const attrW = doc.getTextWidth(attr);
       ensureSpace(5);
       doc.setFont("helvetica", "bold");
+      doc.setFontSize(9);
+      doc.setTextColor(...MUTED);
+      const attrW = doc.getTextWidth(attr);
       doc.text(attr, MARGIN + CONTENT_W - attrW, y + 1);
       y += 7;
       doc.setTextColor(...TEXT);
@@ -254,7 +285,9 @@ export function generateWorksheetPdf(opts: BuildOpts): Blob {
   });
 
   // === SECTION 6 ===
-  ensureSpace(120);
+  // Make it real (92 mm) + Commitment (27 mm) = ~119 mm total. Use 135 to absorb
+  // floating-point rounding in font metrics that would push the last element over.
+  ensureSpace(135);
   sectionHeader("Make it real");
   doc.setFont("helvetica", "normal");
   doc.setFontSize(10);
