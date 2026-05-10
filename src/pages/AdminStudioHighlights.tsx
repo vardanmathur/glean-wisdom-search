@@ -230,6 +230,7 @@ const AdminStudioHighlights = () => {
   const [generatingEmbeddings, setGeneratingEmbeddings] = useState(false);
   const [forceRegenerating, setForceRegenerating] = useState(false);
   const [pageInput, setPageInput] = useState("1");
+  const [showCoversDialog, setShowCoversDialog] = useState(false);
   useEffect(() => { setPageInput(String(page + 1)); }, [page]);
 
   useAuthGate("/auth", (u) => !!u);
