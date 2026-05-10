@@ -22,7 +22,7 @@ const BookCard = ({ book, reason, matchedHighlightCount }: BookCardProps) => {
         )}
       </div>
       <div className="min-w-0">
-        <h3 className="font-display text-base font-semibold text-foreground truncate">{book.title}</h3>
+        <h3 className="font-display text-base font-semibold text-foreground">{book.title}</h3>
         <p className="text-sm text-muted-foreground">{book.author}</p>
         {matchedHighlightCount != null && matchedHighlightCount > 0 && (
           <p className="text-xs text-primary font-medium mt-1">
