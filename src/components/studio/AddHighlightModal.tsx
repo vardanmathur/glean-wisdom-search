@@ -306,7 +306,37 @@ const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags }: Add
       .slice(0, 8);
   })();
 
-  const canSave = !!user && quote.trim().length > 0 && !!book && !saving;
+  const canSave = !!user && quote.trim().length > 0 && !!book && (!!book.id || !!book.pending) && !saving;
+
+  const fetchAndAttachCover = async (bookId: string, title: string, author: string) => {
+    try {
+      let coverUrl: string | null = null;
+      try {
+        const ol = await fetch(
+          `https://openlibrary.org/search.json?title=${encodeURIComponent(title)}&author=${encodeURIComponent(author)}&limit=1`
+        );
+        if (ol.ok) {
+          const oj = await ol.json();
+          const coverId = oj.docs?.[0]?.cover_i;
+          if (coverId) coverUrl = `https://covers.openlibrary.org/b/id/${coverId}-M.jpg`;
+        }
+      } catch { /* ignore */ }
+      if (!coverUrl) {
+        try {
+          const gb = await fetch(
+            `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(title + " " + author)}&maxResults=1`
+          );
+          if (gb.ok) {
+            const gj = await gb.json();
+            coverUrl = gj.items?.[0]?.volumeInfo?.imageLinks?.thumbnail ?? null;
+          }
+        } catch { /* ignore */ }
+      }
+      if (coverUrl) {
+        await supabase.from("books").update({ cover_image_url: coverUrl }).eq("id", bookId);
+      }
+    } catch { /* swallow */ }
+  };  
 
   const handleSave = async () => {
     if (!user) return;
@@ -314,9 +344,29 @@ const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags }: Add
     if (!book) { toast.error("Pick a book first"); return; }
     setSaving(true);
     try {
+      // If book is pending (from ISBN lookup or manual entry), insert it now
+      let bookId = book.id;
+      if (book.pending || !bookId) {
+        const { data: newBook, error: bookError } = await supabase
+          .from("books")
+          .insert({
+            title: book.title,
+            author: book.author,
+            isbn: book.isbn ?? null,
+            cover_image_url: book.coverImageUrl ?? null,
+          })
+          .select("id")
+          .single();
+        if (bookError || !newBook) throw bookError ?? new Error("Failed to create book");
+        bookId = newBook.id;
+        // Fire-and-forget cover fetch for manual entries without cover
+        if (!book.coverImageUrl) {
+          void fetchAndAttachCover(bookId, book.title, book.author);
+        }
+      }
       const { error } = await supabase.from("highlights").insert({
         quote: quote.trim(),
-        book_id: book.id,
+        book_id: bookId,
         my_notes: notes.trim() || null,
         tags,
         visibility,

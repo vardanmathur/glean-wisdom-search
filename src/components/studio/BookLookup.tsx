@@ -5,9 +5,12 @@ import { Loader2, ScanBarcode, Pencil, X } from "lucide-react";
 import { toast } from "sonner";
 
 export interface SelectedBook {
-  id: string;
+  id: string | null;
   title: string;
   author: string;
+  coverImageUrl?: string;
+  isbn?: string;
+  pending?: boolean;
 }
 
 interface BookLookupProps {
@@ -225,14 +228,15 @@ const BookLookup = ({ selectedBook, onSelect, onClear }: BookLookupProps) => {
 
 if (!title) throw new Error("No book found for this ISBN");
 
-      const { data: created, error: insErr } = await supabase
-        .from("books")
-        .insert({ title: title ?? "Untitled", author, isbn, cover_image_url: coverUrl })
-        .select("id, title, author")
-        .single();
-      if (insErr || !created) throw insErr ?? new Error("Insert failed");
-      onSelect(created);
-      toast.success(`Linked to ${created.title}`);
+      onSelect({
+        id: null,
+        title: title ?? "Untitled",
+        author,
+        coverImageUrl: coverUrl ?? undefined,
+        isbn,
+        pending: true,
+      });
+      toast.success(`Found: ${title}`);
     } catch (err) {
       console.error(err);
       setScanError("Couldn't look up that ISBN. Try entering manually.");
@@ -283,31 +287,19 @@ if (!title) throw new Error("No book found for this ISBN");
     await resolveIsbn(cleaned);
   };
 
-  const createManual = async () => {
+  const createManual = () => {
     const title = manualTitle.trim();
     const author = manualAuthor.trim();
     if (!title || !author) {
       toast.error("Title and author are required");
       return;
     }
-    setCreatingManual(true);
-    try {
-      const { data, error } = await supabase
-        .from("books")
-        .insert({ title, author })
-        .select("id, title, author")
-        .single();
-      if (error || !data) throw error;
-      onSelect(data);
-      toast.success(`Added "${data.title}"`);
-      // Fire and forget — never await
-      void fetchAndAttachCover(data.id, title, author);
-    } catch (err) {
-      console.error(err);
-      toast.error("Failed to add book");
-    } finally {
-      setCreatingManual(false);
-    }
+    onSelect({
+      id: null,
+      title,
+      author,
+      pending: true,
+    });
   };
 
   if (selectedBook) {
