@@ -378,6 +378,21 @@ const BookLookup = ({ selectedBook, onSelect, onClear }: BookLookupProps) => {
               Enter manually instead
             </Button>
           </div>
+          <div className="flex items-center gap-2 pt-1 border-t">
+            <input
+              type="text"
+              inputMode="numeric"
+              value={manualIsbn}
+              onChange={(e) => { setManualIsbn(e.target.value); setManualIsbnError(null); }}
+              placeholder="Or type ISBN…"
+              className="h-9 flex-1 rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            />
+            <Button type="button" size="sm" variant="outline" onClick={tryManualIsbn} disabled={resolvingIsbn || !manualIsbn.trim()}>
+              {resolvingIsbn ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
+              Look Up
+            </Button>
+          </div>
+          {manualIsbnError && <p className="text-xs text-destructive">{manualIsbnError}</p>}
           {scanError && <p className="text-xs text-destructive">{scanError}</p>}
         </div>
       )}
