@@ -771,6 +771,17 @@ const AdminStudioHighlights = () => {
           {exporting ? "Exporting…" : "Export CSV"}
         </Button>
 
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setShowCoversDialog(true)}
+          disabled={showCoversDialog}
+          className="gap-2"
+        >
+          <ImageIcon className="h-4 w-4" />
+          Fetch Missing Covers
+        </Button>
+
         {selectedIds.size > 0 && (
           <>
             <Button
