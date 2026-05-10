@@ -163,7 +163,7 @@ const HighlightEditPanel = ({ highlight, allTags, open, onOpenChange }: Highligh
           side={isMobile ? "bottom" : "right"}
           className={
             isMobile
-              ? "h-[90vh] overflow-y-auto"
+              ? "w-full h-[90vh] overflow-y-auto"
               : "w-full sm:w-[480px] sm:max-w-[480px] overflow-y-auto"
           }
         >
