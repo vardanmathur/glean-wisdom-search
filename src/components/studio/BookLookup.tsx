@@ -289,6 +289,8 @@ const BookLookup = ({ selectedBook, onSelect, onClear }: BookLookupProps) => {
       if (error || !data) throw error;
       onSelect(data);
       toast.success(`Added "${data.title}"`);
+      // Fire and forget — never await
+      void fetchAndAttachCover(data.id, title, author);
     } catch (err) {
       console.error(err);
       toast.error("Failed to add book");
