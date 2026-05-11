@@ -1,4 +1,7 @@
+import { useState } from "react";
 import { Loader2, Check, X, Sparkles } from "lucide-react";
+
+const FIVE_DAYS_MS = 5 * 24 * 60 * 60 * 1000;
 
 interface InterestRow {
   id: string;
@@ -29,6 +32,17 @@ const FeatureInterestTable = ({
   onGrant,
   onRevoke,
 }: FeatureInterestTableProps) => {
+  const [showStale, setShowStale] = useState(false);
+
+  const now = Date.now();
+  const isCollapsible = (r: InterestRow) => {
+    const key = `${r.user_id}::${r.feature}`;
+    return now - new Date(r.created_at).getTime() > FIVE_DAYS_MS && permissions.has(key);
+  };
+
+  const staleCount = rows.filter(isCollapsible).length;
+  const visibleRows = showStale ? rows : rows.filter((r) => !isCollapsible(r));
+
   const formatDate = (iso: string) =>
     new Date(iso).toLocaleDateString(undefined, {
       year: "numeric",
@@ -71,7 +85,7 @@ const FeatureInterestTable = ({
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((r) => {
+                  {visibleRows.map((r) => {
                     const key = `${r.user_id}::${r.feature}`;
                     const granted = permissions.has(key);
                     const isPending = pending[key];
@@ -127,7 +141,7 @@ const FeatureInterestTable = ({
 
             {/* Mobile */}
             <div className="md:hidden divide-y">
-              {rows.map((r) => {
+              {visibleRows.map((r) => {
                 const key = `${r.user_id}::${r.feature}`;
                 const granted = permissions.has(key);
                 const isPending = pending[key];
@@ -176,6 +190,19 @@ const FeatureInterestTable = ({
                 );
               })}
             </div>
+
+            {staleCount > 0 && (
+              <div className="border-t px-4 py-3 text-center">
+                <button
+                  onClick={() => setShowStale((s) => !s)}
+                  className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  {showStale
+                    ? "Hide older requests"
+                    : `Show ${staleCount} older request${staleCount !== 1 ? "s" : ""}`}
+                </button>
+              </div>
+            )}
           </>
         )}
       </div>
