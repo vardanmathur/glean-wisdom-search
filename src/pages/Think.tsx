@@ -71,7 +71,6 @@ const todayUtc = (): string => {
 
 const Think = () => {
   const { user, authLoading } = useAuth();
-  const { hasPermission, loading: permsLoading } = usePermissions();
   const navigate = useNavigate();
 
   const [mode, setMode, clearMode] = useSessionStorageState<Mode | null>(`${THINK_SESSION_KEY}_mode`, null);
