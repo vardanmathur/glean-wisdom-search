@@ -1,7 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
-import { usePermissions } from "@/hooks/usePermissions";
 import { supabase } from "@/integrations/supabase/client";
 import ThinkHeader from "@/components/think/ThinkHeader";
 import ForgeMode, { ForgeHighlight } from "@/components/think/ForgeMode";
