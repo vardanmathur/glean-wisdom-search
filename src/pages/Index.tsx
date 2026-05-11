@@ -204,7 +204,7 @@ const Index = () => {
         <span className="mx-1">·</span>
         <Link to="/privacy" className="underline hover:text-foreground transition-colors">Privacy Policy</Link>
       </footer>
-      <EarlyAccessPill />
+      
       <Dialog open={sparkOpen} onOpenChange={setSparkOpen}>
         <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
         <DialogHeader className="flex flex-row items-center justify-between">
