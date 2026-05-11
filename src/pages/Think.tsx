@@ -395,18 +395,6 @@ const Think = () => {
     );
   }
 
-  if (permsLoading) {
-    return (
-      <div className="min-h-[60vh] flex items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-primary" />
-      </div>
-    );
-  }
-
-  if (!hasPermission("think")) {
-    return <div className="min-h-[60vh]" />;
-  }
-
   const limitReached = creditsUsed !== null && dailyLimit !== null && creditsUsed >= dailyLimit;
   const remaining = creditsUsed !== null && dailyLimit !== null ? Math.max(0, dailyLimit - creditsUsed) : null;
 
