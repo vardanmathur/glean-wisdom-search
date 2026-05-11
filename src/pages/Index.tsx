@@ -93,43 +93,6 @@ const Index = () => {
 
   return (
     <div className="flex min-h-[calc(100vh-4rem)] flex-col items-center px-4 pt-6">
-      {bannerFeatures.length > 0 && (
-        <div className="w-full max-w-2xl mb-6 flex flex-col gap-2">
-          {bannerFeatures.map((f) => {
-            const meta = FEATURE_META[f];
-            if (!meta) return null;
-            return (
-              <div
-                key={f}
-                className="flex items-center justify-between gap-3 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 text-sm"
-              >
-                <Link
-                  to={meta.route}
-                  className="flex items-center gap-2 text-primary hover:text-primary/80 transition-colors group"
-                >
-                  <span aria-hidden>🎉</span>
-                  <span>
-                    You now have access to{" "}
-                    <span className="font-semibold">{meta.label}</span> —
-                  </span>
-                  <span className="font-medium inline-flex items-center gap-1">
-                    Try it now
-                    <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
-                  </span>
-                </Link>
-                <button
-                  type="button"
-                  onClick={() => dismissBanner(f)}
-                  className="text-muted-foreground hover:text-foreground transition-colors"
-                  aria-label="Dismiss"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-            );
-          })}
-        </div>
-      )}
       <div className="flex flex-1 flex-col items-center justify-center w-full">
       <div className="w-full max-w-2xl text-center mb-12">
         <div className="inline-flex items-center gap-2 text-primary mb-6">
