@@ -418,7 +418,11 @@ type ImportResult = {
 
 const Import = () => {
   const { user, authLoading } = useAuth();
-  const { hasPermission, loading: permLoading } = usePermissions();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!authLoading && !user) navigate("/auth", { replace: true });
+  }, [authLoading, user, navigate]);
 
   const [step, setStep] = useState<Step>(1);
   const [file, setFile] = useState<File | null>(null);
