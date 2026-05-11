@@ -151,12 +151,12 @@ const Index = () => {
 
       <section id="early-access" className="w-full max-w-2xl mb-12 rounded-xl bg-primary/5 border-l-2 border-primary/30 px-4 py-3 scroll-mt-20">
         <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-2">
-          Early Access
+          Your Toolkit
         </h3>
         <div className="flex flex-col divide-y divide-primary/10">
           {[
             { icon: Brain, title: "Think!", description: "A daily practice for your mind. Forge your thinking or stress-test your beliefs against the wisdom in your library.", route: "/think", cta: "Try Think!" },
-            { icon: Upload, title: "Import", description: "Your Kindle highlights are a goldmine of your own past wisdom. Import brings them back to life.", route: "/import", cta: "Go to Import" },
+            { icon: Upload, title: "Import", description: "Your highlights, your library. Import from Kindle or add manually — Glean gets smarter the more you make it yours.", route: "/import", cta: "Go to Import" },
           ].map(({ icon: Icon, title, description, route, cta }) => (
             <div key={title} className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm text-muted-foreground py-2">
               <span className="inline-flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-foreground/70">
