@@ -186,29 +186,39 @@ const Index = () => {
         <InstallPrompt />
       </div>
 
-      {!hideEarlyAccess && (
-        <section id="early-access" className="w-full max-w-2xl mb-12 rounded-xl bg-primary/5 border-l-2 border-primary/30 px-4 py-3 scroll-mt-20">
-          <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-2">
-            Early Access
-          </h3>
-          <div className="flex flex-col divide-y divide-primary/10">
-            <ComingSoonCard
-              feature="think"
-              title="Think!"
-              description="A daily practice for your mind. Forge your thinking or stress-test your beliefs against the wisdom in your library."
-              icon={Brain}
-              featureRoute="/think"
-            />
-            <ComingSoonCard
-              feature="import"
-              title="Import"
-              description="Your Kindle highlights are a goldmine of your own past wisdom. Import brings them back to life."
-              icon={Upload}
-              featureRoute="/import"
-            />
-          </div>
-        </section>
-      )}
+      <section id="early-access" className="w-full max-w-2xl mb-12 rounded-xl bg-primary/5 border-l-2 border-primary/30 px-4 py-3 scroll-mt-20">
+        <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-2">
+          Early Access
+        </h3>
+        <div className="flex flex-col divide-y divide-primary/10">
+          {[
+            { icon: Brain, title: "Think!", description: "A daily practice for your mind. Forge your thinking or stress-test your beliefs against the wisdom in your library.", route: "/think", cta: "Try Think!" },
+            { icon: Upload, title: "Import", description: "Your Kindle highlights are a goldmine of your own past wisdom. Import brings them back to life.", route: "/import", cta: "Go to Import" },
+          ].map(({ icon: Icon, title, description, route, cta }) => (
+            <div key={title} className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm text-muted-foreground py-2">
+              <span className="inline-flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-foreground/70">
+                <Icon className="h-4 w-4 text-primary" strokeWidth={2} />
+                {title}
+              </span>
+              <span className="text-muted-foreground">{description}</span>
+              {user ? (
+                <Link to={route} className="inline-flex items-center gap-1 text-primary hover:text-primary/80 hover:underline underline-offset-2 transition-colors">
+                  {cta}
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </Link>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => navigate("/auth")}
+                  className="inline-flex items-center gap-1 text-primary hover:text-primary/80 hover:underline underline-offset-2 transition-colors"
+                >
+                  Sign in to try
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      </section>
 
       <div className="w-full max-w-2xl text-center">
         <h2 className="font-display text-2xl text-foreground mb-6">Browse by Topic</h2>
