@@ -73,7 +73,7 @@ const BrowseBooks = () => {
                   <div className="min-w-0 relative z-10 overflow-hidden">
                 <Tooltip>
                   <TooltipTrigger className="w-full text-left block max-w-full overflow-hidden">
-                    <h3 className="font-display text-base font-semibold text-foreground truncate cursor-default">{book.title}</h3>
+                    <h3 className="font-display text-base font-semibold text-foreground break-words cursor-default">{book.title}</h3>
                   </TooltipTrigger>
                   <TooltipContent>{book.title} by {book.author}</TooltipContent>
                 </Tooltip>

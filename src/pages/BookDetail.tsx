@@ -81,7 +81,7 @@ const BookDetail = () => {
           )}
         </div>
         <div>
-          <h1 className="font-display text-3xl text-foreground">{book.title}</h1>
+          <h1 className="font-display text-xl sm:text-3xl text-foreground">{book.title}</h1>
           <p className="text-muted-foreground mt-1">{book.author}</p>
           <TooltipProvider delayDuration={0}>
             <div className="mt-2 flex items-center gap-3">
