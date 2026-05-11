@@ -1,24 +1,14 @@
 import { useNavigate } from "react-router-dom";
-import { useEffect, useState } from "react";
-import { Search, Leaf, Brain, Upload, X, ArrowRight, Sparkles, Loader2, Shuffle } from "lucide-react";
+import { useState } from "react";
+import { Search, Leaf, Brain, Upload, ArrowRight, Sparkles, Loader2, Shuffle } from "lucide-react";
 import { Link } from "react-router-dom";
 import InstallPrompt from "@/components/InstallPrompt";
-import ComingSoonCard from "@/components/ComingSoonCard";
-import EarlyAccessPill from "@/components/EarlyAccessPill";
 import HighlightCard from "@/components/HighlightCard";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useQuery } from "@tanstack/react-query";
 import { getGleanStats, type Highlight } from "@/lib/data";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
-import { usePermissions } from "@/hooks/usePermissions";
-import { useIsAdmin } from "@/hooks/useIsAdmin";
-
-
-const FEATURE_META: Record<string, { label: string; route: string }> = {
-  think: { label: "Think!", route: "/think" },
-  import: { label: "Import", route: "/studio" },
-};
 
 const exampleQueries = [
   "I'm struggling to motivate my team",
@@ -36,37 +26,10 @@ const Index = () => {
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
   const { user } = useAuth();
-  const { hasPermission, loading: permsLoading } = usePermissions();
-  const { isAdmin } = useIsAdmin();
   const { data: stats } = useQuery({
     queryKey: ["glean-stats"],
     queryFn: getGleanStats,
   });
-
-  const hasThink = !!user && !isAdmin && hasPermission("think");
-  const hasImport = !!user && !isAdmin && hasPermission("import");
-  // Always keep the Early Access section visible. It's the home page's
-  // permanent entry point to Studio for granted import users — once the
-  // What's new banner is dismissed, this section is the only way back in.
-  const hideEarlyAccess = false;
-
-  // What's new banner — one per newly granted feature, dismissible per-feature
-  const [bannerFeatures, setBannerFeatures] = useState<string[]>([]);
-  useEffect(() => {
-    if (!user || isAdmin || permsLoading) return;
-    const granted: string[] = [];
-    if (hasThink) granted.push("think");
-    if (hasImport) granted.push("import");
-    const visible = granted.filter(
-      (f) => !localStorage.getItem(`glean_whats_new_dismissed_${f}`)
-    );
-    setBannerFeatures(visible);
-  }, [user, isAdmin, permsLoading, hasThink, hasImport]);
-
-  const dismissBanner = (feature: string) => {
-    localStorage.setItem(`glean_whats_new_dismissed_${feature}`, "1");
-    setBannerFeatures((prev) => prev.filter((f) => f !== feature));
-  };
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
