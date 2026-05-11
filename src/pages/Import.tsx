@@ -1,6 +1,6 @@
 import { useState, useRef, useMemo, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
-import { usePermissions } from "@/hooks/usePermissions";
+
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -9,7 +9,7 @@ import { Progress } from "@/components/ui/progress";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ChevronDown, Upload, FileText, ArrowLeft, AlertCircle, Loader2, CheckCircle2, BookOpen, Undo2 } from "lucide-react";
 import { toast } from "sonner";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 // ============================================================================
 // Kindle parsing — pure functions
@@ -418,7 +418,11 @@ type ImportResult = {
 
 const Import = () => {
   const { user, authLoading } = useAuth();
-  const { hasPermission, loading: permLoading } = usePermissions();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!authLoading && !user) navigate("/auth", { replace: true });
+  }, [authLoading, user, navigate]);
 
   const [step, setStep] = useState<Step>(1);
   const [file, setFile] = useState<File | null>(null);
@@ -493,43 +497,10 @@ const Import = () => {
     }
   }, [step, reviewSnapshot, stagedRows]);
 
-  if (authLoading || permLoading) {
+  if (authLoading || !user) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
         <Loader2 className="h-6 w-6 animate-spin text-primary" />
-      </div>
-    );
-  }
-
-  if (!user) {
-    return (
-      <div className="mx-auto flex min-h-[60vh] max-w-xl flex-col items-center justify-center px-4 text-center">
-        <h1 className="font-display text-3xl font-semibold text-foreground mb-3">Import your Kindle highlights</h1>
-        <p className="text-muted-foreground mb-6">
-          Import your Kindle highlights into your private Glean library. Sign in to get started — your highlights will only be visible to you.
-        </p>
-        <Button
-          onClick={() =>
-            supabase.auth.signInWithOAuth({
-              provider: "google",
-              options: { redirectTo: `${window.location.origin}/import` },
-            })
-          }
-          size="lg"
-        >
-          Sign in with Google
-        </Button>
-      </div>
-    );
-  }
-
-  if (!hasPermission("import")) {
-    return (
-      <div className="mx-auto flex min-h-[60vh] max-w-xl flex-col items-center justify-center px-4 text-center">
-        <h1 className="font-display text-3xl font-semibold text-foreground mb-3">Import</h1>
-        <p className="text-muted-foreground">
-          You don't have access to this feature yet. Contact us to request access.
-        </p>
       </div>
     );
   }
