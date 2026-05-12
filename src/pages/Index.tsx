@@ -113,7 +113,7 @@ const Index = () => {
         )}
       </div>
 
-      <form onSubmit={handleSearch} className="w-full max-w-xl mb-4">
+      <form onSubmit={handleSearch} className="w-full max-w-xl mb-3">
         <div className="relative">
           <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
           <input
@@ -126,19 +126,19 @@ const Index = () => {
         </div>
       </form>
 
-      <div className="flex flex-wrap justify-center gap-2 max-w-xl mb-8">
+      <div className="flex overflow-x-auto gap-2 max-w-xl mb-4 pb-1 snap-x px-1 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
         {exampleQueries.map((q) => (
           <button
             key={q}
             onClick={() => handleChipClick(q)}
-            className="rounded-full border bg-card px-4 py-2 text-sm text-muted-foreground hover:text-foreground hover:border-primary/30 hover:bg-primary/5 transition-all card-shadow"
+            className="shrink-0 snap-start rounded-full border bg-card px-4 py-2 text-sm text-muted-foreground hover:text-foreground hover:border-primary/30 hover:bg-primary/5 transition-all card-shadow"
           >
             {q}
           </button>
         ))}
         <button
           onClick={handleInspireMe}
-          className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/5 px-4 py-2 text-sm font-medium text-primary hover:bg-primary/10 transition-all card-shadow"
+          className="shrink-0 snap-start inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/5 px-4 py-2 text-sm font-medium text-primary hover:bg-primary/10 transition-all card-shadow"
         >
           <Sparkles className="h-4 w-4" />
           Inspire Me
