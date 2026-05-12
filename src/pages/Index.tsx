@@ -101,9 +101,8 @@ const Index = () => {
         <h1 className="font-display text-3xl sm:text-4xl md:text-5xl font-semibold text-foreground leading-tight mb-4 text-balance">
           What's on <span className="text-primary">your mind?</span>
         </h1>
-        <p className="text-base sm:text-lg text-muted-foreground max-w-md mx-auto">
-          Describe your challenge — I'll surface relevant wisdom <br />
-          and help you think it through.
+        <p className="text-sm sm:text-lg text-muted-foreground max-w-md mx-auto">
+          Describe your challenge — I'll surface relevant wisdom and help you think it through.
         </p>
 
         {stats && (
@@ -143,7 +142,7 @@ const Index = () => {
         </button>
       </div>
 
-      <div className="flex flex-wrap justify-center gap-3 mb-10">
+      <div className="flex flex-wrap justify-center gap-3">
         <InstallPrompt />
       </div>
 
