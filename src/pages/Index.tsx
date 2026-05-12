@@ -149,7 +149,7 @@ const Index = () => {
         <InstallPrompt />
       </div>
 
-      <section id="early-access" className="w-full max-w-2xl mb-12 rounded-xl bg-primary/5 border-l-2 border-primary/30 px-4 py-3 scroll-mt-20">
+      <section id="early-access" className="w-full max-w-2xl mb-6 sm:mb-12 rounded-xl bg-primary/5 border-l-2 border-primary/30 px-4 py-3 scroll-mt-20">
         <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-2">
           Your Toolkit
         </h3>
