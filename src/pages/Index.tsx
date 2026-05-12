@@ -92,16 +92,16 @@ const Index = () => {
   };
 
   return (
-    <div className="flex min-h-[calc(100vh-4rem)] flex-col items-center px-4 pt-6">
+    <div className="flex min-h-[calc(100vh-4rem)] flex-col items-center px-4 pt-3 sm:pt-6">
       <div className="flex flex-1 flex-col items-center justify-center w-full">
-      <div className="w-full max-w-2xl text-center mb-12">
-        <div className="inline-flex items-center gap-2 text-primary mb-6">
+      <div className="w-full max-w-2xl text-center mb-6 sm:mb-12">
+        <div className="hidden sm:inline-flex items-center gap-2 text-primary mb-6">
           <Leaf className="h-8 w-8" />
         </div>
-        <h1 className="font-display text-4xl sm:text-5xl font-semibold text-foreground leading-tight mb-4 text-balance">
+        <h1 className="font-display text-3xl sm:text-4xl md:text-5xl font-semibold text-foreground leading-tight mb-4 text-balance">
           What's on <span className="text-primary">your mind?</span>
         </h1>
-        <p className="text-lg text-muted-foreground max-w-md mx-auto">
+        <p className="text-base sm:text-lg text-muted-foreground max-w-md mx-auto">
           Describe your challenge — I'll surface relevant wisdom <br />
           and help you think it through.
         </p>
@@ -113,7 +113,7 @@ const Index = () => {
         )}
       </div>
 
-      <form onSubmit={handleSearch} className="w-full max-w-xl mb-4">
+      <form onSubmit={handleSearch} className="w-full max-w-xl mb-3">
         <div className="relative">
           <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
           <input
@@ -126,19 +126,19 @@ const Index = () => {
         </div>
       </form>
 
-      <div className="flex flex-wrap justify-center gap-2 max-w-xl mb-8">
+      <div className="flex overflow-x-auto gap-2 max-w-xl mb-4 pb-1 snap-x px-1 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
         {exampleQueries.map((q) => (
           <button
             key={q}
             onClick={() => handleChipClick(q)}
-            className="rounded-full border bg-card px-4 py-2 text-sm text-muted-foreground hover:text-foreground hover:border-primary/30 hover:bg-primary/5 transition-all card-shadow"
+            className="shrink-0 snap-start rounded-full border bg-card px-4 py-2 text-sm text-muted-foreground hover:text-foreground hover:border-primary/30 hover:bg-primary/5 transition-all card-shadow"
           >
             {q}
           </button>
         ))}
         <button
           onClick={handleInspireMe}
-          className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/5 px-4 py-2 text-sm font-medium text-primary hover:bg-primary/10 transition-all card-shadow"
+          className="shrink-0 snap-start inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/5 px-4 py-2 text-sm font-medium text-primary hover:bg-primary/10 transition-all card-shadow"
         >
           <Sparkles className="h-4 w-4" />
           Inspire Me
@@ -149,7 +149,7 @@ const Index = () => {
         <InstallPrompt />
       </div>
 
-      <section id="early-access" className="w-full max-w-2xl mb-12 rounded-xl bg-primary/5 border-l-2 border-primary/30 px-4 py-3 scroll-mt-20">
+      <section id="early-access" className="w-full max-w-2xl mb-6 sm:mb-12 rounded-xl bg-primary/5 border-l-2 border-primary/30 px-4 py-3 scroll-mt-20">
         <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-2">
           Your Toolkit
         </h3>
