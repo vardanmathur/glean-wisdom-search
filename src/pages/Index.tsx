@@ -126,20 +126,18 @@ const Index = () => {
         </div>
       </form>
 
-      <div className="flex overflow-x-auto gap-2 max-w-xl mb-4 pb-1 snap-x px-1 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+      <div className="flex flex-wrap justify-center gap-1.5 max-w-xl mb-4">
         {exampleQueries.map((q) => (
           <button
             key={q}
             onClick={() => handleChipClick(q)}
-            className="shrink-0 snap-start rounded-full border bg-card px-4 py-2 text-sm text-muted-foreground hover:text-foreground hover:border-primary/30 hover:bg-primary/5 transition-all card-shadow"
-          >
+            className="rounded-full border bg-card px-3 py-1.5 text-xs sm:text-sm text-muted-foreground hover:text-foreground hover:border-primary/30 hover:bg-primary/5 transition-all card-shadow"          >
             {q}
           </button>
         ))}
         <button
           onClick={handleInspireMe}
-          className="shrink-0 snap-start inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/5 px-4 py-2 text-sm font-medium text-primary hover:bg-primary/10 transition-all card-shadow"
-        >
+          className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/5 px-3 py-1.5 text-xs sm:text-sm font-medium text-primary hover:bg-primary/10 transition-all card-shadow"        >
           <Sparkles className="h-4 w-4" />
           Inspire Me
         </button>
@@ -186,16 +184,16 @@ const Index = () => {
       <div className="w-full max-w-2xl text-center">
         <h2 className="font-display text-2xl text-foreground mb-6">Browse by Topic</h2>
         <div className="flex flex-wrap justify-center gap-2">
-          {featuredTopics.map((topic) => (
-            <Link
-              key={topic}
-              to={`/topics/${encodeURIComponent(topic)}`}
-              className="rounded-full bg-primary/8 border border-primary/15 px-4 py-2 text-sm font-medium text-primary hover:bg-primary/15 transition-colors"
-            >
-              {topic}
-            </Link>
-          ))}
-        </div>
+      {featuredTopics.map((topic, i) => (
+        <Link
+          key={topic}
+          to={`/topics/${encodeURIComponent(topic)}`}
+          className={`rounded-full bg-primary/8 border border-primary/15 px-4 py-2 text-sm font-medium text-primary hover:bg-primary/15 transition-colors ${i >= 5 ? 'hidden sm:inline-flex' : ''}`}
+        >
+          {topic}
+        </Link>
+      ))}
+      </div>
       </div>
       </div>
 
