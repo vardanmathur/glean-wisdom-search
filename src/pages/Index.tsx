@@ -92,16 +92,16 @@ const Index = () => {
   };
 
   return (
-    <div className="flex min-h-[calc(100vh-4rem)] flex-col items-center px-4 pt-6">
+    <div className="flex min-h-[calc(100vh-4rem)] flex-col items-center px-4 pt-3 sm:pt-6">
       <div className="flex flex-1 flex-col items-center justify-center w-full">
-      <div className="w-full max-w-2xl text-center mb-12">
-        <div className="inline-flex items-center gap-2 text-primary mb-6">
+      <div className="w-full max-w-2xl text-center mb-6 sm:mb-12">
+        <div className="hidden sm:inline-flex items-center gap-2 text-primary mb-6">
           <Leaf className="h-8 w-8" />
         </div>
-        <h1 className="font-display text-4xl sm:text-5xl font-semibold text-foreground leading-tight mb-4 text-balance">
+        <h1 className="font-display text-3xl sm:text-4xl md:text-5xl font-semibold text-foreground leading-tight mb-4 text-balance">
           What's on <span className="text-primary">your mind?</span>
         </h1>
-        <p className="text-lg text-muted-foreground max-w-md mx-auto">
+        <p className="text-base sm:text-lg text-muted-foreground max-w-md mx-auto">
           Describe your challenge — I'll surface relevant wisdom <br />
           and help you think it through.
         </p>
