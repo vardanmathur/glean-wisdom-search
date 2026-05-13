@@ -453,6 +453,7 @@ const Think = () => {
         )}
         {loadError && <p className="text-sm text-destructive mt-4">{loadError}</p>}
       </div>
+      </div>
     );
   }
 
