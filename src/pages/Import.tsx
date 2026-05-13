@@ -10,6 +10,8 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { ChevronDown, Upload, FileText, ArrowLeft, AlertCircle, Loader2, CheckCircle2, BookOpen, Undo2 } from "lucide-react";
 import { toast } from "sonner";
 import { Link, useNavigate } from "react-router-dom";
+import AddHighlightModal from "@/components/AddHighlightModal";
+import { ALL_TAGS } from "@/lib/tags";
 
 // ============================================================================
 // Kindle parsing — pure functions
@@ -442,6 +444,7 @@ const Import = () => {
   const [importing, setImporting] = useState(false);
   const [importProgress, setImportProgress] = useState({ done: 0, total: 0 });
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
+  const [addModalOpen, setAddModalOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Derived state for Step 3 — must be declared before any early returns
@@ -1156,9 +1159,17 @@ const Import = () => {
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8 sm:py-12">
-      <h1 className="font-display text-3xl sm:text-4xl font-semibold text-foreground mb-2">
-        Import your Kindle highlights
-      </h1>
+      <div className="flex items-baseline justify-between mb-2">
+        <h1 className="font-display text-3xl sm:text-4xl font-semibold text-foreground">
+          Import your Kindle highlights
+        </h1>
+        <button
+          onClick={() => setAddModalOpen(true)}
+          className="text-xs text-muted-foreground hover:text-foreground transition-colors shrink-0"
+        >
+          Add manually →
+        </button>
+      </div>
       <p className="text-muted-foreground mb-8">
         Upload your MyClippings.txt to add Kindle highlights to your private library.
       </p>
@@ -1659,6 +1670,12 @@ const Import = () => {
           </div>
         </div>
       )}
+      <AddHighlightModal
+        open={addModalOpen}
+        onOpenChange={setAddModalOpen}
+        onCreated={() => {}}
+        allTags={ALL_TAGS}
+      />
     </div>
   );
 };

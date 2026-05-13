@@ -14,6 +14,8 @@ import { ALL_TAGS } from "@/lib/tags";
 interface AddHighlightModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onCreated?: () => void;
+  allTags?: string[];
 }
 
 interface BookSuggestion {
