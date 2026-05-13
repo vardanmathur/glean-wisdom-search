@@ -13,6 +13,7 @@ interface Session {
   ai_response: string | null;
   created_at: string;
   promoted: boolean;
+  highlight_ids: string[]; // Added highlight_ids to the Session interface
 }
 
 interface OpponentRound {
@@ -28,6 +29,13 @@ interface OpponentData {
   takeaway: string;
 }
 
+interface CachedHighlight {
+  id: string;
+  quote: string;
+  bookTitle: string | null;
+  author: string | null;
+}
+
 const truncate = (s: string | null, n: number) =>
   !s ? "" : s.length > n ? s.slice(0, n).trimEnd() + "…" : s;
 
@@ -40,6 +48,8 @@ const ThinkHistory = () => {
 
   const [sessions, setSessions] = useState<Session[] | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [cachedHighlights, setCachedHighlights] = useState<Map<string, CachedHighlight>>(new Map());
+  const [fetchingHighlight, setFetchingHighlight] = useState<boolean>(false);
 
   useEffect(() => {
     if (!user) return;
@@ -47,7 +57,7 @@ const ThinkHistory = () => {
     (async () => {
       const { data, error } = await supabase
         .from("think_sessions")
-        .select("id, mode, user_input, ai_response, created_at, promoted")
+        .select("id, mode, user_input, ai_response, created_at, promoted, highlight_ids") // Select highlight_ids
         .eq("user_id", user.id)
         .order("created_at", { ascending: false })
         .limit(50);
@@ -64,6 +74,61 @@ const ThinkHistory = () => {
     };
   }, [user]);
 
+  // Effect to fetch highlight when a card is expanded
+  useEffect(() => {
+    if (!expandedId || !sessions) return;
+
+    const session = sessions.find(s => s.id === expandedId);
+    if (!session || !session.highlight_ids || session.highlight_ids.length === 0) {
+      setFetchingHighlight(false);
+      return;
+    }
+
+    const highlightId = session.highlight_ids[0];
+    if (cachedHighlights.has(highlightId)) {
+      setFetchingHighlight(false);
+      return;
+    }
+
+    let cancelled = false;
+    setFetchingHighlight(true);
+    (async () => {
+      try {
+        const { data, error } = await supabase
+          .from("highlights")
+          .select("id, quote, books!highlights_book_id_fkey(title, author)") // Corrected select statement with table prefix
+          .eq("id", highlightId)
+          .single();
+
+        if (cancelled) return;
+
+        if (error) {
+          console.error("Error fetching highlight:", error);
+        } else if (data) {
+          setCachedHighlights(prev => {
+            const newMap = new Map(prev);
+            newMap.set(highlightId, {
+              id: data.id,
+              quote: data.quote,
+              bookTitle: data.books?.title || null,
+              author: data.books?.author || null,
+            });
+            return newMap;
+          });
+        }
+      } finally {
+        if (!cancelled) {
+          setFetchingHighlight(false);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      setFetchingHighlight(false);
+    };
+  }, [expandedId, sessions, cachedHighlights]);
+
   const handleDelete = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
     if (!window.confirm("Delete this session?")) return;
@@ -78,6 +143,15 @@ const ThinkHistory = () => {
       toast.error("Failed to delete session");
     } else {
       setSessions((prev) => (prev ? prev.filter((s) => s.id !== id) : null));
+      // Also remove from cache if it was a highlight session
+      setCachedHighlights(prev => {
+        const newMap = new Map(prev);
+        const sessionToDelete = sessions?.find(s => s.id === id);
+        if (sessionToDelete && sessionToDelete.highlight_ids && sessionToDelete.highlight_ids.length > 0) {
+          newMap.delete(sessionToDelete.highlight_ids[0]);
+        }
+        return newMap;
+      });
     }
   };
 
@@ -116,6 +190,9 @@ const ThinkHistory = () => {
             const isOpen = expandedId === s.id;
             const isForge = s.mode === "forge";
             const preview = s.user_input ?? "[Opponent session]";
+            const highlightId = s.highlight_ids && s.highlight_ids.length > 0 ? s.highlight_ids[0] : null;
+            const cachedHighlight = highlightId ? cachedHighlights.get(highlightId) : null;
+
             return (
               <button
                 key={s.id}
@@ -148,6 +225,29 @@ const ThinkHistory = () => {
                 </p>
                 {isOpen && s.ai_response && (
                   <div className="mt-3 pt-3 border-t">
+                    {/* Display Original Highlight */}
+                    {fetchingHighlight && !cachedHighlight && highlightId ? (
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
+                        <Loader2 className="h-4 w-4 animate-spin" /> Loading original highlight...
+                      </div>
+                    ) : cachedHighlight ? (
+                      <div className="mb-4">
+                        <div className="text-xs uppercase tracking-wider text-muted-foreground mb-2">
+                          Original Highlight
+                        </div>
+                        <div className="border-l-2 border-primary/30 pl-3">
+                          <p className="italic text-sm text-foreground whitespace-pre-wrap">
+                            "{cachedHighlight.quote}"
+                          </p>
+                          {(cachedHighlight.bookTitle || cachedHighlight.author) && (
+                            <p className="text-xs text-muted-foreground text-right mt-1">
+                              — {cachedHighlight.bookTitle}{cachedHighlight.author ? `, ${cachedHighlight.author}` : ''}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    ) : null}
+
                     <div className="text-xs uppercase tracking-wider text-muted-foreground mb-2">
                       AI response
                     </div>
