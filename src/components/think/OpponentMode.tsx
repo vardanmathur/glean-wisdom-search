@@ -41,6 +41,7 @@ interface OpponentModeProps {
   onSubmit: (messages: Msg[]) => Promise<{ ok: boolean; response?: string; error?: string }>;
   onAllComplete: (history: Msg[]) => void;
   onComplete: () => void;
+  onSkip?: () => Promise<boolean>;
   disabled?: boolean;
 }
 
