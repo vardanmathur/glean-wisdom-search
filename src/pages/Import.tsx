@@ -10,7 +10,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { ChevronDown, Upload, FileText, ArrowLeft, AlertCircle, Loader2, CheckCircle2, BookOpen, Undo2 } from "lucide-react";
 import { toast } from "sonner";
 import { Link, useNavigate } from "react-router-dom";
-import AddHighlightModal from "@/components/AddHighlightModal";
+import AddHighlightModal from "@/components/studio/AddHighlightModal";
 import { ALL_TAGS } from "@/lib/tags";
 
 // ============================================================================
