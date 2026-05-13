@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import ThinkHeader from "@/components/think/ThinkHeader";
@@ -401,11 +401,15 @@ const Think = () => {
   // ===== Mode selection screen =====
   if (mode === null) {
     return (
-      <div className="container mx-auto max-w-2xl px-4 py-6 sm:py-10">
-        <div className="border-b pb-4 mb-8">
-          <div className="text-xs uppercase tracking-wider text-muted-foreground mb-1">Think!</div>
-          <h1 className="font-display text-2xl text-foreground">Today's practice — what would you like to do?</h1>
-          <p className="text-xs text-muted-foreground mt-3">
+      <div className="border-b pb-4 mb-8">
+      <div className="flex items-center justify-between mb-1">
+        <div className="text-xs uppercase tracking-wider text-muted-foreground">Think!</div>
+        <Link to="/think/history" className="text-xs text-muted-foreground hover:text-foreground transition-colors">
+          View history →
+        </Link>
+      </div>
+      <h1 className="font-display text-2xl text-foreground">Today's practice — what would you like to do?</h1>
+      <p className="text-xs text-muted-foreground mt-3">
             {remaining !== null && dailyLimit !== null ? (
               <>{remaining} of {dailyLimit} thinking credits remaining today</>
             ) : (
