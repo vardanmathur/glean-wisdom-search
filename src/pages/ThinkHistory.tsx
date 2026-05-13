@@ -189,9 +189,11 @@ const ThinkHistory = () => {
           {sessions.map((s) => {
             const isOpen = expandedId === s.id;
             const isForge = s.mode === "forge";
-            const preview = s.user_input ?? "[Opponent session]";
             const highlightId = s.highlight_ids && s.highlight_ids.length > 0 ? s.highlight_ids[0] : null;
             const cachedHighlight = highlightId ? cachedHighlights.get(highlightId) : null;
+            const preview = cachedHighlight 
+              ? cachedHighlight.quote 
+              : isForge ? (s.user_input ?? "[No highlight]") : "[Opponent session]";
 
             return (
               <button
@@ -233,7 +235,7 @@ const ThinkHistory = () => {
                     ) : cachedHighlight ? (
                       <div className="mb-4">
                         <div className="text-xs uppercase tracking-wider text-muted-foreground mb-2">
-                          Original Highlight
+                          ORIGINAL HIGHLIGHT
                         </div>
                         <div className="border-l-2 border-primary/30 pl-3">
                           <p className="italic text-sm text-foreground whitespace-pre-wrap">
@@ -248,8 +250,19 @@ const ThinkHistory = () => {
                       </div>
                     ) : null}
 
+                    {isForge && (
+                      <div className="mb-4">
+                        <div className="text-xs uppercase tracking-wider text-muted-foreground mb-2">
+                          YOUR RESPONSE
+                        </div>
+                        <p className="text-sm text-foreground whitespace-pre-wrap">
+                          {s.user_input || "[No response]"}
+                        </p>
+                      </div>
+                    )}
+
                     <div className="text-xs uppercase tracking-wider text-muted-foreground mb-2">
-                      AI response
+                      {isForge ? "AI RESPONSE" : "AI response"}
                     </div>
                     {(() => {
                       try {
