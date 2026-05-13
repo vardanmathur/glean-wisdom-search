@@ -14,6 +14,19 @@ interface Session {
   promoted: boolean;
 }
 
+interface OpponentRound {
+  round: number;
+  user: string;
+  ai: string;
+}
+
+interface OpponentData {
+  persona: string;
+  personaName: string | null;
+  rounds: OpponentRound[];
+  takeaway: string;
+}
+
 const truncate = (s: string | null, n: number) =>
   !s ? "" : s.length > n ? s.slice(0, n).trimEnd() + "…" : s;
 
@@ -111,7 +124,49 @@ const ThinkHistory = () => {
                     <div className="text-xs uppercase tracking-wider text-muted-foreground mb-2">
                       AI response
                     </div>
-                    <p className="text-sm text-foreground whitespace-pre-wrap">{s.ai_response}</p>
+                    {(() => {
+                      try {
+                        const data: OpponentData = JSON.parse(s.ai_response);
+                        return (
+                          <div className="space-y-4">
+                            <div className="text-xs text-muted-foreground italic">
+                              Sparring with: {data.personaName || data.persona}
+                            </div>
+                            <div className="space-y-4">
+                              {data.rounds.map((round, idx) => (
+                                <div key={idx} className={idx > 0 ? "pt-4 border-t border-border/40" : ""}>
+                                  <div className="mb-2">
+                                    <span className="text-[10px] font-medium text-muted-foreground uppercase block mb-0.5">
+                                      You:
+                                    </span>
+                                    <p className="text-sm text-foreground whitespace-pre-wrap">
+                                      {round.user}
+                                    </p>
+                                  </div>
+                                  <div>
+                                    <span className="text-[10px] font-medium text-muted-foreground uppercase block mb-0.5">
+                                      AI:
+                                    </span>
+                                    <p className="text-sm text-foreground whitespace-pre-wrap">
+                                      {round.ai}
+                                    </p>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                            <div className="pt-3 border-t">
+                              <div className="text-xs font-bold text-teal-600 dark:text-teal-400 uppercase tracking-wider mb-1">
+                                Takeaway
+                              </div>
+                              <p className="text-sm text-foreground whitespace-pre-wrap">{data.takeaway}</p>
+                            </div>
+                          </div>
+                        );
+                      } catch (e) {
+                        // If parse fails, it's a Forge session or unexpected format
+                        return <p className="text-sm text-foreground whitespace-pre-wrap">{s.ai_response}</p>;
+                      }
+                    })()}
                   </div>
                 )}
               </button>
