@@ -41,6 +41,7 @@ interface OpponentModeProps {
   onSubmit: (messages: Msg[]) => Promise<{ ok: boolean; response?: string; error?: string }>;
   onAllComplete: (history: Msg[]) => void;
   onComplete: () => void;
+  onSkip?: () => Promise<boolean>;
   disabled?: boolean;
 }
 
@@ -56,6 +57,7 @@ const OpponentMode = ({
   onSubmit,
   onAllComplete,
   onComplete,
+  onSkip,
   disabled,
 }: OpponentModeProps) => {
   // Local picker state — persisted so backgrounding the app mid-pick doesn't lose progress.
@@ -248,9 +250,21 @@ const OpponentMode = ({
             <span className="text-xs text-muted-foreground">
               Round {exchangesDone + 1} of {MAX_EXCHANGES}
             </span>
-            <Button onClick={handleSubmit} disabled={submitting || !input.trim() || disabled}>
-              {submitting ? <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Sending…</> : "Submit"}
-            </Button>
+            <div className="flex items-center gap-4">
+              {history.length === 0 && onSkip && (
+                <button
+                  type="button"
+                  onClick={() => onSkip()}
+                  disabled={submitting}
+                  className="text-sm text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+                >
+                  Try a different quote
+                </button>
+              )}
+              <Button onClick={handleSubmit} disabled={submitting || !input.trim() || disabled}>
+                {submitting ? <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Sending…</> : "Submit"}
+              </Button>
+            </div>
           </div>
         </div>
       )}

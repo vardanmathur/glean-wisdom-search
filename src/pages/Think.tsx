@@ -230,6 +230,31 @@ const Think = () => {
     }
   }, [fetchForgeHighlight]);
 
+  // ===== Skip handler for Opponent — refetch a new highlight, no credit cost =====
+  const handleOpponentSkip = useCallback(async (): Promise<boolean> => {
+    setLoadError(null);
+    try {
+      const { data: rows } = await supabase
+        .from("highlights")
+        .select("id, quote, book_id")
+        .eq("source", "curated")
+        .or("visibility.eq.public,visibility.is.null")
+        .limit(300);
+      if (!rows || rows.length === 0) {
+        setLoadError("Couldn't load highlights. Try again.");
+        return false;
+      }
+      const pick = rows[Math.floor(Math.random() * rows.length)];
+      const enriched = await enrichWithBooks([pick]);
+      setOpponentHighlight(enriched[0] || null);
+      return true;
+    } catch (e) {
+      console.error(e);
+      setLoadError("Couldn't load highlights. Try again.");
+      return false;
+    }
+  }, [setOpponentHighlight]);
+
   // ===== Initial load: only credits, no highlights yet (selection screen first) =====
   useEffect(() => {
     if (!user) return;
@@ -501,6 +526,7 @@ const Think = () => {
           onSubmit={handleOpponentSubmit}
           onAllComplete={handleOpponentAllComplete}
           onComplete={startNewSession}
+          onSkip={handleOpponentSkip}
           disabled={limitReached}
         />
       ) : (
