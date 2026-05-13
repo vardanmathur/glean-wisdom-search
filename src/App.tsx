@@ -20,6 +20,7 @@ import Settings from "./pages/Settings";
 import Think from "./pages/Think";
 import AdminPermissions from "./pages/AdminPermissions";
 import Import from "./pages/Import";
+import ThinkHistory from "./pages/ThinkHistory";
 import UserStudio from "./pages/UserStudio";
 
 const queryClient = new QueryClient();
@@ -46,6 +47,7 @@ const App = () => (
             <Route path="/privacy" element={<PrivacyPolicy />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/think" element={<Think />} />
+            <Route path="/think/history" element={<ThinkHistory />} />
             <Route path="/admin/permissions" element={<AdminPermissions />} />
             <Route path="/import" element={<Import />} />
             <Route path="/studio" element={<UserStudio />} />
