@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { ArrowLeft, Loader2, Trash2 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useAuthGate } from "@/hooks/useAuthGate";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 interface Session {
   id: string;
@@ -63,6 +64,23 @@ const ThinkHistory = () => {
     };
   }, [user]);
 
+  const handleDelete = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    if (!window.confirm("Delete this session?")) return;
+
+    const { error } = await supabase
+      .from("think_sessions")
+      .delete()
+      .eq("id", id);
+
+    if (error) {
+      console.error(error);
+      toast.error("Failed to delete session");
+    } else {
+      setSessions((prev) => (prev ? prev.filter((s) => s.id !== id) : null));
+    }
+  };
+
   if (authLoading || !user || sessions === null) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center">
@@ -114,7 +132,16 @@ const ThinkHistory = () => {
                   >
                     {isForge ? "Forge" : "Opponent"}
                   </span>
-                  <span className="text-xs text-muted-foreground">{formatDate(s.created_at)}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground">{formatDate(s.created_at)}</span>
+                    <button
+                      onClick={(e) => handleDelete(e, s.id)}
+                      className="text-muted-foreground/40 hover:text-destructive transition-colors"
+                      title="Delete session"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
                 </div>
                 <p className="text-sm text-foreground">
                   {isOpen ? preview : truncate(preview, 120)}
