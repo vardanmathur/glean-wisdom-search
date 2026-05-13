@@ -57,6 +57,7 @@ const OpponentMode = ({
   onSubmit,
   onAllComplete,
   onComplete,
+  onSkip,
   disabled,
 }: OpponentModeProps) => {
   // Local picker state — persisted so backgrounding the app mid-pick doesn't lose progress.
