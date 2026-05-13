@@ -401,6 +401,7 @@ const Think = () => {
   // ===== Mode selection screen =====
   if (mode === null) {
     return (
+      <div className="container mx-auto max-w-2xl px-4 py-6 sm:py-10">
       <div className="border-b pb-4 mb-8">
       <div className="flex items-center justify-between mb-1">
         <div className="text-xs uppercase tracking-wider text-muted-foreground">Think!</div>
