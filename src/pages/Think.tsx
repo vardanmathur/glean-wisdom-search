@@ -526,6 +526,7 @@ const Think = () => {
           onSubmit={handleOpponentSubmit}
           onAllComplete={handleOpponentAllComplete}
           onComplete={startNewSession}
+          onSkip={handleOpponentSkip}
           disabled={limitReached}
         />
       ) : (
