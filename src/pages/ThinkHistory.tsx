@@ -49,7 +49,6 @@ const ThinkHistory = () => {
   const [sessions, setSessions] = useState<Session[] | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [cachedHighlights, setCachedHighlights] = useState<Map<string, CachedHighlight>>(new Map());
-  const [fetchingHighlight, setFetchingHighlight] = useState<boolean>(false);
 
   useEffect(() => {
     if (!user) return;
@@ -66,68 +65,41 @@ const ThinkHistory = () => {
         console.error(error);
         setSessions([]);
       } else {
-        setSessions(data || []);
+        const loadedSessions = data || [];
+        setSessions(loadedSessions);
+
+        // Collect all unique highlight IDs from all sessions
+        const allHighlightIds = [...new Set(
+          loadedSessions
+            .flatMap(s => s.highlight_ids || [])
+            .filter(Boolean)
+        )];
+
+        if (allHighlightIds.length > 0) {
+          const { data: hlData, error: hlError } = await supabase
+            .from("highlights")
+            .select("id, quote, books!highlights_book_id_fkey(title, author)")
+            .in("id", allHighlightIds);
+
+          if (!cancelled && !hlError && hlData) {
+            const newCache = new Map<string, CachedHighlight>();
+            (hlData as any[]).forEach((hl) => {
+              newCache.set(hl.id, {
+                id: hl.id,
+                quote: hl.quote,
+                bookTitle: hl.books?.title || null,
+                author: hl.books?.author || null,
+              });
+            });
+            setCachedHighlights(newCache);
+          }
+        }
       }
     })();
     return () => {
       cancelled = true;
     };
   }, [user]);
-
-  // Effect to fetch highlight when a card is expanded
-  useEffect(() => {
-    if (!expandedId || !sessions) return;
-
-    const session = sessions.find(s => s.id === expandedId);
-    if (!session || !session.highlight_ids || session.highlight_ids.length === 0) {
-      setFetchingHighlight(false);
-      return;
-    }
-
-    const highlightId = session.highlight_ids[0];
-    if (cachedHighlights.has(highlightId)) {
-      setFetchingHighlight(false);
-      return;
-    }
-
-    let cancelled = false;
-    setFetchingHighlight(true);
-    (async () => {
-      try {
-        const { data, error } = await supabase
-          .from("highlights")
-          .select("id, quote, books!highlights_book_id_fkey(title, author)") // Corrected select statement with table prefix
-          .eq("id", highlightId)
-          .single();
-
-        if (cancelled) return;
-
-        if (error) {
-          console.error("Error fetching highlight:", error);
-        } else if (data) {
-          setCachedHighlights(prev => {
-            const newMap = new Map(prev);
-            newMap.set(highlightId, {
-              id: data.id,
-              quote: data.quote,
-              bookTitle: data.books?.title || null,
-              author: data.books?.author || null,
-            });
-            return newMap;
-          });
-        }
-      } finally {
-        if (!cancelled) {
-          setFetchingHighlight(false);
-        }
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-      setFetchingHighlight(false);
-    };
-  }, [expandedId, sessions, cachedHighlights]);
 
   const handleDelete = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
@@ -228,11 +200,7 @@ const ThinkHistory = () => {
                 {isOpen && s.ai_response && (
                   <div className="mt-3 pt-3 border-t">
                     {/* Display Original Highlight */}
-                    {fetchingHighlight && !cachedHighlight && highlightId ? (
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
-                        <Loader2 className="h-4 w-4 animate-spin" /> Loading original highlight...
-                      </div>
-                    ) : cachedHighlight ? (
+                    {cachedHighlight ? (
                       <div className="mb-4">
                         <div className="text-xs uppercase tracking-wider text-muted-foreground mb-2">
                           ORIGINAL HIGHLIGHT
