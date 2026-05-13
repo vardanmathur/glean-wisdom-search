@@ -1165,7 +1165,7 @@ const Import = () => {
         </h1>
         <button
           onClick={() => setAddModalOpen(true)}
-          className="text-xs text-muted-foreground hover:text-foreground transition-colors shrink-0"
+          className="text-xs text-primary border border-primary/30 bg-primary/5 hover:bg-primary/10 rounded-md px-2.5 py-1 transition-colors shrink-0"
         >
           Add manually →
         </button>
