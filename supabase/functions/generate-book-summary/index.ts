@@ -95,21 +95,19 @@ serve(async (req) => {
       });
     }
 
-    // --- Upsert cache ---
-    const { error: upsertError } = await supabase
-      .from("book_summaries")
-      .upsert(
-        {
-          book_id: bookId,
-          summary,
-          manually_edited: false,
-          generated_at: new Date().toISOString(),
-        },
-        { onConflict: "book_id" }
-      );
-
-    if (upsertError) {
-      console.error("Cache write error:", upsertError.message);
+    // --- Write cache (update existing or insert) ---
+    const nowIso = new Date().toISOString();
+    if (cached) {
+      const { error: updateError } = await supabase
+        .from("book_summaries")
+        .update({ summary, manually_edited: false, generated_at: nowIso })
+        .eq("book_id", bookId);
+      if (updateError) console.error("Cache update error:", updateError.message);
+    } else {
+      const { error: insertError } = await supabase
+        .from("book_summaries")
+        .insert({ book_id: bookId, summary, manually_edited: false, generated_at: nowIso });
+      if (insertError) console.error("Cache insert error:", insertError.message);
     }
 
     return new Response(JSON.stringify({ summary }), {
