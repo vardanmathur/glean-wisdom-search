@@ -14,6 +14,38 @@ export type Database = {
   }
   public: {
     Tables: {
+      book_summaries: {
+        Row: {
+          book_id: string
+          generated_at: string
+          id: string
+          manually_edited: boolean
+          summary: string
+        }
+        Insert: {
+          book_id: string
+          generated_at?: string
+          id?: string
+          manually_edited?: boolean
+          summary: string
+        }
+        Update: {
+          book_id?: string
+          generated_at?: string
+          id?: string
+          manually_edited?: boolean
+          summary?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "book_summaries_book_id_fkey"
+            columns: ["book_id"]
+            isOneToOne: true
+            referencedRelation: "books"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       books: {
         Row: {
           author: string
