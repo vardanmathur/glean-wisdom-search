@@ -57,7 +57,7 @@ serve(async (req) => {
       .join("\n");
 
     const systemPrompt =
-      "You are a thoughtful literary curator. Given a collection of highlights from a book, write a 3-4 sentence summary that captures the book's core thesis, its most important insight, and why a busy professional should read it. Write in second person (e.g. 'This book will show you...'). Be specific — use details from the highlights, not generic praise. Max 80 words.";
+      "You are a thoughtful literary curator. Given a collection of highlights from a book, write a 3-4 sentence summary that captures the book's core thesis, its most important insight, and why it's worth reading. Write in an engaging direct tone. Be specific — use details from the highlights, not generic praise. Max 80 words.";
 
     const userContent = `Book: ${bookTitle}\nAuthor: ${author || "Unknown"}\n\nHighlights:\n${sample}`;
 
