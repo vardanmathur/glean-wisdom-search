@@ -470,6 +470,7 @@ export type Database = {
     }
     Functions: {
       has_role: { Args: { role_name: string }; Returns: boolean }
+      increment_think_usage: { Args: { _user_id: string }; Returns: undefined }
       match_highlights: {
         Args: { match_count?: number; query_embedding: string }
         Returns: {
