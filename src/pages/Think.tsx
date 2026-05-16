@@ -10,7 +10,7 @@ import { useSessionStorageState } from "@/hooks/useSessionStorageState";
 import { useAuthGate } from "@/hooks/useAuthGate";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 
-const DEFAULT_DAILY_LIMIT = 3;
+const DEFAULT_DAILY_LIMIT = 10;
 const THINK_SESSION_KEY = "glean_think_session";
 
 const FORGE_PROMPT =
