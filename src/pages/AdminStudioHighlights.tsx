@@ -463,6 +463,10 @@ const AdminStudioHighlights = () => {
     onSuccess: (_, { id }) => {
       showFeedback(id, "success");
       queryClient.invalidateQueries({ queryKey: ["studio-highlights"] });
+      // Fire-and-forget embedding refresh — never await, never block UI
+      supabase.functions
+        .invoke("generate-embeddings", { body: { ids: [id], force: true } })
+        .catch(() => { /* silent — surfaced in admin studio if needed */ });
     },
     onError: (_, { id }) => {
       showFeedback(id, "error");
