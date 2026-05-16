@@ -304,14 +304,6 @@ const Think = () => {
         return { ok: false, error: "Something went wrong. Please try again." };
       }
 
-      const { error: upErr } = await supabase
-        .from("think_usage")
-        .upsert(
-          { user_id: user.id, date: todayUtc(), ai_calls_used: used + 1 },
-          { onConflict: "user_id,date" },
-        );
-      if (upErr) console.error("usage upsert failed:", upErr);
-
       await loadCredits();
 
       return { ok: true, response };

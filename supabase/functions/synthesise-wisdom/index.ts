@@ -1,5 +1,6 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -70,6 +71,31 @@ serve(async (req) => {
 
       const data = await aiResp.json();
       const response = data.choices?.[0]?.message?.content || "";
+
+      // Server-side atomic usage increment (bypasses RLS via service role).
+      // Failures are logged but never block the response.
+      try {
+        const authHeader = req.headers.get("Authorization") || "";
+        const jwt = authHeader.replace("Bearer ", "").trim();
+        if (jwt) {
+          const serviceClient = createClient(
+            Deno.env.get("SUPABASE_URL")!,
+            Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+          );
+          const { data: userData, error: userErr } = await serviceClient.auth.getUser(jwt);
+          if (userErr) {
+            console.warn("usage: getUser failed:", userErr.message);
+          } else if (userData?.user) {
+            const { error: rpcErr } = await serviceClient.rpc("increment_think_usage", {
+              _user_id: userData.user.id,
+            });
+            if (rpcErr) console.warn("usage increment failed:", rpcErr.message);
+          }
+        }
+      } catch (e) {
+        console.warn("usage increment threw:", e);
+      }
+
       return new Response(JSON.stringify({ response }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
