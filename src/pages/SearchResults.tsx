@@ -110,9 +110,12 @@ const SynthesisCard = ({
             </div>
           ))}
           {highlightCount > 0 && (
-            <p className="text-xs text-muted-foreground mt-4">
-              Based on {highlightCount} curated highlight{highlightCount !== 1 ? "s" : ""}
-            </p>
+            <>
+              <Separator className="mt-5 bg-primary/20" />
+              <p className="text-xs text-muted-foreground mt-4">
+                Based on {highlightCount} curated highlight{highlightCount !== 1 ? "s" : ""}
+              </p>
+            </>
           )}
         </div>
       ) : (
