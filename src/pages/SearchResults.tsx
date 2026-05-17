@@ -306,8 +306,14 @@ const SearchResults = () => {
 
           <Separator className="mt-6 mb-6" />
 
-          <h2 className="font-display text-lg text-foreground mb-4">
-            The wisdom behind this
+          <p className="text-sm text-muted-foreground mb-6">
+            {totalFound <= 10
+              ? `${totalFound || results.length} highlight${(totalFound || results.length) !== 1 ? "s" : ""} found`
+              : `10 of ${totalFound} highlights used for synthesis`}
+          </p>
+
+          <h2 className="font-display text-base text-muted-foreground mb-4">
+            Supporting highlights
           </h2>
           <div className="space-y-4 mb-12">
             {results.map((h, i) => (
