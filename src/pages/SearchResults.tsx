@@ -73,7 +73,7 @@ const SynthesisCard = ({
   const hasSections = sections.length > 0;
 
   return (
-    <div className="rounded-xl border-l-4 border-primary bg-primary/5 p-6 mb-8">
+    <div className="rounded-xl border border-primary/20 bg-primary/5 p-8 mb-8 card-shadow-hover">
       <div className="flex items-center gap-2 mb-5">
         <Leaf className="h-4 w-4 text-primary" />
         <h2 className="text-sm font-medium tracking-wide text-primary uppercase">
