@@ -73,10 +73,10 @@ const SynthesisCard = ({
   const hasSections = sections.length > 0;
 
   return (
-    <div className="rounded-xl border-l-4 border-primary bg-primary/5 p-6 mb-8">
+    <div className="rounded-xl border border-primary/20 bg-primary/5 p-8 mb-8 card-shadow-hover">
       <div className="flex items-center gap-2 mb-5">
         <Leaf className="h-4 w-4 text-primary" />
-        <h2 className="text-sm font-medium tracking-wide text-primary uppercase">
+        <h2 className="text-sm font-medium tracking-[0.2em] text-primary uppercase">
           Glean's take
         </h2>
       </div>
@@ -110,9 +110,12 @@ const SynthesisCard = ({
             </div>
           ))}
           {highlightCount > 0 && (
-            <p className="text-xs text-muted-foreground mt-4">
-              Based on {highlightCount} curated highlight{highlightCount !== 1 ? "s" : ""}
-            </p>
+            <>
+              <Separator className="mt-5 bg-primary/20" />
+              <p className="text-xs text-muted-foreground mt-4">
+                Based on {highlightCount} curated highlight{highlightCount !== 1 ? "s" : ""}
+              </p>
+            </>
           )}
         </div>
       ) : (
@@ -121,9 +124,12 @@ const SynthesisCard = ({
             <ReactMarkdown>{synthesis}</ReactMarkdown>
           </div>
           {highlightCount > 0 && (
-            <p className="text-xs text-muted-foreground mt-4">
-              Based on {highlightCount} curated highlight{highlightCount !== 1 ? "s" : ""}
-            </p>
+            <>
+              <Separator className="mt-5 bg-primary/20" />
+              <p className="text-xs text-muted-foreground mt-4">
+                Based on {highlightCount} curated highlight{highlightCount !== 1 ? "s" : ""}
+              </p>
+            </>
           )}
         </>
       )}
@@ -260,12 +266,6 @@ const SearchResults = () => {
         </div>
       ) : (
         <>
-          <p className="text-sm text-muted-foreground mb-6">
-            {totalFound <= 10
-              ? `${totalFound || results.length} highlight${(totalFound || results.length) !== 1 ? "s" : ""} found`
-              : `10 of ${totalFound} highlights used for synthesis`}
-          </p>
-
           <SynthesisCard
             synthesis={synthesis}
             isLoading={isSynthesising}
@@ -306,8 +306,14 @@ const SearchResults = () => {
 
           <Separator className="mt-6 mb-6" />
 
-          <h2 className="font-display text-lg text-foreground mb-4">
-            The wisdom behind this
+          <p className="text-sm text-muted-foreground mb-6">
+            {totalFound <= 10
+              ? `${totalFound || results.length} highlight${(totalFound || results.length) !== 1 ? "s" : ""} found`
+              : `10 of ${totalFound} highlights used for synthesis`}
+          </p>
+
+          <h2 className="font-display text-base text-muted-foreground mb-4">
+            Supporting highlights
           </h2>
           <div className="space-y-4 mb-12">
             {results.map((h, i) => (
