@@ -76,7 +76,7 @@ const SynthesisCard = ({
     <div className="rounded-xl border border-primary/20 bg-primary/5 p-8 mb-8 card-shadow-hover">
       <div className="flex items-center gap-2 mb-5">
         <Leaf className="h-4 w-4 text-primary" />
-        <h2 className="text-sm font-medium tracking-wide text-primary uppercase">
+        <h2 className="text-sm font-medium tracking-[0.2em] text-primary uppercase">
           Glean's take
         </h2>
       </div>
