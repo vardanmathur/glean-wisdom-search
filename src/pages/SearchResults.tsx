@@ -266,12 +266,6 @@ const SearchResults = () => {
         </div>
       ) : (
         <>
-          <p className="text-sm text-muted-foreground mb-6">
-            {totalFound <= 10
-              ? `${totalFound || results.length} highlight${(totalFound || results.length) !== 1 ? "s" : ""} found`
-              : `10 of ${totalFound} highlights used for synthesis`}
-          </p>
-
           <SynthesisCard
             synthesis={synthesis}
             isLoading={isSynthesising}
