@@ -4,6 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from "@/components/ui/button";
 import { Loader2, Check, X } from "lucide-react";
 import { toast } from "sonner";
+import { fetchBookCover } from "@/lib/fetchBookCover";
 
 interface BookRow {
   id: string;
@@ -20,30 +21,7 @@ interface Props {
 
 const PAGE = 1000;
 
-const fetchCoverFor = async (title: string, author: string): Promise<string | null> => {
-  // Open Library title+author search first
-  try {
-    const ol = await fetch(
-      `https://openlibrary.org/search.json?title=${encodeURIComponent(title)}&author=${encodeURIComponent(author)}&limit=1`,
-    );
-    if (ol.ok) {
-      const oj = await ol.json();
-      const coverId = oj.docs?.[0]?.cover_i;
-      if (coverId) return `https://covers.openlibrary.org/b/id/${coverId}-M.jpg`;
-    }
-  } catch { /* ignore */ }
-  // Google Books fallback
-  try {
-    const gb = await fetch(
-      `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(title + " " + author)}&maxResults=1`,
-    );
-    if (gb.ok) {
-      const gj = await gb.json();
-      return gj.items?.[0]?.volumeInfo?.imageLinks?.thumbnail ?? null;
-    }
-  } catch { /* ignore */ }
-  return null;
-};
+const fetchCoverFor = fetchBookCover;
 
 const FetchCoversDialog = ({ open, onOpenChange }: Props) => {
   const [loadingList, setLoadingList] = useState(false);
