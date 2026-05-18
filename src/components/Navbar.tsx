@@ -283,6 +283,12 @@ const Navbar = () => {
                     Admin Studio
                   </DropdownMenuItem>
                 )}
+                {isAdmin && (
+                  <DropdownMenuItem onClick={() => navigate("/admin/books")}>
+                    <BookOpen className="mr-2 h-4 w-4" />
+                    Books
+                  </DropdownMenuItem>
+                )}
                 {hasPermission("import") && !isAdmin && (
                   <DropdownMenuItem onClick={() => navigate("/studio")}>
                     <Sparkles className="mr-2 h-4 w-4" />
