@@ -22,6 +22,7 @@ import AdminPermissions from "./pages/AdminPermissions";
 import Import from "./pages/Import";
 import ThinkHistory from "./pages/ThinkHistory";
 import UserStudio from "./pages/UserStudio";
+import AdminBooks from "./pages/AdminBooks";
 
 const queryClient = new QueryClient();
 
