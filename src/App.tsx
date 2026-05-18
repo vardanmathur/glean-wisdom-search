@@ -50,6 +50,7 @@ const App = () => (
             <Route path="/think" element={<Think />} />
             <Route path="/think/history" element={<ThinkHistory />} />
             <Route path="/admin/permissions" element={<AdminPermissions />} />
+            <Route path="/admin/books" element={<AdminBooks />} />
             <Route path="/import" element={<Import />} />
             <Route path="/studio" element={<UserStudio />} />
             <Route path="*" element={<NotFound />} />
