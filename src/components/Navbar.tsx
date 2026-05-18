@@ -168,7 +168,7 @@ const Navbar = () => {
                       className="inline-flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-foreground hover:bg-secondary transition-colors"
                     >
                       <BookOpen className="h-4 w-4" />
-                      Books
+                      Books (Admin)
                     </Link>
                   </SheetClose>
                 )}
@@ -286,7 +286,7 @@ const Navbar = () => {
                 {isAdmin && (
                   <DropdownMenuItem onClick={() => navigate("/admin/books")}>
                     <BookOpen className="mr-2 h-4 w-4" />
-                    Books
+                    Books (Admin)
                   </DropdownMenuItem>
                 )}
                 {hasPermission("import") && !isAdmin && (
