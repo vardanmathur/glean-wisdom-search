@@ -1,9 +1,9 @@
 import { useEffect, useState, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Check, AlertCircle, ChevronLeft, ChevronRight, Pencil, X, ChevronDown, Search, ArrowUpDown, ArrowUp, ArrowDown, Trash2, Copy, Loader2, Sparkles, Download, Image as ImageIcon } from "lucide-react";
+import { Check, AlertCircle, ChevronLeft, ChevronRight, Pencil, X, ChevronDown, Search, ArrowUpDown, ArrowUp, ArrowDown, Trash2, Copy, Loader2, Sparkles, Download, Image as ImageIcon, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -697,6 +697,12 @@ const AdminStudioHighlights = () => {
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-7xl">
+      <Link
+        to="/admin"
+        className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-6 transition-colors"
+      >
+        <ArrowLeft className="h-4 w-4" /> Admin
+      </Link>
       <h1 className="font-display text-3xl font-semibold text-foreground mb-2">Glean Studio</h1>
       <p className="text-muted-foreground mb-6">Curate highlights — edit tags, notes, and visibility.</p>
 

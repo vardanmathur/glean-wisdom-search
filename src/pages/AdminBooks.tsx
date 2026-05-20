@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { Navigate } from "react-router-dom";
-import { Loader2, Pencil, Trash2, Search, Copy, Image as ImageIcon, Check, X, Sparkles } from "lucide-react";
+import { Link, Navigate } from "react-router-dom";
+import { Loader2, Pencil, Trash2, Search, Copy, Image as ImageIcon, Check, X, Sparkles, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
@@ -271,6 +271,12 @@ const AdminBooks = () => {
     <TooltipProvider>
       <div className="container mx-auto max-w-6xl px-4 py-10">
         <div className="mb-6">
+          <Link
+            to="/admin"
+            className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-6 transition-colors"
+          >
+            <ArrowLeft className="h-4 w-4" /> Admin
+          </Link>
           <h1 className="font-display text-3xl font-semibold text-foreground">Books</h1>
           <p className="mt-2 text-muted-foreground">Manage your book catalogue</p>
         </div>

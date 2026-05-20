@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { Navigate } from "react-router-dom";
-import { Check, X, Loader2 } from "lucide-react";
+import { Link, Navigate } from "react-router-dom";
+import { Check, X, Loader2, ArrowLeft } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import FeatureInterestTable from "@/components/admin/FeatureInterestTable";
@@ -226,6 +226,12 @@ const sortedProfiles = [...profiles]
   return (
     <div className="container mx-auto max-w-5xl px-4 py-10">
       <div className="mb-8">
+        <Link
+          to="/admin"
+          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-6 transition-colors"
+        >
+          <ArrowLeft className="h-4 w-4" /> Admin
+        </Link>
         <h1 className="font-display text-3xl font-semibold text-foreground">
           User Permissions
         </h1>
