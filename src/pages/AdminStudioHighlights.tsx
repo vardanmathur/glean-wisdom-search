@@ -911,8 +911,79 @@ const AdminStudioHighlights = () => {
         </div>
       ) : (
       <>
+      {/* Mobile card list */}
+      <div className="md:hidden space-y-2">
+        {isLoading ? (
+          Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="rounded-lg border bg-card p-3">
+              <div className="h-5 bg-muted/50 rounded animate-pulse" />
+            </div>
+          ))
+        ) : highlights.length === 0 ? (
+          <p className="rounded-lg border bg-card p-8 text-center text-sm text-muted-foreground">
+            No highlights found.
+          </p>
+        ) : (
+          highlights.map((h) => {
+            const isMissingEmbedding = missingEmbeddingIds?.has(h.id);
+            return (
+              <div
+                key={h.id}
+                className="rounded-lg border bg-card p-3 space-y-2 cursor-pointer"
+                onClick={() => setEditingHighlight(h)}
+              >
+                <p className="text-sm text-foreground leading-relaxed">
+                  {truncate(h.quote, 80)}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {h.books?.title ?? "—"}
+                </p>
+                {(h.tags ?? []).length > 0 && (
+                  <div className="flex flex-wrap gap-1">
+                    {h.tags!.map((tag) => (
+                      <Badge key={tag} variant="secondary" className="text-xs">{tag}</Badge>
+                    ))}
+                  </div>
+                )}
+                <div
+                  className="flex items-center justify-between pt-1"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <Checkbox
+                    checked={selectedIds.has(h.id)}
+                    onCheckedChange={() => toggleRowSelection(h.id)}
+                    aria-label="Select row"
+                  />
+                  <div className="flex items-center gap-1 text-[10px] text-muted-foreground/70">
+                    {isMissingEmbedding && (
+                      <Sparkles className="h-3 w-3 text-destructive" aria-label="Missing embedding" />
+                    )}
+                    <span>{formatRelativeTime(h.embedding_refreshed_at)}</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setEditingHighlight(h)}>
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                      onClick={() => setConfirmDeleteId(h.id)}
+                      disabled={deletingId === h.id}
+                      aria-label="Delete highlight"
+                    >
+                      {deletingId === h.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+
       {/* Table */}
-      <div className="rounded-lg border bg-card overflow-x-auto">
+      <div className="hidden md:block rounded-lg border bg-card overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b bg-muted/50">
