@@ -1,5 +1,5 @@
 import { Link, useNavigate } from "react-router-dom";
-import { Leaf, Search, Bookmark, User, LogOut, Settings, BookOpen, Wrench, Shield, Upload, Menu, Brain, Sparkles } from "lucide-react";
+import { Leaf, Search, Bookmark, User, LogOut, Settings, BookOpen, Shield, Upload, Menu, Brain, Sparkles } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
