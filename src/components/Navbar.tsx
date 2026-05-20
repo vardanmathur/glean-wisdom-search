@@ -256,15 +256,9 @@ const Navbar = () => {
                   </DropdownMenuItem>
                 )}
                 {isAdmin && (
-                  <DropdownMenuItem onClick={() => navigate("/admin/studio/highlights")}>
-                    <Wrench className="mr-2 h-4 w-4" />
-                    Admin Studio
-                  </DropdownMenuItem>
-                )}
-                {isAdmin && (
-                  <DropdownMenuItem onClick={() => navigate("/admin/books")}>
-                    <BookOpen className="mr-2 h-4 w-4" />
-                    Books (Admin)
+                  <DropdownMenuItem onClick={() => navigate("/admin")}>
+                    <Shield className="mr-2 h-4 w-4" />
+                    Admin
                   </DropdownMenuItem>
                 )}
                 {hasPermission("import") && !isAdmin && (
