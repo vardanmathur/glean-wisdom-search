@@ -23,6 +23,8 @@ import Import from "./pages/Import";
 import ThinkHistory from "./pages/ThinkHistory";
 import UserStudio from "./pages/UserStudio";
 import AdminBooks from "./pages/AdminBooks";
+import AdminHub from "./pages/AdminHub";
+import AdminWorksheets from "./pages/AdminWorksheets";
 
 const queryClient = new QueryClient();
 
@@ -51,6 +53,8 @@ const App = () => (
             <Route path="/think/history" element={<ThinkHistory />} />
             <Route path="/admin/permissions" element={<AdminPermissions />} />
             <Route path="/admin/books" element={<AdminBooks />} />
+            <Route path="/admin" element={<AdminHub />} />
+            <Route path="/admin/worksheets" element={<AdminWorksheets />} />
             <Route path="/import" element={<Import />} />
             <Route path="/studio" element={<UserStudio />} />
             <Route path="*" element={<NotFound />} />

@@ -1,5 +1,5 @@
 import { Link, useNavigate } from "react-router-dom";
-import { Leaf, Search, Bookmark, User, LogOut, Settings, BookOpen, Wrench, Shield, Upload, Menu, Brain, Sparkles } from "lucide-react";
+import { Leaf, Search, Bookmark, User, LogOut, Settings, BookOpen, Shield, Upload, Menu, Brain, Sparkles } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -142,33 +142,11 @@ const Navbar = () => {
                 {isAdmin && (
                   <SheetClose asChild>
                     <Link
-                      to="/admin/permissions"
+                      to="/admin"
                       className="inline-flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-foreground hover:bg-secondary transition-colors"
                     >
                       <Shield className="h-4 w-4" />
-                      Permissions
-                    </Link>
-                  </SheetClose>
-                )}
-                {isAdmin && (
-                  <SheetClose asChild>
-                    <Link
-                      to="/admin/studio/highlights"
-                      className="inline-flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-foreground hover:bg-secondary transition-colors"
-                    >
-                      <Wrench className="h-4 w-4" />
-                      Admin Studio
-                    </Link>
-                  </SheetClose>
-                )}
-                {isAdmin && (
-                  <SheetClose asChild>
-                    <Link
-                      to="/admin/books"
-                      className="inline-flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-foreground hover:bg-secondary transition-colors"
-                    >
-                      <BookOpen className="h-4 w-4" />
-                      Books (Admin)
+                      Admin
                     </Link>
                   </SheetClose>
                 )}
@@ -239,11 +217,11 @@ const Navbar = () => {
           )}
           {isAdmin && (
             <Link
-              to="/admin/permissions"
+              to="/admin"
               className="hidden sm:inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
             >
               <Shield className="h-4 w-4" />
-              Permissions
+              Admin
             </Link>
           )}
           <Link
@@ -278,15 +256,9 @@ const Navbar = () => {
                   </DropdownMenuItem>
                 )}
                 {isAdmin && (
-                  <DropdownMenuItem onClick={() => navigate("/admin/studio/highlights")}>
-                    <Wrench className="mr-2 h-4 w-4" />
-                    Admin Studio
-                  </DropdownMenuItem>
-                )}
-                {isAdmin && (
-                  <DropdownMenuItem onClick={() => navigate("/admin/books")}>
-                    <BookOpen className="mr-2 h-4 w-4" />
-                    Books (Admin)
+                  <DropdownMenuItem onClick={() => navigate("/admin")}>
+                    <Shield className="mr-2 h-4 w-4" />
+                    Admin
                   </DropdownMenuItem>
                 )}
                 {hasPermission("import") && !isAdmin && (
