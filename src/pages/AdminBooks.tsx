@@ -529,6 +529,7 @@ const AdminBooks = () => {
               </table>
             </div>
           </div>
+          </>
         )}
 
         <Sheet open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
