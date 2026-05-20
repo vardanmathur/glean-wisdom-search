@@ -143,7 +143,36 @@ const AdminWorksheets = () => {
           {rows.length === 0 ? "No worksheets downloaded yet." : "No matches."}
         </p>
       ) : (
-        <div className="rounded-xl border bg-card overflow-hidden">
+        <>
+          {/* Mobile card list */}
+          <div className="md:hidden space-y-2">
+            {filtered.map((row) => (
+              <div key={row.id} className="rounded-lg border bg-card p-3 space-y-2">
+                <div className="font-medium text-foreground">{row.display_name || "Anonymous"}</div>
+                <div className="text-sm text-muted-foreground">{truncate(row.query, 60)}</div>
+                <div className="text-xs text-muted-foreground">{formatDate(row.created_at)}</div>
+                {row.file_path ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => handleDownload(row)}
+                    disabled={downloadingId === row.id}
+                  >
+                    {downloadingId === row.id ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <><Download className="h-4 w-4 mr-1.5" /> Download PDF</>
+                    )}
+                  </Button>
+                ) : (
+                  <span className="text-xs text-muted-foreground">No file</span>
+                )}
+              </div>
+            ))}
+          </div>
+
+        <div className="hidden md:block rounded-xl border bg-card overflow-hidden">
           <Table>
             <TableHeader>
               <TableRow>
