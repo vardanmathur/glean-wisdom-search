@@ -23,6 +23,8 @@ import Import from "./pages/Import";
 import ThinkHistory from "./pages/ThinkHistory";
 import UserStudio from "./pages/UserStudio";
 import AdminBooks from "./pages/AdminBooks";
+import AdminHub from "./pages/AdminHub";
+import AdminWorksheets from "./pages/AdminWorksheets";
 
 const queryClient = new QueryClient();
 
