@@ -390,7 +390,59 @@ const AdminBooks = () => {
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
         ) : (
-          <div className="rounded-xl border bg-card card-shadow overflow-hidden">
+          <>
+          {/* Mobile card list */}
+          <div className="md:hidden space-y-2">
+            <div className="px-1 text-xs text-muted-foreground">
+              {filteredBooks.length} of {books.length} book{books.length === 1 ? "" : "s"}
+            </div>
+            {filteredBooks.length === 0 ? (
+              <p className="rounded-lg border bg-card p-8 text-center text-sm text-muted-foreground">
+                No books match your search.
+              </p>
+            ) : (
+              filteredBooks.map((b) => {
+                const canDelete = b.highlight_count === 0;
+                return (
+                  <div key={b.id} className="rounded-lg border bg-card p-3 flex gap-3">
+                    <div className="h-14 w-10 flex-shrink-0 overflow-hidden rounded border bg-muted">
+                      {b.cover_image_url ? (
+                        <img src={b.cover_image_url} alt={b.title} className="h-full w-full object-cover" loading="lazy" />
+                      ) : null}
+                    </div>
+                    <div className="flex-1 min-w-0 space-y-1">
+                      <div className="font-medium text-foreground truncate">{b.title}</div>
+                      <div className="text-xs text-muted-foreground truncate">{b.author}</div>
+                      {b.isbn && (
+                        <div className="text-xs text-muted-foreground">ISBN {b.isbn}</div>
+                      )}
+                      <div className="flex items-center justify-between pt-1">
+                        <Badge variant={b.highlight_count > 0 ? "secondary" : "outline"}>
+                          {b.highlight_count} highlight{b.highlight_count === 1 ? "" : "s"}
+                        </Badge>
+                        <div className="flex gap-1">
+                          <Button size="icon" variant="ghost" onClick={() => openEdit(b)} aria-label="Edit">
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            disabled={!canDelete}
+                            onClick={() => setConfirmDelete(b)}
+                            aria-label="Delete"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          <div className="hidden md:block rounded-xl border bg-card card-shadow overflow-hidden">
             <div className="border-b bg-secondary/40 px-4 py-2 text-xs text-muted-foreground">
               {filteredBooks.length} of {books.length} book{books.length === 1 ? "" : "s"}
             </div>
