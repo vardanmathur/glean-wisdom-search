@@ -142,33 +142,11 @@ const Navbar = () => {
                 {isAdmin && (
                   <SheetClose asChild>
                     <Link
-                      to="/admin/permissions"
+                      to="/admin"
                       className="inline-flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-foreground hover:bg-secondary transition-colors"
                     >
                       <Shield className="h-4 w-4" />
-                      Permissions
-                    </Link>
-                  </SheetClose>
-                )}
-                {isAdmin && (
-                  <SheetClose asChild>
-                    <Link
-                      to="/admin/studio/highlights"
-                      className="inline-flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-foreground hover:bg-secondary transition-colors"
-                    >
-                      <Wrench className="h-4 w-4" />
-                      Admin Studio
-                    </Link>
-                  </SheetClose>
-                )}
-                {isAdmin && (
-                  <SheetClose asChild>
-                    <Link
-                      to="/admin/books"
-                      className="inline-flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-foreground hover:bg-secondary transition-colors"
-                    >
-                      <BookOpen className="h-4 w-4" />
-                      Books (Admin)
+                      Admin
                     </Link>
                   </SheetClose>
                 )}
