@@ -1333,7 +1333,36 @@ const EditPanel = ({ highlight, allTags, onClose, onSave, saving }: EditPanelPro
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground">Tags</label>
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-medium text-foreground">Tags</label>
+              <button
+                type="button"
+                onClick={handleSuggestTags}
+                disabled={quote.trim().length < 20 || suggesting}
+                className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:text-primary/80 disabled:text-muted-foreground disabled:cursor-not-allowed transition-colors"
+              >
+                {suggesting
+                  ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  : <Sparkles className="h-3.5 w-3.5" />}
+                {suggesting ? "Suggesting…" : "Suggest tags"}
+              </button>
+            </div>
+            {!suggesting && suggestedTags.filter(s => !tags.includes(s)).length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {suggestedTags.filter(s => !tags.includes(s)).map(s => (
+                  <button key={s} type="button"
+                    onClick={() => { addTag(s); setSuggestedTags(p => p.filter(x => x !== s)); }}
+                    className="rounded-full bg-primary/10 text-primary hover:bg-primary/20 px-3 py-1 text-xs font-medium transition-colors">
+                    + {s}
+                  </button>
+                ))}
+              </div>
+            )}
+            {!suggesting && hasFetchedSuggestions && suggestedTags.filter(s => !tags.includes(s)).length === 0 && (
+              <span className="block text-xs text-muted-foreground italic">
+                No suggestions available
+              </span>
+            )}
             <div className="flex flex-wrap gap-1.5 mb-2">
               {tags.map((tag) => (
                 <Badge key={tag} variant="secondary" className="gap-1 cursor-pointer" onClick={() => removeTag(tag)}>
