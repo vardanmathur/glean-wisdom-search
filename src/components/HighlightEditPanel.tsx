@@ -20,7 +20,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { X } from "lucide-react";
+import { X, Sparkles, Loader2 } from "lucide-react";
+import { toast as sonnerToast } from "sonner";
 
 const DRAFT_PREFIX = "glean_card_edit_draft";
 
@@ -53,6 +54,10 @@ const HighlightEditPanel = ({ highlight, allTags, open, onOpenChange }: Highligh
   const [tagInput, setTagInput, clearTagInput] = useSessionStorageState<string>(`${draftKey}_tagInput`, "");
 
   const [confirmDiscard, setConfirmDiscard] = useState(false);
+  const [suggestedTags, setSuggestedTags] = useState<string[]>([]);
+  const [suggesting, setSuggesting] = useState(false);
+  const [hasFetchedSuggestions, setHasFetchedSuggestions] = useState(false);
+  const [lastSuggestedQuote, setLastSuggestedQuote] = useState<string>("");
 
   // Always hydrate from server data on open / id change. sessionStorage is for
   // surviving mid-edit window switches, not persisting across reopens.
@@ -79,7 +84,60 @@ const HighlightEditPanel = ({ highlight, allTags, open, onOpenChange }: Highligh
     clearNotes();
     clearVisibility();
     clearTagInput();
+    setSuggestedTags([]);
+    setHasFetchedSuggestions(false);
+    setLastSuggestedQuote("");
   };
+
+  const handleSuggestTags = async () => {
+    const q = quote.trim();
+    if (q.length < 20 || suggesting) return;
+    setSuggesting(true);
+    try {
+      const { data, error } = await supabase.rpc(
+        "suggest_tags_for_quote" as any,
+        { quote_text: q } as any
+      );
+      if (error) throw error;
+      const rpcTags = Array.isArray(data) ? (data as string[]) : [];
+      let finalTags: string[] = rpcTags;
+      if (rpcTags.length === 0) {
+        try {
+          const { data: sem } = await supabase.functions.invoke(
+            "search-semantic",
+            { body: { query: q, wordCount: q.split(/\s+/).filter(Boolean).length } }
+          );
+          const rows: Array<{ tags?: string[] }> = Array.isArray(sem?.results)
+            ? sem.results.slice(0, 10) : [];
+          const seen = new Set<string>();
+          for (const r of rows) {
+            for (const t of r.tags ?? []) {
+              const norm = String(t).trim().toLowerCase();
+              if (norm) seen.add(norm);
+            }
+          }
+          finalTags = Array.from(seen).slice(0, 8);
+        } catch { finalTags = []; }
+      }
+      setSuggestedTags(finalTags);
+      setLastSuggestedQuote(q);
+      setHasFetchedSuggestions(true);
+    } catch (err) {
+      console.error(err);
+      sonnerToast.error("Couldn't fetch suggestions");
+    } finally {
+      setSuggesting(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!hasFetchedSuggestions) return;
+    if (Math.abs(quote.length - lastSuggestedQuote.length) > 10) {
+      setSuggestedTags([]);
+      setHasFetchedSuggestions(false);
+      setLastSuggestedQuote("");
+    }
+  }, [quote, hasFetchedSuggestions, lastSuggestedQuote]);
 
   const addTag = (tag: string) => {
     const t = tag.trim();
@@ -187,7 +245,36 @@ const HighlightEditPanel = ({ highlight, allTags, open, onOpenChange }: Highligh
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">Tags</label>
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium text-foreground">Tags</label>
+                <button
+                  type="button"
+                  onClick={handleSuggestTags}
+                  disabled={quote.trim().length < 20 || suggesting}
+                  className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:text-primary/80 disabled:text-muted-foreground disabled:cursor-not-allowed transition-colors"
+                >
+                  {suggesting
+                    ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    : <Sparkles className="h-3.5 w-3.5" />}
+                  {suggesting ? "Suggesting…" : "Suggest tags"}
+                </button>
+              </div>
+              {!suggesting && suggestedTags.filter(s => !tags.includes(s)).length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {suggestedTags.filter(s => !tags.includes(s)).map(s => (
+                    <button key={s} type="button"
+                      onClick={() => { addTag(s); setSuggestedTags(p => p.filter(x => x !== s)); }}
+                      className="rounded-full bg-primary/10 text-primary hover:bg-primary/20 px-3 py-1 text-xs font-medium transition-colors">
+                      + {s}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {!suggesting && hasFetchedSuggestions && suggestedTags.filter(s => !tags.includes(s)).length === 0 && (
+                <span className="block text-xs text-muted-foreground italic">
+                  No suggestions available
+                </span>
+              )}
               <div className="flex flex-wrap gap-1.5 mb-2">
                 {tags.map((tag) => (
                   <Badge
