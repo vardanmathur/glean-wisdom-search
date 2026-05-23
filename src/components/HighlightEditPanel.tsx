@@ -84,7 +84,60 @@ const HighlightEditPanel = ({ highlight, allTags, open, onOpenChange }: Highligh
     clearNotes();
     clearVisibility();
     clearTagInput();
+    setSuggestedTags([]);
+    setHasFetchedSuggestions(false);
+    setLastSuggestedQuote("");
   };
+
+  const handleSuggestTags = async () => {
+    const q = quote.trim();
+    if (q.length < 20 || suggesting) return;
+    setSuggesting(true);
+    try {
+      const { data, error } = await supabase.rpc(
+        "suggest_tags_for_quote" as any,
+        { quote_text: q } as any
+      );
+      if (error) throw error;
+      const rpcTags = Array.isArray(data) ? (data as string[]) : [];
+      let finalTags: string[] = rpcTags;
+      if (rpcTags.length === 0) {
+        try {
+          const { data: sem } = await supabase.functions.invoke(
+            "search-semantic",
+            { body: { query: q, wordCount: q.split(/\s+/).filter(Boolean).length } }
+          );
+          const rows: Array<{ tags?: string[] }> = Array.isArray(sem?.results)
+            ? sem.results.slice(0, 10) : [];
+          const seen = new Set<string>();
+          for (const r of rows) {
+            for (const t of r.tags ?? []) {
+              const norm = String(t).trim().toLowerCase();
+              if (norm) seen.add(norm);
+            }
+          }
+          finalTags = Array.from(seen).slice(0, 8);
+        } catch { finalTags = []; }
+      }
+      setSuggestedTags(finalTags);
+      setLastSuggestedQuote(q);
+      setHasFetchedSuggestions(true);
+    } catch (err) {
+      console.error(err);
+      sonnerToast.error("Couldn't fetch suggestions");
+    } finally {
+      setSuggesting(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!hasFetchedSuggestions) return;
+    if (Math.abs(quote.length - lastSuggestedQuote.length) > 10) {
+      setSuggestedTags([]);
+      setHasFetchedSuggestions(false);
+      setLastSuggestedQuote("");
+    }
+  }, [quote, hasFetchedSuggestions, lastSuggestedQuote]);
 
   const addTag = (tag: string) => {
     const t = tag.trim();
