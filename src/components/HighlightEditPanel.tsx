@@ -20,7 +20,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { X } from "lucide-react";
+import { X, Sparkles, Loader2 } from "lucide-react";
+import { toast as sonnerToast } from "sonner";
 
 const DRAFT_PREFIX = "glean_card_edit_draft";
 
