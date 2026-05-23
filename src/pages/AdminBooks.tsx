@@ -293,7 +293,28 @@ const AdminBooks = () => {
               className="pl-9"
             />
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2 items-center">
+            <div className="hidden sm:flex rounded-md border overflow-hidden">
+              {([
+                { mode: "list" as const, Icon: TableIcon, label: "List" },
+                { mode: "thumbnail" as const, Icon: LayoutGrid, label: "Thumbnail" },
+                { mode: "detail" as const, Icon: LayoutList, label: "Detail" },
+              ]).map(({ mode, Icon, label }) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => setViewMode(mode)}
+                  aria-label={label}
+                  className={`px-2.5 py-1.5 transition-colors ${
+                    viewMode === mode
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-background text-muted-foreground hover:text-foreground hover:bg-muted"
+                  }`}
+                >
+                  <Icon className="h-4 w-4" />
+                </button>
+              ))}
+            </div>
             <Button variant="outline" size="sm" onClick={findDuplicates} className="gap-1.5">
               <Copy className="h-4 w-4" /> Find Duplicates
             </Button>
