@@ -62,6 +62,7 @@ const AdminBooks = () => {
   const [duplicateGroups, setDuplicateGroups] = useState<DuplicateGroup[]>([]);
   const [keepIds, setKeepIds] = useState<Record<string, string>>({});
   const [showCoversDialog, setShowCoversDialog] = useState(false);
+  const [viewMode, setViewMode] = useState<"list" | "thumbnail" | "detail">("list");
 
   useEffect(() => {
     if (!isAdmin) return;
