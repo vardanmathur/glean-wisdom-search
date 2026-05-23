@@ -464,6 +464,7 @@ const AdminBooks = () => {
             )}
           </div>
 
+          {viewMode === "list" && (
           <div className="hidden md:block rounded-xl border bg-card card-shadow overflow-hidden">
             <div className="border-b bg-secondary/40 px-4 py-2 text-xs text-muted-foreground">
               {filteredBooks.length} of {books.length} book{books.length === 1 ? "" : "s"}
