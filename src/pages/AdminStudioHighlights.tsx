@@ -1199,6 +1199,11 @@ const EditPanel = ({ highlight, allTags, onClose, onSave, saving }: EditPanelPro
   const [visibility, setVisibility, clearVisibility] = useSessionStorageState<string>(`${draftKey}_visibility`, "public");
   const [tagInput, setTagInput, clearTagInput] = useSessionStorageState<string>(`${draftKey}_tagInput`, "");
 
+  const [suggestedTags, setSuggestedTags] = useState<string[]>([]);
+  const [suggesting, setSuggesting] = useState(false);
+  const [hasFetchedSuggestions, setHasFetchedSuggestions] = useState(false);
+  const [lastSuggestedQuote, setLastSuggestedQuote] = useState<string>("");
+
   // Always hydrate from the highlight prop on open / id change. sessionStorage
   // is for surviving window switches mid-edit, not for restoring a previous
   // session's draft over fresh server data.
