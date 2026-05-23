@@ -54,6 +54,10 @@ const HighlightEditPanel = ({ highlight, allTags, open, onOpenChange }: Highligh
   const [tagInput, setTagInput, clearTagInput] = useSessionStorageState<string>(`${draftKey}_tagInput`, "");
 
   const [confirmDiscard, setConfirmDiscard] = useState(false);
+  const [suggestedTags, setSuggestedTags] = useState<string[]>([]);
+  const [suggesting, setSuggesting] = useState(false);
+  const [hasFetchedSuggestions, setHasFetchedSuggestions] = useState(false);
+  const [lastSuggestedQuote, setLastSuggestedQuote] = useState<string>("");
 
   // Always hydrate from server data on open / id change. sessionStorage is for
   // surviving mid-edit window switches, not persisting across reopens.
