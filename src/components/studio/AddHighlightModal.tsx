@@ -12,7 +12,6 @@ import BookLookup, { type SelectedBook } from "./BookLookup";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useSessionStorageState } from "@/hooks/useSessionStorageState";
 
-
 const DRAFT_KEY = "glean_add_highlight_draft"; // suggest-tags v1
 
 interface AddHighlightModalProps {
@@ -32,7 +31,10 @@ const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags }: Add
   const [tags, setTags, clearTags] = useSessionStorageState<string[]>(`${DRAFT_KEY}_tags`, []);
   const [tagInput, setTagInput, clearTagInput] = useSessionStorageState<string>(`${DRAFT_KEY}_tagInput`, "");
   const [notes, setNotes, clearNotes] = useSessionStorageState<string>(`${DRAFT_KEY}_notes`, "");
-  const [visibility, setVisibility, clearVisibility] = useSessionStorageState<"private" | "public">(`${DRAFT_KEY}_visibility`, "private");
+  const [visibility, setVisibility, clearVisibility] = useSessionStorageState<"private" | "public">(
+    `${DRAFT_KEY}_visibility`,
+    "private",
+  );
   const [saving, setSaving] = useState(false);
 
   // Scan tab state — Tesseract loaded lazily on first open
@@ -53,8 +55,7 @@ const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags }: Add
   const shouldKeepListeningRef = useRef<boolean>(false);
   const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const speechSupported =
-    typeof window !== "undefined" &&
-    !!((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
+    typeof window !== "undefined" && !!((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
 
   // Tag suggestion state (ephemeral — not persisted)
   const [suggestedTags, setSuggestedTags] = useState<string[]>([]);
@@ -98,8 +99,7 @@ const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags }: Add
 
   const startDictation = () => {
     if (!speechSupported) return;
-    const Ctor: any =
-      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    const Ctor: any = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     try {
       const rec = new Ctor();
       rec.continuous = false;
@@ -126,7 +126,10 @@ const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags }: Add
       rec.onerror = (e: any) => {
         console.warn("SpeechRecognition error:", e?.error);
         shouldKeepListeningRef.current = false;
-        if (silenceTimerRef.current) { clearTimeout(silenceTimerRef.current); silenceTimerRef.current = null; }
+        if (silenceTimerRef.current) {
+          clearTimeout(silenceTimerRef.current);
+          silenceTimerRef.current = null;
+        }
         setInterimText("");
         setListening(false);
       };
@@ -157,7 +160,10 @@ const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags }: Add
 
   const stopDictation = () => {
     shouldKeepListeningRef.current = false;
-    if (silenceTimerRef.current) { clearTimeout(silenceTimerRef.current); silenceTimerRef.current = null; }
+    if (silenceTimerRef.current) {
+      clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = null;
+    }
     const rec = recognitionRef.current;
     if (rec) {
       try {
@@ -220,7 +226,10 @@ const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags }: Add
         canvas.toBlob((b) => (b ? res(b) : rej(new Error("blob fail"))), "image/jpeg", 0.9),
       );
       const { data } = await Tesseract.recognize(blob, "eng");
-      const cleaned = data.text.replace(/\s+\n/g, "\n").replace(/\n{2,}/g, "\n\n").trim();
+      const cleaned = data.text
+        .replace(/\s+\n/g, "\n")
+        .replace(/\n{2,}/g, "\n\n")
+        .trim();
       setQuote(cleaned);
       stopCamera();
       toast.success("Text extracted — review and edit if needed");
@@ -255,9 +264,7 @@ const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags }: Add
           const { data: sem } = await supabase.functions.invoke("search-semantic", {
             body: { query: q, wordCount: q.split(/\s+/).filter(Boolean).length },
           });
-          const rows: Array<{ tags?: string[] }> = Array.isArray(sem?.results)
-            ? sem.results.slice(0, 10)
-            : [];
+          const rows: Array<{ tags?: string[] }> = Array.isArray(sem?.results) ? sem.results.slice(0, 10) : [];
           const seen = new Set<string>();
           for (const r of rows) {
             for (const t of r.tags ?? []) {
@@ -313,35 +320,47 @@ const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags }: Add
       let coverUrl: string | null = null;
       try {
         const ol = await fetch(
-          `https://openlibrary.org/search.json?title=${encodeURIComponent(title)}&author=${encodeURIComponent(author)}&limit=1`
+          `https://openlibrary.org/search.json?title=${encodeURIComponent(title)}&author=${encodeURIComponent(author)}&limit=1`,
         );
         if (ol.ok) {
           const oj = await ol.json();
           const coverId = oj.docs?.[0]?.cover_i;
           if (coverId) coverUrl = `https://covers.openlibrary.org/b/id/${coverId}-M.jpg`;
         }
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
       if (!coverUrl) {
         try {
           const gb = await fetch(
-            `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(title + " " + author)}&maxResults=1`
+            `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(title + " " + author)}&maxResults=1`,
           );
           if (gb.ok) {
             const gj = await gb.json();
             coverUrl = gj.items?.[0]?.volumeInfo?.imageLinks?.thumbnail ?? null;
           }
-        } catch { /* ignore */ }
+        } catch {
+          /* ignore */
+        }
       }
       if (coverUrl) {
         await supabase.from("books").update({ cover_image_url: coverUrl }).eq("id", bookId);
       }
-    } catch { /* swallow */ }
-  };  
+    } catch {
+      /* swallow */
+    }
+  };
 
   const handleSave = async () => {
     if (!user) return;
-    if (!quote.trim()) { toast.error("Quote is required"); return; }
-    if (!book) { toast.error("Pick a book first"); return; }
+    if (!quote.trim()) {
+      toast.error("Quote is required");
+      return;
+    }
+    if (!book) {
+      toast.error("Pick a book first");
+      return;
+    }
     setSaving(true);
     try {
       // If book is pending (from ISBN lookup or manual entry), insert it now
@@ -437,12 +456,7 @@ const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags }: Add
                         <Mic className="h-4 w-4" /> Start dictating
                       </Button>
                     ) : (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={stopDictation}
-                        className="gap-1.5"
-                      >
+                      <Button type="button" variant="outline" onClick={stopDictation} className="gap-1.5">
                         <span className="relative flex h-2.5 w-2.5">
                           <span className="absolute inline-flex h-full w-full rounded-full bg-destructive opacity-75 animate-ping" />
                           <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-destructive" />
@@ -452,12 +466,8 @@ const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags }: Add
                     )}
                   </div>
                   <p className="text-xs text-muted-foreground">Works best on Chrome.</p>
-                  {listening && (
-                    <p className="text-xs text-muted-foreground">Stops automatically after a pause.</p>
-                  )}
-                  {listening && interimText && (
-                    <p className="text-sm italic text-muted-foreground">{interimText}</p>
-                  )}
+                  {listening && <p className="text-xs text-muted-foreground">Stops automatically after a pause.</p>}
+                  {listening && interimText && <p className="text-sm italic text-muted-foreground">{interimText}</p>}
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium">Dictated text — edit before saving</label>
@@ -483,7 +493,9 @@ const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags }: Add
                 </Button>
               ) : isMobile ? (
                 <>
-                  <p className="text-xs text-muted-foreground">Camera is open in fullscreen — use the bottom toolbar to capture or stop.</p>
+                  <p className="text-xs text-muted-foreground">
+                    Camera is open in fullscreen — use the bottom toolbar to capture or stop.
+                  </p>
                   <div className="fixed inset-0 z-50 bg-black flex flex-col">
                     <video
                       ref={videoRef}
@@ -497,19 +509,29 @@ const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags }: Add
                         {ocrLoading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
                         {ocrLoading ? "Reading text…" : "Capture & read text"}
                       </Button>
-                      <Button type="button" size="lg" variant="outline" onClick={stopCamera}>Stop</Button>
+                      <Button type="button" size="lg" variant="outline" onClick={stopCamera}>
+                        Stop
+                      </Button>
                     </div>
                   </div>
                 </>
               ) : (
                 <>
-                  <video ref={videoRef} className="w-full rounded-md bg-black aspect-video" muted playsInline autoPlay />
+                  <video
+                    ref={videoRef}
+                    className="w-full rounded-md bg-black aspect-video"
+                    muted
+                    playsInline
+                    autoPlay
+                  />
                   <div className="flex gap-2">
                     <Button type="button" size="sm" onClick={captureAndOcr} disabled={ocrLoading}>
                       {ocrLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
                       {ocrLoading ? "Reading text…" : "Capture & read text"}
                     </Button>
-                    <Button type="button" size="sm" variant="outline" onClick={stopCamera}>Stop</Button>
+                    <Button type="button" size="sm" variant="outline" onClick={stopCamera}>
+                      Stop
+                    </Button>
                   </div>
                   {!ocrInitialised && (
                     <p className="text-xs text-muted-foreground">First scan downloads the OCR model — ~2-3 MB.</p>
@@ -547,11 +569,7 @@ const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags }: Add
                 disabled={quote.trim().length < 20 || suggesting}
                 className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:text-primary/80 disabled:text-muted-foreground disabled:cursor-not-allowed transition-colors"
               >
-                {suggesting ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <Sparkles className="h-3.5 w-3.5" />
-                )}
+                {suggesting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
                 {suggesting ? "Suggesting…" : "Suggest tags"}
               </button>
             </div>
@@ -574,11 +592,9 @@ const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags }: Add
                   ))}
               </div>
             )}
-            {!suggesting &&
-              hasFetchedSuggestions &&
-              suggestedTags.filter((s) => !tags.includes(s)).length === 0 && (
-                <span className="block text-xs text-muted-foreground italic">No suggestions available</span>
-              )}
+            {!suggesting && hasFetchedSuggestions && suggestedTags.filter((s) => !tags.includes(s)).length === 0 && (
+              <span className="block text-xs text-muted-foreground italic">No suggestions available</span>
+            )}
             {tags.length > 0 && (
               <div className="flex flex-wrap gap-1.5">
                 {tags.map((t) => (
@@ -609,7 +625,10 @@ const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags }: Add
                       key={s}
                       type="button"
                       className="block w-full text-left px-3 py-1.5 text-sm hover:bg-muted"
-                      onMouseDown={(e) => { e.preventDefault(); addTag(s); }}
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        addTag(s);
+                      }}
                     >
                       {s}
                     </button>
@@ -652,7 +671,9 @@ const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags }: Add
           </div>
 
           <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
             <Button onClick={handleSave} disabled={!canSave}>
               {saving ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
               Save highlight
