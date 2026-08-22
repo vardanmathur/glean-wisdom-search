@@ -25,6 +25,7 @@ import {
 import { useSessionStorageState } from "@/hooks/useSessionStorageState";
 import { useAuthGate } from "@/hooks/useAuthGate";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
+import { toTitleCase } from "@/lib/utils";
 import FetchCoversDialog from "@/components/admin/FetchCoversDialog";
 
 const ADMIN_EDIT_DRAFT_PREFIX = "glean_admin_studio_edit_draft";
@@ -1279,8 +1280,14 @@ const EditPanel = ({ highlight, allTags, onClose, onSave, saving }: EditPanelPro
   }, [quote, hasFetchedSuggestions, lastSuggestedQuote]);
 
   const addTag = (tag: string) => {
-    const t = tag.trim().toLowerCase();
-    if (t && !tags.includes(t)) setTags([...tags, t]);
+    const t = tag.trim();
+    if (!t) { setTagInput(""); return; }
+    const canonical = allTags.find(
+      (existing) => existing.toLowerCase() === t.toLowerCase()
+    ) ?? toTitleCase(t);
+    if (!tags.some((existing) => existing.toLowerCase() === canonical.toLowerCase())) {
+      setTags([...tags, canonical]);
+    }
     setTagInput("");
   };
 
@@ -1288,7 +1295,10 @@ const EditPanel = ({ highlight, allTags, onClose, onSave, saving }: EditPanelPro
 
   const input = tagInput.toLowerCase();
   const filteredSuggestions = allTags
-    .filter((t) => !tags.includes(t) && t.toLowerCase().includes(input))
+    .filter((t) =>
+      !tags.some((existing) => existing.toLowerCase() === t.toLowerCase())
+      && t.toLowerCase().includes(input)
+    )
     .sort((a, b) => {
       const aLower = a.toLowerCase();
       const bLower = b.toLowerCase();
