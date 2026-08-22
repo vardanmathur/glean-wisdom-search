@@ -258,30 +258,16 @@ const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags }: Add
     if (q.length < 20 || suggesting) return;
     setSuggesting(true);
     try {
-      const { data, error } = await supabase.rpc("suggest_tags_for_quote", { quote_text: q });
+      const { data, error } = await supabase.functions.invoke("suggest-tags", {
+        body: {
+          quote: q,
+          bookTitle: book?.title ?? undefined,
+          tags: allTags,
+        },
+      });
       if (error) throw error;
-      const rpcTags = Array.isArray(data) ? (data as string[]) : [];
-      let finalTags: string[] = rpcTags;
-      if (rpcTags.length === 0) {
-        // Semantic fallback — silent on any failure
-        try {
-          const { data: sem } = await supabase.functions.invoke("search-semantic", {
-            body: { query: q, wordCount: q.split(/\s+/).filter(Boolean).length },
-          });
-          const rows: Array<{ tags?: string[] }> = Array.isArray(sem?.results) ? sem.results.slice(0, 10) : [];
-          const seen = new Set<string>();
-          for (const r of rows) {
-            for (const t of r.tags ?? []) {
-              const norm = String(t).trim().toLowerCase();
-              if (norm) seen.add(norm);
-            }
-          }
-          finalTags = Array.from(seen).slice(0, 8);
-        } catch {
-          finalTags = [];
-        }
-      }
-      setSuggestedTags(finalTags);
+      const returned = Array.isArray(data?.tags) ? (data.tags as string[]) : [];
+      setSuggestedTags(returned);
       setLastSuggestedQuote(q);
       setHasFetchedSuggestions(true);
     } catch (err) {
