@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { X, Sparkles, Loader2 } from "lucide-react";
 import { toast as sonnerToast } from "sonner";
+import { toTitleCase } from "@/lib/utils";
 
 const DRAFT_PREFIX = "glean_card_edit_draft";
 
@@ -141,8 +142,15 @@ const HighlightEditPanel = ({ highlight, allTags, open, onOpenChange }: Highligh
 
   const addTag = (tag: string) => {
     const t = tag.trim();
-    if (t && !tags.some((existing) => existing.toLowerCase() === t.toLowerCase())) {
-      setTags([...tags, t]);
+    if (!t) {
+      setTagInput("");
+      return;
+    }
+    const canonical = allTags.find(
+      (existing) => existing.toLowerCase() === t.toLowerCase()
+    ) ?? toTitleCase(t);
+    if (!tags.some((existing) => existing.toLowerCase() === canonical.toLowerCase())) {
+      setTags([...tags, canonical]);
     }
     setTagInput("");
   };

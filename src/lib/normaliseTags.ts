@@ -1,86 +1,44 @@
 import { supabase } from "@/integrations/supabase/client";
+import { ALL_TAGS } from "@/lib/tags";
 
-const TAG_CANONICAL_MAP: Record<string, string> = {
-  "ambition": "Ambition",
-  "anxiety": "Anxiety",
-  "art": "Art",
-  "career": "Career",
-  "children": "Children",
-  "communication": "Communication",
-  "death": "Death",
-  "decision making": "Decision Making",
-  "decisionmaking": "Decision Making",
-  "decision-making": "Decision Making",
-  "desires": "Desires",
-  "expectations": "Expectations",
-  "family": "Family",
-  "forgiveness": "Forgiveness",
-  "friends": "Friends",
-  "funny": "Funny",
-  "habits": "Habits",
-  "happiness": "Happiness",
-  "health": "Health",
-  "hiring": "Hiring",
-  "honesty": "Honesty",
-  "humility": "Humility",
-  "influence": "Influence",
-  "investing": "Investing",
-  "leadership": "Leadership",
-  "learning": "Learning",
-  "life": "Life",
-  "living with others": "Living with Others",
-  "livingwithothers": "Living with Others",
-  "living-with-others": "Living with Others",
-  "love": "Love",
-  "luck": "Luck",
-  "marriage": "Marriage",
-  "mental health": "Mental Health",
-  "mentalhealth": "Mental Health",
-  "mental-health": "Mental Health",
-  "mistakes": "Mistakes",
-  "money": "Money",
-  "motivation": "Motivation",
-  "needs&wants": "Needs & Wants",
-  "needs&want": "Needs & Wants",
-  "needs and wants": "Needs & Wants",
-  "needsandwants": "Needs & Wants",
-  "needs & wants": "Needs & Wants",
-  "negotiation": "Negotiation",
-  "outcomes": "Outcomes",
-  "overwhelmed": "Overwhelmed",
-  "people": "People",
-  "perseverance": "Perseverance",
-  "pithy": "Pithy",
-  "positivity": "Positivity",
-  "priorities": "Priorities",
-  "prioritization": "Prioritization",
-  "prioritisation": "Prioritization",
-  "procrastinating": "Procrastinating",
-  "procrastination": "Procrastinating",
-  "productivity": "Productivity",
-  "purpose": "Purpose",
-  "quality": "Quality",
-  "reading": "Reading",
-  "relationships": "Relationships",
-  "resilience": "Resilience",
+// Derived from the canonical taxonomy so this file can never drift from
+// src/lib/tags.ts. Keys are lookup forms (lowercased, punctuation-stripped).
+const TAG_CANONICAL_MAP: Record<string, string> = Object.fromEntries(
+  ALL_TAGS.flatMap((tag) => {
+    const lower = tag.toLowerCase();
+    return [
+      [lower, tag],
+      [lower.replace(/\s+/g, ""), tag],
+      [lower.replace(/\s+/g, "-"), tag],
+    ];
+  })
+);
+
+// Legacy spellings from the pre-migration taxonomy that must resolve FORWARD
+// to their current tag — never re-derive these from ALL_TAGS, they no longer
+// exist there by design.
+const LEGACY_ALIASES: Record<string, string> = {
+  "needs&wants": "Desires",
+  "needs&want": "Desires",
+  "needs and wants": "Desires",
+  "needsandwants": "Desires",
+  "needs & wants": "Desires",
+  "procrastinating": "Procrastination",
+  "faith n spirituality": "Religion & Spirituality",
+  "faith-n-spirituality": "Religion & Spirituality",
+  "prioritization": "Priorities",
+  "prioritisation": "Priorities",
+  "working": "Work",
   "resiliency": "Resilience",
-  "stars": "Stars",
-  "success": "Success",
-  "teaching": "Teaching",
-  "thinking": "Thinking",
-  "time management": "Time Management",
-  "timemanagement": "Time Management",
-  "time-management": "Time Management",
-  "trust": "Trust",
-  "willpower": "Willpower",
   "will power": "Willpower",
-  "work": "Work",
-  "working": "Working",
 };
 
 function normaliseTag(tag: string): string {
   if (!tag) return tag;
   const lower = tag.toLowerCase().trim();
+  if (LEGACY_ALIASES[lower]) {
+    return LEGACY_ALIASES[lower];
+  }
   if (TAG_CANONICAL_MAP[lower]) {
     return TAG_CANONICAL_MAP[lower];
   }

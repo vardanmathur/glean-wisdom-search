@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import BookLookup, { type SelectedBook } from "./BookLookup";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useSessionStorageState } from "@/hooks/useSessionStorageState";
+import { toTitleCase } from "@/lib/utils";
 
 const DRAFT_KEY = "glean_add_highlight_draft"; // suggest-tags v1
 
@@ -242,9 +243,12 @@ const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags }: Add
   };
 
   const addTag = (raw: string) => {
-    const t = raw.trim().toLowerCase();
+    const t = raw.trim();
     if (!t) return;
-    if (!tags.includes(t)) setTags([...tags, t]);
+    const canonical = allTags.find(
+      (tag) => tag.toLowerCase() === t.toLowerCase()
+    ) ?? toTitleCase(t);
+    if (!tags.includes(canonical)) setTags([...tags, canonical]);
     setTagInput("");
   };
   const removeTag = (t: string) => setTags(tags.filter((x) => x !== t));
@@ -302,7 +306,10 @@ const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags }: Add
     const q = tagInput.trim().toLowerCase();
     if (!q) return [];
     return allTags
-      .filter((t) => !tags.includes(t) && t.toLowerCase().includes(q))
+      .filter((t) =>
+        !tags.some((existing) => existing.toLowerCase() === t.toLowerCase())
+        && t.toLowerCase().includes(q)
+      )
       .sort((a, b) => {
         const aS = a.toLowerCase().startsWith(q);
         const bS = b.toLowerCase().startsWith(q);
