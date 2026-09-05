@@ -11,9 +11,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
 
 const exampleQueries = [
-  "I'm struggling to motivate my team",
-  "I can't stop procrastinating",
-  "I'm anxious about a big decision",
+  "I keep making the same mistakes — how do I learn from them?",
+  "I can't motivate myself when things feel hard",
+  "Work stress is spilling onto my family",
 ];
 
 const featuredTopics = [
@@ -130,8 +130,10 @@ const Index = () => {
           <button
             key={q}
             onClick={() => handleChipClick(q)}
-            className="rounded-full border bg-card px-3 py-1.5 text-xs sm:text-sm text-muted-foreground hover:text-foreground hover:border-primary/30 hover:bg-primary/5 transition-all card-shadow"          >
-            {q}
+            className="rounded-full bg-muted/50 px-3 py-1.5 text-xs sm:text-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+          >
+            {q}{" "}
+            <span className="opacity-60" aria-hidden="true">→</span>
           </button>
         ))}
         <button
@@ -187,7 +189,7 @@ const Index = () => {
         <Link
           key={topic}
           to={`/topics/${encodeURIComponent(topic)}`}
-          className={`rounded-full bg-primary/8 border border-primary/15 px-4 py-2 text-sm font-medium text-primary hover:bg-primary/15 transition-colors ${i >= 5 ? 'hidden sm:inline-flex' : ''}`}
+          className={`rounded-full bg-primary/8 border border-primary/15 px-4 py-2 text-sm font-medium text-primary hover:bg-primary/15 transition-colors ${i >= 5 ? 'hidden' : ''}`}
         >
           {topic}
         </Link>
