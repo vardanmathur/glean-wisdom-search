@@ -18,7 +18,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import FetchCoversDialog from "@/components/admin/FetchCoversDialog";
-import { fetchBookCover } from "@/lib/fetchBookCover";
 
 interface BookRow {
   id: string;
@@ -53,7 +52,10 @@ const AdminBooks = () => {
   const [editing, setEditing] = useState<BookRow | null>(null);
   const [editForm, setEditForm] = useState({ title: "", author: "", isbn: "", cover_image_url: "" });
   const [savingEdit, setSavingEdit] = useState(false);
-  const [fetchingCover, setFetchingCover] = useState(false);
+  const [fetchingCovers, setFetchingCovers] = useState(false);
+  const [coverCandidates, setCoverCandidates] = useState<{ url: string; source: string }[]>([]);
+  const [selectedCandidateUrl, setSelectedCandidateUrl] = useState<string | null>(null);
+  const [coversSearched, setCoversSearched] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<BookRow | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [confirmOrphans, setConfirmOrphans] = useState(false);
@@ -134,6 +136,9 @@ const AdminBooks = () => {
       isbn: b.isbn ?? "",
       cover_image_url: b.cover_image_url ?? "",
     });
+    setCoverCandidates([]);
+    setSelectedCandidateUrl(null);
+    setCoversSearched(false);
   };
 
   const handleSaveEdit = async () => {
@@ -159,19 +164,92 @@ const AdminBooks = () => {
     }
   };
 
-  const handleAutoFetchCover = async () => {
-    if (!editForm.title.trim()) return;
-    setFetchingCover(true);
+  const handleFindCovers = async () => {
+    const title = editForm.title.trim();
+    if (!title) return;
+    const author = editForm.author.trim();
+    const isbn = editForm.isbn.trim();
+
+    setFetchingCovers(true);
+    setCoversSearched(false);
     try {
-      const url = await fetchBookCover(editForm.title, editForm.author);
-      if (url) {
-        setEditForm((f) => ({ ...f, cover_image_url: url }));
-        toast.success("Cover found");
-      } else {
-        toast.error("No cover found");
+      // Step 1 — ISBN candidates (only when the book has one)
+      const isbnCandidates: { url: string; source: string }[] = [];
+      if (isbn) {
+        // Direct Open Library cover — no API call; ?default=false makes a
+        // missing cover 404 so the img onError can hide the tile.
+        isbnCandidates.push({
+          url: `https://covers.openlibrary.org/b/isbn/${encodeURIComponent(isbn)}-L.jpg?default=false`,
+          source: "Open Library (ISBN)",
+        });
+        try {
+          const res = await fetch(
+            `https://www.googleapis.com/books/v1/volumes?q=isbn:${encodeURIComponent(isbn)}`
+          );
+          if (res.ok) {
+            const json = await res.json();
+            for (const item of (json.items ?? [])
+              .filter((it: any) => it?.volumeInfo?.imageLinks?.thumbnail)
+              .slice(0, 2)) {
+              isbnCandidates.push({
+                url: item.volumeInfo.imageLinks.thumbnail.replace("zoom=1", "zoom=2"),
+                source: "Google Books (ISBN)",
+              });
+            }
+          }
+        } catch { /* ignore */ }
       }
+
+      // Step 2 — title + author, both sources in parallel, always run
+      const [olResults, gbResults] = await Promise.all([
+        (async () => {
+          try {
+            const res = await fetch(
+              `https://openlibrary.org/search.json?title=${encodeURIComponent(title)}&author=${encodeURIComponent(author)}&limit=5`
+            );
+            if (!res.ok) return [];
+            const json = await res.json();
+            return (json.docs ?? [])
+              .filter((d: any) => d?.cover_i)
+              .slice(0, 3)
+              .map((d: any) => ({
+                url: `https://covers.openlibrary.org/b/id/${d.cover_i}-L.jpg`,
+                source: "Open Library",
+              }));
+          } catch { return []; }
+        })(),
+        (async () => {
+          try {
+            const res = await fetch(
+              `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(`${title} ${author}`)}&maxResults=5`
+            );
+            if (!res.ok) return [];
+            const json = await res.json();
+            return (json.items ?? [])
+              .filter((it: any) => it?.volumeInfo?.imageLinks?.thumbnail)
+              .slice(0, 3)
+              .map((it: any) => ({
+                url: it.volumeInfo.imageLinks.thumbnail.replace("zoom=1", "zoom=2"),
+                source: "Google Books",
+              }));
+          } catch { return []; }
+        })(),
+      ]);
+
+      // ISBN first, then title+author; dedupe by URL, cap at 8
+      const seen = new Set<string>();
+      const combined: { url: string; source: string }[] = [];
+      for (const c of [...isbnCandidates, ...olResults, ...gbResults]) {
+        if (!c.url || seen.has(c.url)) continue;
+        seen.add(c.url);
+        combined.push(c);
+        if (combined.length >= 8) break;
+      }
+      setCoverCandidates(combined);
+      setSelectedCandidateUrl(null);
     } finally {
-      setFetchingCover(false);
+      setFetchingCovers(false);
+      setCoversSearched(true);
     }
   };
 
@@ -704,16 +782,16 @@ const AdminBooks = () => {
                     type="button"
                     variant="ghost"
                     size="sm"
-                    onClick={handleAutoFetchCover}
-                    disabled={fetchingCover || !editForm.title.trim()}
+                    onClick={handleFindCovers}
+                    disabled={fetchingCovers || !editForm.title.trim()}
                     className="gap-1.5"
                   >
-                    {fetchingCover ? (
+                    {fetchingCovers ? (
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />
                     ) : (
                       <Sparkles className="h-3.5 w-3.5" />
                     )}
-                    Fetch cover automatically
+                    Find covers
                   </Button>
                 </div>
                 <Input
@@ -735,6 +813,46 @@ const AdminBooks = () => {
                     </div>
                   )}
                 </div>
+
+                {coverCandidates.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-3">
+                    {coverCandidates.map((c, i) => (
+                      <div
+                        key={i}
+                        onClick={() => {
+                          setSelectedCandidateUrl(c.url);
+                          setEditForm((f) => ({ ...f, cover_image_url: c.url }));
+                        }}
+                        className={`relative w-16 h-[88px] rounded overflow-hidden border-2 cursor-pointer transition-all ${
+                          selectedCandidateUrl === c.url
+                            ? "border-primary ring-2 ring-primary/30"
+                            : "border-border hover:border-primary/50"
+                        }`}
+                      >
+                        <img
+                          src={c.url}
+                          alt={c.source}
+                          className="h-full w-full object-cover"
+                          onError={(e) => {
+                            // Hide candidate if image fails to load
+                            (e.target as HTMLImageElement)
+                              .closest("div")
+                              ?.style.setProperty("display", "none");
+                          }}
+                        />
+                        <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[9px] text-center py-0.5 leading-tight px-0.5">
+                          {c.source}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {coversSearched && !fetchingCovers && coverCandidates.length === 0 && (
+                  <p className="mt-3 text-xs text-muted-foreground">
+                    No covers found — try editing the title or author
+                  </p>
+                )}
               </div>
             </div>
             <SheetFooter className="mt-6 gap-2">
