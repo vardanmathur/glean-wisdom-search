@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import StudioAddHighlightModal from "@/components/studio/AddHighlightModal";
 import { useSessionStorageState } from "@/hooks/useSessionStorageState";
+import { toTitleCase } from "@/lib/utils";
 
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 
@@ -513,15 +514,24 @@ const EditPanel = ({ highlight, allTags, onClose, onSave, saving }: EditPanelPro
   };
 
   const addTag = (tag: string) => {
-    const t = tag.trim().toLowerCase();
-    if (t && !tags.includes(t)) setTags([...tags, t]);
+    const t = tag.trim();
+    if (!t) { setTagInput(""); return; }
+    const canonical = allTags.find(
+      (existing) => existing.toLowerCase() === t.toLowerCase()
+    ) ?? toTitleCase(t);
+    if (!tags.some((existing) => existing.toLowerCase() === canonical.toLowerCase())) {
+      setTags([...tags, canonical]);
+    }
     setTagInput("");
   };
   const removeTag = (tag: string) => setTags(tags.filter((t) => t !== tag));
 
   const input = tagInput.toLowerCase();
   const filteredSuggestions = allTags
-    .filter((t) => !tags.includes(t) && t.toLowerCase().includes(input))
+    .filter((t) =>
+      !tags.some((existing) => existing.toLowerCase() === t.toLowerCase())
+      && t.toLowerCase().includes(input)
+    )
     .sort((a, b) => {
       const aS = a.toLowerCase().startsWith(input);
       const bS = b.toLowerCase().startsWith(input);
