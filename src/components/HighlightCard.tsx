@@ -14,7 +14,7 @@ import {
   useToggleThumbsUp,
   useToggleThumbsDown,
 } from "@/hooks/useHighlightFeedback";
-import { Bookmark, ThumbsUp, ThumbsDown, Flag, Pencil } from "lucide-react";
+import { Bookmark, ThumbsUp, ThumbsDown, Flag, Pencil, ChevronDown, ChevronUp } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { ALL_TAGS } from "@/lib/tags";
@@ -47,6 +47,7 @@ const HighlightCard = ({ highlight, index = 0, showSaveCount = false }: Highligh
   const [reported, setReported] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [displayName, setDisplayName] = useState<string | null>(highlight.displayName || null);
+  const [notesOpen, setNotesOpen] = useState(false);
 
   useEffect(() => {
     if (highlight.source === "user" && highlight.userId && !displayName) {
@@ -133,10 +134,24 @@ const HighlightCard = ({ highlight, index = 0, showSaveCount = false }: Highligh
       {/* 4. Clearfix — moved here - ensures everything below sits beneath the floated cover */}
       <div className="clear-both" aria-hidden="true" />
 
-      {/* 3. Notes box — warm stone, teal left border */}
+      {/* 3. Notes toggle — small inline affordance, collapsed by default */}
       {highlight.myNotes && (
+        <button
+          type="button"
+          onClick={() => setNotesOpen((open) => !open)}
+          className="clear-both mt-3 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+          aria-expanded={notesOpen}
+          title={notesOpen ? "Hide note" : "Show note"}
+        >
+          {notesOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+          Note
+        </button>
+      )}
+
+      {/* Notes box — warm stone, teal left border */}
+      {highlight.myNotes && notesOpen && (
         <div
-          className="clear-both mt-4 rounded-md px-3 py-2 border-l-[3px] border-primary"
+          className="clear-both mt-2 rounded-md px-3 py-2 border-l-[3px] border-primary"
           style={{ backgroundColor: "hsl(var(--notes-bg))" }}
         >
           <span className="text-xs font-medium text-muted-foreground">Note:</span>{" "}
