@@ -182,70 +182,30 @@ const AdminBooks = () => {
           url: `https://covers.openlibrary.org/b/isbn/${encodeURIComponent(isbn)}-L.jpg?default=false`,
           source: "Open Library (ISBN)",
         });
-        try {
-          const res = await fetch(
-            `https://www.googleapis.com/books/v1/volumes?q=isbn:${encodeURIComponent(isbn)}`
-          );
-          if (res.ok) {
-            const json = await res.json();
-            for (const item of (json.items ?? [])
-              .filter((it: any) => it?.volumeInfo?.imageLinks?.thumbnail)
-              .slice(0, 2)) {
-              isbnCandidates.push({
-                url: item.volumeInfo.imageLinks.thumbnail.replace("zoom=1", "zoom=2"),
-                source: "Google Books (ISBN)",
-              });
-            }
-          }
-        } catch { /* ignore */ }
       }
 
-      // Step 2 — title + author, both sources in parallel, always run
-      const [olResults, gbResults] = await Promise.all([
-        (async () => {
-          try {
-            const res = await fetch(
-              `https://openlibrary.org/search.json?title=${encodeURIComponent(title)}&author=${encodeURIComponent(author)}&limit=5`
-            );
-            if (!res.ok) return [];
-            const json = await res.json();
-            return (json.docs ?? [])
-              .filter((d: any) => d?.cover_i)
-              .slice(0, 3)
-              .map((d: any) => ({
-                url: `https://covers.openlibrary.org/b/id/${d.cover_i}-L.jpg`,
-                source: "Open Library",
-              }));
-          } catch { return []; }
-        })(),
-        (async () => {
-          try {
-            const res = await fetch(
-              `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(`${title} ${author}`)}&maxResults=5`
-            );
-            if (!res.ok) return [];
-            const json = await res.json();
-            const gbItems = json.items ?? [];
-            const gbWithThumb = gbItems.filter((it: any) => it?.volumeInfo?.imageLinks?.thumbnail);
-            console.log(
-              `[Find covers] Google Books: ${gbItems.length} items, ${gbWithThumb.length} with thumbnail`,
-              gbWithThumb[0]?.volumeInfo?.imageLinks?.thumbnail ?? "(none)"
-            );
-            return (json.items ?? [])
-              .filter((it: any) => it?.volumeInfo?.imageLinks?.thumbnail)
-              .slice(0, 3)
-              .map((it: any) => ({
-                url: it.volumeInfo.imageLinks.thumbnail.replace("zoom=1", "zoom=2"),
-                source: "Google Books",
-              }));
-          } catch { return []; }
-        })(),
-      ]);
+      // Step 2 — title + author via Open Library
+      const olResults = await (async () => {
+        try {
+          const res = await fetch(
+            `https://openlibrary.org/search.json?title=${encodeURIComponent(title)}&author=${encodeURIComponent(author)}&limit=5`
+          );
+          if (!res.ok) return [];
+          const json = await res.json();
+          return (json.docs ?? [])
+            .filter((d: any) => d?.cover_i)
+            .slice(0, 3)
+            .map((d: any) => ({
+              url: `https://covers.openlibrary.org/b/id/${d.cover_i}-L.jpg`,
+              source: "Open Library",
+            }));
+        } catch { return []; }
+      })();
 
       // ISBN first, then title+author; dedupe by URL, cap at 8
       const seen = new Set<string>();
       const combined: { url: string; source: string }[] = [];
-      for (const c of [...isbnCandidates, ...olResults, ...gbResults]) {
+      for (const c of [...isbnCandidates, ...olResults]) {
         if (!c.url || seen.has(c.url)) continue;
         seen.add(c.url);
         combined.push(c);
@@ -829,7 +789,7 @@ const AdminBooks = () => {
                           setSelectedCandidateUrl(c.url);
                           setEditForm((f) => ({ ...f, cover_image_url: c.url }));
                         }}
-                        className={`group relative w-16 h-[88px] rounded overflow-hidden border-2 cursor-pointer transition-all ${
+                        className={`group relative w-16 h-[88px] rounded overflow-hidden border-2 cursor-pointer transition-all duration-200 hover:scale-150 hover:z-50 ${
                           selectedCandidateUrl === c.url
                             ? "border-primary ring-2 ring-primary/30"
                             : "border-border hover:border-primary/50"
@@ -848,9 +808,6 @@ const AdminBooks = () => {
                         />
                         <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[9px] text-center py-0.5 leading-tight px-0.5">
                           {c.source}
-                        </div>
-                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 hidden group-hover:block w-24 h-32 sm:w-32 sm:h-44 rounded shadow-lg overflow-hidden border border-primary/20 bg-card">
-                          <img src={c.url} alt={c.source} className="h-full w-full object-cover" />
                         </div>
                       </div>
                     ))}
