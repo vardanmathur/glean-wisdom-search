@@ -15,6 +15,17 @@ Notable changes to Glean, newest first. One entry per work session; group by wha
   multi-source OL candidates, ISBN-first with title+author
   fallback, scale-on-hover preview, Google Books removed
   (429 rate limits without API key)
+- find-book-covers edge function — server-side cover search
+  using GOOGLE_BOOKS_API_KEY secret, returns up to 8 deduped
+  candidates (OL ISBN, Google Books ISBN, OL title+author,
+  Google Books title+author), graceful OL-only fallback if
+  key missing
+- Admin Books Find Covers — now calls find-book-covers edge
+  function instead of inline client-side fetches, Google
+  Books results now working via server-side key
+- OL author format fix — converts "Firstname Lastname" to
+  "Lastname, Firstname" for better Open Library search results
+- SW cache bumped to glean-v21
 - HighlightCard — collapsible notes toggle, collapsed by
   default, ChevronDown/Up icons, covers Inspire Me +
   search results
@@ -27,7 +38,6 @@ Notable changes to Glean, newest first. One entry per work session; group by wha
   and sent to readers group
 
 ### Deferred
-- Google Books in Find Covers — add API key when needed
 - ISBN-only books Find Covers OL fallback
 - Tag Management page — spec complete, ready to build
 

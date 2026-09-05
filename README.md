@@ -69,9 +69,12 @@ npm run dev
 - Edge functions deployed via Lovable only —
   Lovable owns the Supabase org
 - SW cache: bump CACHE_NAME in public/sw.js
-  for major releases (current: glean-v20)
+  for major releases (current: glean-v21)
 - search_logs table captures all searches —
   anonymous, fire-and-forget INSERT from SearchResults
+- Google Books API key stored as GOOGLE_BOOKS_API_KEY
+  Supabase secret — used server-side in find-book-covers
+  edge function only, never exposed client-side
 
 ---
 
@@ -110,6 +113,7 @@ scripts/
 | generate-book-summary | AI book summaries (6mo cache) | public |
 | generate-reflection-questions | Worksheet coaching questions | public |
 | suggest-tags | LLM-based tag suggestion (Gemini) | public |
+| find-book-covers | Multi-source book cover search (OL + Google Books) | public |
 
 ---
 
