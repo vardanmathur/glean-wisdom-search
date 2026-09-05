@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useSearchParams, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -13,6 +14,7 @@ import { ArrowLeft, Leaf } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
 import ReactMarkdown from "react-markdown";
+import { supabase } from "@/integrations/supabase/client";
 
 const SECTION_LABELS = [
   "MY UNDERSTANDING OF YOUR PROBLEM",
@@ -191,6 +193,17 @@ const SearchResults = () => {
     staleTime: Infinity,
     gcTime: FIVE_MIN,
   });
+
+  useEffect(() => {
+    if (!searchQuery.isSuccess || !query.trim()) return;
+    const results = searchQuery.data?.highlights ?? [];
+    const coverage = searchQuery.data?.coverage ?? "good";
+    supabase.from("search_logs").insert({
+      query: query.trim(),
+      result_count: results.length,
+      coverage: coverage,
+    }).then(() => {}, () => {});
+  }, [searchQuery.isSuccess, query]);
 
   return (
     <div className="container mx-auto max-w-2xl px-4 py-8 overflow-x-hidden">

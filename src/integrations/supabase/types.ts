@@ -269,6 +269,30 @@ export type Database = {
           },
         ]
       }
+      search_logs: {
+        Row: {
+          coverage: string
+          created_at: string
+          id: string
+          query: string
+          result_count: number
+        }
+        Insert: {
+          coverage?: string
+          created_at?: string
+          id?: string
+          query: string
+          result_count: number
+        }
+        Update: {
+          coverage?: string
+          created_at?: string
+          id?: string
+          query?: string
+          result_count?: number
+        }
+        Relationships: []
+      }
       think_config: {
         Row: {
           created_at: string
