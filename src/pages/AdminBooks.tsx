@@ -225,6 +225,12 @@ const AdminBooks = () => {
             );
             if (!res.ok) return [];
             const json = await res.json();
+            const gbItems = json.items ?? [];
+            const gbWithThumb = gbItems.filter((it: any) => it?.volumeInfo?.imageLinks?.thumbnail);
+            console.log(
+              `[Find covers] Google Books: ${gbItems.length} items, ${gbWithThumb.length} with thumbnail`,
+              gbWithThumb[0]?.volumeInfo?.imageLinks?.thumbnail ?? "(none)"
+            );
             return (json.items ?? [])
               .filter((it: any) => it?.volumeInfo?.imageLinks?.thumbnail)
               .slice(0, 3)
@@ -823,7 +829,7 @@ const AdminBooks = () => {
                           setSelectedCandidateUrl(c.url);
                           setEditForm((f) => ({ ...f, cover_image_url: c.url }));
                         }}
-                        className={`relative w-16 h-[88px] rounded overflow-hidden border-2 cursor-pointer transition-all ${
+                        className={`group relative w-16 h-[88px] rounded overflow-hidden border-2 cursor-pointer transition-all ${
                           selectedCandidateUrl === c.url
                             ? "border-primary ring-2 ring-primary/30"
                             : "border-border hover:border-primary/50"
@@ -842,6 +848,9 @@ const AdminBooks = () => {
                         />
                         <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[9px] text-center py-0.5 leading-tight px-0.5">
                           {c.source}
+                        </div>
+                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 hidden group-hover:block w-24 h-32 sm:w-32 sm:h-44 rounded shadow-lg overflow-hidden border border-primary/20 bg-card">
+                          <img src={c.url} alt={c.source} className="h-full w-full object-cover" />
                         </div>
                       </div>
                     ))}
