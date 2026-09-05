@@ -2,6 +2,83 @@
 
 Notable changes to Glean, newest first. One entry per work session; group by what changed, not by file.
 
+## 2026-09-05 — Search Logging, Find Covers, Tag Fixes, UX
+
+### Shipped
+- Search query logging — fire-and-forget INSERT on every
+  search, captures query/result_count/coverage, anonymous
+- Admin Search Logs page (/admin/search-logs) — stats row
+  (total, good coverage %, top query), filterable table,
+  CSV export, mobile cards
+- Admin Hub — Search Logs card added (6th active tool)
+- Admin Books — "Find Covers" replaces auto-fetch:
+  multi-source OL candidates, ISBN-first with title+author
+  fallback, scale-on-hover preview, Google Books removed
+  (429 rate limits without API key)
+- HighlightCard — collapsible notes toggle, collapsed by
+  default, ChevronDown/Up icons, covers Inspire Me +
+  search results
+- Homepage — example queries updated + restyled as muted
+  search suggestions (borderless, → suffix), Browse by
+  Topic capped to 5 chips single row
+- UserStudio addTag() — canonical Title Case lookup +
+  filteredSuggestions case-insensitive dedup (4th location)
+- WhatsApp distribution — first user-facing post drafted
+  and sent to readers group
+
+### Deferred
+- Google Books in Find Covers — add API key when needed
+- ISBN-only books Find Covers OL fallback
+- Tag Management page — spec complete, ready to build
+
+---
+
+## 2026-05-20 — Major Feature Push (Worksheet, Think!, Admin)
+
+### Shipped
+- Download Worksheet — jsPDF 2-page PDF, coaching
+  reflection questions, Supabase Storage upload,
+  OAuth resume via sessionStorage
+- generate-reflection-questions edge function
+- worksheet_downloads table, worksheets storage bucket
+- Reactions system — save/bookmark (all users), thumbs up
+  (+0.5 boost), thumbs down admin-only (-0.5 penalty)
+- feedback + saved_highlights tables, DB-backed
+- HighlightCard mobile redesign — float cover, warm-stone
+  notes box, bottom action row
+- Inline highlight editing (HighlightEditPanel) — admin
+  only, slide-out panel
+- Think! open to all authenticated users — permission
+  gate removed
+- Think! history page (/think/history) — expandable cards,
+  Forge/Opponent display, original highlight shown
+- Think! daily usage limits — atomic increment via
+  increment_think_usage RPC, service role
+- AI book summaries — lazy generation, book_summaries
+  table, 6-month cache, admin edit/regenerate
+- Open Library enrichment — ISBN lookup, background cover
+  fetch, FetchCoversDialog, "Have an ISBN?" link
+- Admin Hub (/admin) — 6 cards linking all admin tools
+- Admin Books (/admin/books) — inline editing, cover fetch,
+  duplicate detection, mobile cards
+- Admin Worksheets (/admin/worksheets) — signed URL downloads
+- Admin Permissions — search filter, scalable layout
+- Navbar consolidated — single Admin link replaces all
+  individual admin links
+- Mobile card layouts — Admin Studio, Books, Worksheets
+- suggest-tags (v1) — pgvector semantic similarity
+  (later replaced with LLM approach Aug 2026)
+- Design Sprint 2 R01 — synthesis card as hero of search
+- Design Sprint 2 R04/R06 — example queries differentiated,
+  navbar trimmed
+- Your Toolkit section — Think! and Import cards on homepage
+- Collapsible notes in HighlightCard
+- Book pages mobile fixes — title wrapping, responsive font
+- Horizontal scroll fix on search results mobile
+- SW cache at glean-v20
+
+---
+
 ## 2026-08-22 — Tag system overhaul
 
 **Problem:** DB tags were all lowercase, `src/lib/tags.ts` (`ALL_TAGS`) was Title Case, and several off-taxonomy/malformed tags had accumulated. This split tag-frequency counts, broke suggestion dedup, and made tag-based routing rely on a case-insensitive fallback path.

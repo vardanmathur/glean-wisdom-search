@@ -1,73 +1,180 @@
-# Welcome to your Lovable project
+# Glean — Personal Wisdom Search
 
-## Project info
+A personal wisdom search app that surfaces relevant book
+highlights when you need them. Search by describing your
+challenge, get curated wisdom from 100+ books, download
+a reflection worksheet, and think through your beliefs
+with AI.
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+**Live app:** https://glean-wisdom-from-books.lovable.app
 
-## How can I edit this code?
+---
 
-There are several ways of editing your application.
+## What Glean does
 
-**Use Lovable**
+- **Search** — describe a challenge, surface relevant
+  highlights from a curated library of 100+ books
+- **Synthesise** — AI synthesis of relevant wisdom,
+  backed by real book passages
+- **Think!** — Forge your thinking or stress-test beliefs
+  against your library (Forge + Opponent modes)
+- **Import** — Import Kindle highlights or add manually
+- **Worksheet** — Download a reflection PDF for any search
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+---
 
-Changes made via Lovable will be committed automatically to this repo.
+## Tech stack
 
-**Use your preferred IDE**
+- **Frontend:** React + TypeScript + Tailwind CSS (Lovable)
+- **Database:** Supabase (Postgres + pgvector)
+- **Auth:** Google OAuth via Supabase
+- **Embeddings:** Gemini gemini-embedding-001 (768 dimensions)
+- **Edge functions:** Supabase (deployed via Lovable)
+- **PDF generation:** jsPDF (client-side)
+- **Local dev:** Vite + Node.js
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+---
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
+## Development setup
 
 ```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+# Clone the repo
+git clone https://github.com/vardanmathur/glean-wisdom-search.git
+cd glean-wisdom-search
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+# Install dependencies
+npm install
 
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
+# Start local dev server
 npm run dev
+# App runs at http://localhost:8080
 ```
 
-**Edit a file directly in GitHub**
+**Tool routing:**
+- **Lovable** — multi-file changes, new features,
+  edge function deploys, Supabase migrations
+- **Cursor / Claude Code** — single-file edits,
+  CSS tweaks, no DB changes
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+---
 
-**Use GitHub Codespaces**
+## Key architecture notes
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+- Never select("*") on highlights table —
+  embedding column (vector 768d) will kill performance
+- Tags stored in DB as Title Case — canonical list
+  in src/lib/tags.ts (66 tags)
+- Book insert happens at highlight save time only —
+  never during ISBN lookup (prevents orphaned books)
+- Edge functions deployed via Lovable only —
+  Lovable owns the Supabase org
+- SW cache: bump CACHE_NAME in public/sw.js
+  for major releases (current: glean-v20)
+- search_logs table captures all searches —
+  anonymous, fire-and-forget INSERT from SearchResults
 
-## What technologies are used for this project?
+---
 
-This project is built with:
+## Project structure
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+```
+src/
+  components/       # Shared UI components
+  components/admin/ # Admin-only components
+  components/studio/# Studio (highlight creation) components
+  components/ui/    # shadcn/ui components
+  context/          # Auth context
+  hooks/            # Custom hooks (useIsAdmin, useAuthGate etc.)
+  integrations/     # Supabase client + generated types
+  lib/              # Core logic (data.ts, tags.ts, utils.ts etc.)
+  pages/            # Route-level page components
+supabase/
+  functions/        # Edge functions
+public/
+  sw.js             # Service worker
+  sitemap.xml       # Static sitemap (regenerate with npm run sitemap)
+scripts/
+  generate-sitemap.mjs # Sitemap generator
+```
 
-## How can I deploy this project?
+---
 
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
+## Edge functions
 
-## Can I connect a custom domain to my Lovable project?
+| Function | Purpose | Auth |
+|----------|---------|------|
+| search-semantic | pgvector semantic search | public |
+| synthesise-wisdom | AI synthesis + Think! usage tracking | public |
+| generate-embeddings | Gemini embedding generation | admin |
+| generate-topic-summary | AI topic summaries (6mo cache) | public |
+| generate-book-summary | AI book summaries (6mo cache) | public |
+| generate-reflection-questions | Worksheet coaching questions | public |
+| suggest-tags | LLM-based tag suggestion (Gemini) | public |
 
-Yes, you can!
+---
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+## Admin pages
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+All admin pages require the admin role via has_role() RPC.
+Access via /admin hub:
+
+| Page | Path | Purpose |
+|------|------|---------|
+| Admin Hub | /admin | Landing page for all admin tools |
+| Admin Studio | /admin/studio/highlights | Edit highlights, tags, embeddings |
+| Books | /admin/books | Manage book catalogue and covers |
+| Permissions | /admin/permissions | User access management |
+| Worksheets | /admin/worksheets | View downloaded worksheets |
+| Search Logs | /admin/search-logs | Search query analytics |
+
+---
+
+## Database tables
+
+| Table | Purpose |
+|-------|---------|
+| highlights | Core content — quotes, tags, embeddings |
+| books | Book metadata, covers, ISBNs |
+| book_summaries | AI summaries, 6mo cache |
+| topic_summaries | AI topic summaries, 6mo cache |
+| search_logs | All search queries, anonymous |
+| think_sessions | Think! session history |
+| think_usage | Daily Think! usage per user |
+| think_config | Per-user Think! daily limits |
+| worksheet_downloads | Worksheet PDF download log |
+| user_roles | RBAC — admin role assignments |
+| user_profiles | Display names |
+| saved_highlights | Per-user highlight saves |
+| feedback | Thumbs up/down per highlight |
+
+---
+
+## Supabase reference
+
+- **Project ref:** bynjngujlvgcchirmnea
+- **Storage bucket:** worksheets (private)
+- **Key RPCs:** has_role(), match_highlights(),
+  increment_think_usage(), suggest_tags_for_quote()
+
+---
+
+## Sitemap regeneration
+
+After adding books, tags, or topics:
+```sh
+npm run sitemap
+```
+Regenerates public/sitemap.xml with current books
+and topic URLs.
+
+---
+
+## Design standards
+
+See GLEAN_DESIGN_STANDARDS.md (in Claude Project files)
+for full UI patterns, mobile rules, component patterns,
+and Lovable prompt checklist.
+
+---
+
+*Built by Vardan Mathur · February 2026*
