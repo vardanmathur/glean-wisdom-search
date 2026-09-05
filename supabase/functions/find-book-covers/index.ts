@@ -42,8 +42,10 @@ serve(async (req) => {
           const res = await fetch(
             `https://www.googleapis.com/books/v1/volumes?q=isbn:${encodeURIComponent(cleanIsbn)}&key=${googleKey}`
           );
+          console.log("google isbn status:", res.status);
           if (res.ok) {
             const json = await res.json();
+            console.log("google isbn items:", (json.items ?? []).length);
             for (const item of (json.items ?? []).slice(0, 2)) {
               const thumb = item?.volumeInfo?.imageLinks?.thumbnail;
               if (thumb) {
