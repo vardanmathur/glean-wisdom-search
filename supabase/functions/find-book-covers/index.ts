@@ -26,6 +26,7 @@ serve(async (req) => {
     }
 
     const googleKey = Deno.env.get("GOOGLE_BOOKS_API_KEY");
+    console.log("googleKey present:", !!googleKey);
     const candidates: Candidate[] = [];
 
     // --- ISBN candidates ---
