@@ -165,54 +165,29 @@ const AdminBooks = () => {
   };
 
   const handleFindCovers = async () => {
-    const title = editForm.title.trim();
-    if (!title) return;
-    const author = editForm.author.trim();
-    const isbn = editForm.isbn.trim();
-
+    if (!editForm.title.trim()) return;
     setFetchingCovers(true);
+    setCoverCandidates([]);
+    setSelectedCandidateUrl(null);
     setCoversSearched(false);
     try {
-      // Step 1 — ISBN candidates (only when the book has one)
-      const isbnCandidates: { url: string; source: string }[] = [];
-      if (isbn) {
-        // Direct Open Library cover — no API call; ?default=false makes a
-        // missing cover 404 so the img onError can hide the tile.
-        isbnCandidates.push({
-          url: `https://covers.openlibrary.org/b/isbn/${encodeURIComponent(isbn)}-L.jpg?default=false`,
-          source: "Open Library (ISBN)",
-        });
-      }
-
-      // Step 2 — title + author via Open Library
-      const olResults = await (async () => {
-        try {
-          const res = await fetch(
-            `https://openlibrary.org/search.json?title=${encodeURIComponent(title)}&author=${encodeURIComponent(author)}&limit=5`
-          );
-          if (!res.ok) return [];
-          const json = await res.json();
-          return (json.docs ?? [])
-            .filter((d: any) => d?.cover_i)
-            .slice(0, 3)
-            .map((d: any) => ({
-              url: `https://covers.openlibrary.org/b/id/${d.cover_i}-L.jpg`,
-              source: "Open Library",
-            }));
-        } catch { return []; }
-      })();
-
-      // ISBN first, then title+author; dedupe by URL, cap at 8
-      const seen = new Set<string>();
-      const combined: { url: string; source: string }[] = [];
-      for (const c of [...isbnCandidates, ...olResults]) {
-        if (!c.url || seen.has(c.url)) continue;
-        seen.add(c.url);
-        combined.push(c);
-        if (combined.length >= 8) break;
-      }
-      setCoverCandidates(combined);
-      setSelectedCandidateUrl(null);
+      const { data, error } = await supabase.functions.invoke(
+        "find-book-covers",
+        {
+          body: {
+            title: editForm.title,
+            author: editForm.author,
+            isbn: editForm.isbn || undefined,
+          },
+        }
+      );
+      if (error) throw error;
+      const candidates = Array.isArray(data?.candidates)
+        ? data.candidates : [];
+      setCoverCandidates(candidates);
+    } catch (err) {
+      console.error(err);
+      toast.error("Couldn't fetch covers");
     } finally {
       setFetchingCovers(false);
       setCoversSearched(true);

@@ -17,3 +17,6 @@ verify_jwt = false
 
 [functions.suggest-tags]
 verify_jwt = false
+
+[functions.find-book-covers]
+verify_jwt = false
