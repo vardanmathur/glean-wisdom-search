@@ -34,7 +34,9 @@ verify_jwt = false
 - **Search-mode UI (lines 358–412)**:
   - Below the input (near line 375): always-visible `Search all books →` link when the query is 2+ chars.
   - Below internal results / the "No matches" block (after line 410): spinner + "Searching all books…", a `From all books:` section header, the result cards with cover thumbnail, title, author, ISBN and source, a `Show 5 more →` button when more exist, and a "No books found — try different search terms" empty state.
-- The existing ISBN-conflict banner (currently only rendered in scan mode) is also rendered in search mode so a duplicate picked from external results is shown.
+- The existing ISBN-conflict banner is currently only rendered inside the `mode === "scan"` block (lines 449–501). To make it visible in search mode when `handleSelectExternal` finds a duplicate, the banner will be moved out of the scan-only block and rendered globally whenever `existingBookConflict` is set.
+  - Exact JSX placement: after the closing brace of the `mode === "manual"` block (currently line 530) and before the final `</div>` at line 532, insert `{existingBookConflict && (<div className="rounded-lg border border-primary/20 bg-primary/5 p-3 mt-3 space-y-2">…</div>)}`.
+  - This makes the conflict UI available in search, scan, and manual modes without duplicating it.
 
 ## Notes
 
