@@ -121,8 +121,16 @@ const BookLookup = ({ selectedBook, onSelect, onClear }: BookLookupProps) => {
   // Clear any stale ISBN-conflict banner once a book has actually been
   // selected — the interactive lookup panel is about to be replaced by
   // the locked "selectedBook" view, so nothing should linger behind it.
+  // Guarded on the falsy→truthy transition (not "is currently truthy")
+  // so this can't clear a conflict that was set while selectedBook was
+  // already truthy going in.
+  const prevSelectedBook = useRef(selectedBook);
   useEffect(() => {
-    if (selectedBook) setExistingBookConflict(null);
+    const prev = prevSelectedBook.current;
+    prevSelectedBook.current = selectedBook;
+    if (selectedBook && !prev) {
+      setExistingBookConflict(null);
+    }
   }, [selectedBook]);
 
   const startScan = async () => {
