@@ -118,6 +118,69 @@ const BookLookup = ({ selectedBook, onSelect, onClear }: BookLookupProps) => {
     return () => clearTimeout(t);
   }, [search, mode, selectedBook]);
 
+  // Clear external results whenever the query or mode changes
+  useEffect(() => {
+    setExternalBooks([]);
+    setExternalSearching(false);
+    setExternalOffset(0);
+    setExternalHasMore(false);
+    setExternalSearched(false);
+  }, [search, mode]);
+
+  const runExternalSearch = async (offset = 0, append = false) => {
+    const term = search.trim();
+    if (term.length < 2) return;
+    setExternalSearching(true);
+    if (!append) {
+      setExternalBooks([]);
+      setExternalSearched(false);
+    }
+    try {
+      const { data, error } = await supabase.functions.invoke("search-books", {
+        body: {
+          query: term,
+          author: undefined,
+          offset,
+        },
+      });
+      if (error) throw error;
+      const books = Array.isArray(data?.books) ? (data.books as ExternalBook[]) : [];
+      setExternalBooks((prev) => (append ? [...prev, ...books] : books));
+      setExternalHasMore(!!data?.hasMore);
+      setExternalOffset(offset);
+      setExternalSearched(true);
+    } catch (err) {
+      console.error("External book search failed:", err);
+      setExternalBooks([]);
+      setExternalHasMore(false);
+      setExternalSearched(true);
+    } finally {
+      setExternalSearching(false);
+    }
+  };
+
+  const handleSelectExternal = async (book: ExternalBook) => {
+    if (book.isbn) {
+      const { data: existingBook } = await supabase
+        .from("books")
+        .select("id, title, author, cover_image_url")
+        .eq("isbn", book.isbn)
+        .maybeSingle();
+      if (existingBook) {
+        setExistingBookConflict(existingBook);
+        return;
+      }
+    }
+    onSelect({
+      id: null,
+      title: book.title,
+      author: book.author ?? "Unknown",
+      isbn: book.isbn ?? undefined,
+      coverImageUrl: book.coverUrl ?? undefined,
+      pending: true,
+    });
+  };
+
   // Cleanup scanner on unmount / mode change
   useEffect(() => {
     return () => {
