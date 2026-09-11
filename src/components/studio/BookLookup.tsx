@@ -27,12 +27,27 @@ interface BookSuggestion {
 
 type Mode = "search" | "scan" | "manual";
 
+interface ExternalBook {
+  title: string;
+  author: string | null;
+  isbn: string | null;
+  coverUrl: string | null;
+  source: string;
+}
+
 const BookLookup = ({ selectedBook, onSelect, onClear }: BookLookupProps) => {
   const [mode, setMode] = useState<Mode>("search");
   const [search, setSearch] = useState("");
   const [suggestions, setSuggestions] = useState<BookSuggestion[]>([]);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
+
+  // External book search state
+  const [externalBooks, setExternalBooks] = useState<ExternalBook[]>([]);
+  const [externalSearching, setExternalSearching] = useState(false);
+  const [externalOffset, setExternalOffset] = useState(0);
+  const [externalHasMore, setExternalHasMore] = useState(false);
+  const [externalSearched, setExternalSearched] = useState(false);
 
   // ISBN scan state
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -102,6 +117,83 @@ const BookLookup = ({ selectedBook, onSelect, onClear }: BookLookupProps) => {
     }, 250);
     return () => clearTimeout(t);
   }, [search, mode, selectedBook]);
+
+  // Clear external results whenever the query or mode changes
+  useEffect(() => {
+    setExternalBooks([]);
+    setExternalSearching(false);
+    setExternalOffset(0);
+    setExternalHasMore(false);
+    setExternalSearched(false);
+  }, [search, mode]);
+
+  // Auto-trigger external catalog search when internal results are empty,
+  // the user has typed 3+ characters, and they've paused for 600ms.
+  useEffect(() => {
+    if (selectedBook || mode !== "search") return;
+    const term = search.trim();
+    if (term.length < 3 || suggestions.length > 0) {
+      return;
+    }
+    const t = setTimeout(() => {
+      runExternalSearch(0, false);
+    }, 600);
+    return () => clearTimeout(t);
+  }, [search, suggestions.length, mode, selectedBook]);
+
+  const runExternalSearch = async (offset = 0, append = false) => {
+    const term = search.trim();
+    if (term.length < 2) return;
+    setExternalSearching(true);
+    if (!append) {
+      setExternalBooks([]);
+      setExternalSearched(false);
+    }
+    try {
+      const { data, error } = await supabase.functions.invoke("search-books", {
+        body: {
+          query: term,
+          author: undefined,
+          offset,
+        },
+      });
+      if (error) throw error;
+      const books = Array.isArray(data?.books) ? (data.books as ExternalBook[]) : [];
+      setExternalBooks((prev) => (append ? [...prev, ...books] : books));
+      setExternalHasMore(!!data?.hasMore);
+      setExternalOffset(offset);
+      setExternalSearched(true);
+    } catch (err) {
+      console.error("External book search failed:", err);
+      setExternalBooks([]);
+      setExternalHasMore(false);
+      setExternalSearched(true);
+    } finally {
+      setExternalSearching(false);
+    }
+  };
+
+  const handleSelectExternal = async (book: ExternalBook) => {
+    if (book.isbn) {
+      const { data: existingBook } = await supabase
+        .from("books")
+        .select("id, title, author, cover_image_url")
+        .eq("isbn", book.isbn)
+        .maybeSingle();
+      if (existingBook) {
+        setExistingBookConflict(existingBook);
+        return;
+      }
+    }
+    onSelect({
+      id: null,
+      title: book.title,
+      author: book.author ?? "Unknown",
+      isbn: book.isbn ?? undefined,
+      coverImageUrl: book.coverUrl ?? undefined,
+      pending: true,
+    });
+  };
 
   // Cleanup scanner on unmount / mode change
   useEffect(() => {
@@ -364,15 +456,17 @@ if (!title) throw new Error("No book found for this ISBN");
             placeholder="Search book title…"
             className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
-          <p className="text-right">
-            <button
-              type="button"
-              onClick={() => setMode("scan")}
-              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-            >
-              Have an ISBN?
-            </button>
-          </p>
+          {search.trim().length >= 2 && (
+            <p className="text-right">
+              <button
+                type="button"
+                onClick={() => runExternalSearch(0, false)}
+                className="text-xs text-primary hover:text-primary/80 transition-colors"
+              >
+                Search all books →
+              </button>
+            </p>
+          )}
           {loading && (
             <p className="text-xs text-muted-foreground flex items-center gap-1">
               <Loader2 className="h-3 w-3 animate-spin" /> Searching…
@@ -407,6 +501,66 @@ if (!title) throw new Error("No book found for this ISBN");
                 </Button>
               </div>
             </div>
+          )}
+
+          {/* External catalog results */}
+          {externalSearching && (
+            <p className="text-xs text-muted-foreground flex items-center gap-1">
+              <Loader2 className="h-3 w-3 animate-spin" /> Searching all books…
+            </p>
+          )}
+          {externalBooks.length > 0 && (
+            <div>
+              <p className="text-xs uppercase tracking-wider text-muted-foreground mb-2">
+                From all books:
+              </p>
+              <div className="space-y-2">
+                {externalBooks.map((b, idx) => (
+                  <button
+                    key={`${b.title}-${b.author ?? "unknown"}-${idx}`}
+                    type="button"
+                    onClick={() => handleSelectExternal(b)}
+                    className="w-full text-left rounded-lg border bg-card p-3 hover:border-primary/40 transition-colors flex gap-3 items-center"
+                  >
+                    {b.coverUrl && (
+                      <img
+                        src={b.coverUrl}
+                        alt=""
+                        className="h-14 w-10 object-cover rounded shrink-0 border"
+                      />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm truncate">{b.title}</p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {b.author ?? "Unknown author"}
+                      </p>
+                      {b.isbn && (
+                        <p className="text-xs text-muted-foreground">
+                          ISBN: {b.isbn}
+                        </p>
+                      )}
+                      <p className="text-xs text-muted-foreground/60 mt-0.5">
+                        {b.source}
+                      </p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+              {externalHasMore && (
+                <button
+                  type="button"
+                  onClick={() => runExternalSearch(externalOffset + 5, true)}
+                  className="mt-2 text-xs text-primary hover:text-primary/80 transition-colors"
+                >
+                  Show 5 more →
+                </button>
+              )}
+            </div>
+          )}
+          {externalSearched && !externalSearching && externalBooks.length === 0 && (
+            <p className="text-xs text-muted-foreground">
+              No books found — try different search terms
+            </p>
           )}
         </>
       )}
@@ -446,58 +600,6 @@ if (!title) throw new Error("No book found for this ISBN");
             </Button>
           </div>
           {manualIsbnError && <p className="text-xs text-destructive">{manualIsbnError}</p>}
-          {existingBookConflict && (
-            <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 mt-3 space-y-2">
-              <p className="text-sm font-medium text-foreground">
-                This book is already in your library
-              </p>
-              <div className="flex items-center gap-2">
-                {existingBookConflict.cover_image_url && (
-                  <img
-                    src={existingBookConflict.cover_image_url}
-                    className="h-10 w-7 object-cover rounded shrink-0"
-                  />
-                )}
-                <div className="min-w-0">
-                  <p className="text-sm font-medium truncate">
-                    {existingBookConflict.title}
-                  </p>
-                  <p className="text-xs text-muted-foreground truncate">
-                    {existingBookConflict.author}
-                  </p>
-                </div>
-              </div>
-              <div className="flex gap-2 pt-1">
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={() => {
-                    onSelect({
-                      id: existingBookConflict.id,
-                      title: existingBookConflict.title,
-                      author: existingBookConflict.author,
-                      coverImageUrl: existingBookConflict.cover_image_url ?? undefined,
-                      pending: false,
-                    });
-                    setExistingBookConflict(null);
-                  }}
-                >
-                  Use this book
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    setExistingBookConflict(null);
-                    setManualIsbn("");
-                  }}
-                >
-                  Use different ISBN
-                </Button>
-              </div>
-            </div>
-          )}
           {scanError && !existingBookConflict && <p className="text-xs text-destructive">{scanError}</p>}
         </div>
       )}
@@ -526,6 +628,60 @@ if (!title) throw new Error("No book found for this ISBN");
             {creatingManual ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
             Add book
           </Button>
+        </div>
+      )}
+
+      {existingBookConflict && (
+        <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 mt-3 space-y-2">
+          <p className="text-sm font-medium text-foreground">
+            This book is already in your library
+          </p>
+          <div className="flex items-center gap-2">
+            {existingBookConflict.cover_image_url && (
+              <img
+                src={existingBookConflict.cover_image_url}
+                alt=""
+                className="h-10 w-7 object-cover rounded shrink-0"
+              />
+            )}
+            <div className="min-w-0">
+              <p className="text-sm font-medium truncate">
+                {existingBookConflict.title}
+              </p>
+              <p className="text-xs text-muted-foreground truncate">
+                {existingBookConflict.author}
+              </p>
+            </div>
+          </div>
+          <div className="flex gap-2 pt-1">
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => {
+                onSelect({
+                  id: existingBookConflict.id,
+                  title: existingBookConflict.title,
+                  author: existingBookConflict.author,
+                  coverImageUrl: existingBookConflict.cover_image_url ?? undefined,
+                  pending: false,
+                });
+                setExistingBookConflict(null);
+              }}
+            >
+              Use this book
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                setExistingBookConflict(null);
+                setManualIsbn("");
+              }}
+            >
+              Use different ISBN
+            </Button>
+          </div>
         </div>
       )}
     </div>

@@ -20,3 +20,6 @@ verify_jwt = false
 
 [functions.find-book-covers]
 verify_jwt = false
+
+[functions.search-books]
+verify_jwt = false
