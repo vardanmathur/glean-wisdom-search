@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Loader2, ScanBarcode, Pencil, X } from "lucide-react";
+import { Loader2, ScanBarcode, Keyboard, X } from "lucide-react";
 import { toast } from "sonner";
 
 export interface SelectedBook {
@@ -41,6 +41,7 @@ const BookLookup = ({ selectedBook, onSelect, onClear }: BookLookupProps) => {
   const [suggestions, setSuggestions] = useState<BookSuggestion[]>([]);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
+  const [showIsbnOptions, setShowIsbnOptions] = useState(false);
 
   // External book search state
   const [externalBooks, setExternalBooks] = useState<ExternalBook[]>([]);
@@ -56,6 +57,7 @@ const BookLookup = ({ selectedBook, onSelect, onClear }: BookLookupProps) => {
   const [resolvingIsbn, setResolvingIsbn] = useState(false);
   const [manualIsbn, setManualIsbn] = useState("");
   const [manualIsbnError, setManualIsbnError] = useState<string | null>(null);
+  const [isbnTextOnly, setIsbnTextOnly] = useState(false);
   const [existingBookConflict, setExistingBookConflict] = useState<{
     id: string;
     title: string;
@@ -125,21 +127,8 @@ const BookLookup = ({ selectedBook, onSelect, onClear }: BookLookupProps) => {
     setExternalOffset(0);
     setExternalHasMore(false);
     setExternalSearched(false);
+    setShowIsbnOptions(false);
   }, [search, mode]);
-
-  // Auto-trigger external catalog search when internal results are empty,
-  // the user has typed 3+ characters, and they've paused for 600ms.
-  useEffect(() => {
-    if (selectedBook || mode !== "search") return;
-    const term = search.trim();
-    if (term.length < 3 || suggestions.length > 0) {
-      return;
-    }
-    const t = setTimeout(() => {
-      runExternalSearch(0, false);
-    }, 600);
-    return () => clearTimeout(t);
-  }, [search, suggestions.length, mode, selectedBook]);
 
   const runExternalSearch = async (offset = 0, append = false) => {
     const term = search.trim();
@@ -207,6 +196,7 @@ const BookLookup = ({ selectedBook, onSelect, onClear }: BookLookupProps) => {
     if (mode !== "scan") {
       try { scannerRef.current?.stop(); } catch { /* noop */ }
       scannerRef.current = null;
+      setIsbnTextOnly(false);
     }
   }, [mode]);
 
@@ -222,6 +212,7 @@ const BookLookup = ({ selectedBook, onSelect, onClear }: BookLookupProps) => {
     prevSelectedBook.current = selectedBook;
     if (selectedBook && !prev) {
       setExistingBookConflict(null);
+      setShowIsbnOptions(false);
     }
   }, [selectedBook]);
 
@@ -456,16 +447,60 @@ if (!title) throw new Error("No book found for this ISBN");
             placeholder="Search book title…"
             className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
-          {search.trim().length >= 2 && (
-            <p className="text-right">
-              <button
-                type="button"
-                onClick={() => runExternalSearch(0, false)}
-                className="text-xs text-primary hover:text-primary/80 transition-colors"
-              >
-                Search all books →
-              </button>
-            </p>
+          <div className="flex items-center gap-3 mt-1">
+            <button
+              type="button"
+              onClick={() => runExternalSearch(0, false)}
+              className="text-xs text-primary hover:text-primary/80 transition-colors"
+            >
+              Search all books →
+            </button>
+            <span className="text-xs text-muted-foreground/40">|</span>
+            <button
+              type="button"
+              onClick={() => setShowIsbnOptions(true)}
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Have an ISBN?
+            </button>
+          </div>
+          {showIsbnOptions && (
+            <div className="rounded-md border bg-card p-3 mt-2 space-y-2">
+              <p className="text-xs text-muted-foreground font-medium">
+                How would you like to enter the ISBN?
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setShowIsbnOptions(false);
+                    setMode("scan");
+                    // Camera is not auto-started — user clicks "Start
+                    // camera" in scan mode, same as the existing flow.
+                  }}
+                  className="gap-1.5"
+                >
+                  <ScanBarcode className="h-3.5 w-3.5" />
+                  Scan barcode
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setShowIsbnOptions(false);
+                    setMode("scan");
+                    setIsbnTextOnly(true);
+                  }}
+                  className="gap-1.5"
+                >
+                  <Keyboard className="h-3.5 w-3.5" />
+                  Type ISBN
+                </Button>
+              </div>
+            </div>
           )}
           {loading && (
             <p className="text-xs text-muted-foreground flex items-center gap-1">
@@ -485,21 +520,6 @@ if (!title) throw new Error("No book found for this ISBN");
                   <span className="text-muted-foreground"> — {b.author}</span>
                 </button>
               ))}
-            </div>
-          )}
-          {searched && !loading && suggestions.length === 0 && (
-            <div className="rounded-md border bg-card p-3 space-y-2">
-              <p className="text-xs text-muted-foreground">
-                No matches for "{search.trim()}". Add the book:
-              </p>
-              <div className="flex gap-2">
-                <Button type="button" size="sm" variant="outline" onClick={() => setMode("scan")} className="gap-1.5">
-                  <ScanBarcode className="h-3.5 w-3.5" /> Scan ISBN
-                </Button>
-                <Button type="button" size="sm" variant="outline" onClick={() => setMode("manual")} className="gap-1.5">
-                  <Pencil className="h-3.5 w-3.5" /> Enter manually
-                </Button>
-              </div>
             </div>
           )}
 
@@ -568,19 +588,22 @@ if (!title) throw new Error("No book found for this ISBN");
       {mode === "scan" && (
         <div className="space-y-2 rounded-md border bg-card p-3">
           <div className="flex items-center justify-between">
-            <p className="text-sm font-medium">Point camera at the book's barcode</p>
+            <p className="text-sm font-medium">
+              {isbnTextOnly ? "Enter the ISBN" : "Point camera at the book's barcode"}
+            </p>
             <Button type="button" size="sm" variant="ghost" onClick={() => setMode("search")}>Back</Button>
           </div>
-          <video ref={videoRef} className="w-full rounded-md bg-black aspect-video" muted playsInline />
-          <div className="flex gap-2">
-            <Button type="button" size="sm" onClick={startScan} disabled={resolvingIsbn}>
-              {resolvingIsbn ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
-              {resolvingIsbn ? "Looking up…" : "Start camera"}
-            </Button>
-            <Button type="button" size="sm" variant="outline" onClick={() => setMode("manual")}>
-              Enter manually instead
-            </Button>
-          </div>
+          {!isbnTextOnly && (
+            <>
+              <video ref={videoRef} className="w-full rounded-md bg-black aspect-video" muted playsInline />
+              <div className="flex gap-2">
+                <Button type="button" size="sm" onClick={startScan} disabled={resolvingIsbn}>
+                  {resolvingIsbn ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
+                  {resolvingIsbn ? "Looking up…" : "Start camera"}
+                </Button>
+              </div>
+            </>
+          )}
           <div className="flex items-center gap-2 pt-1 border-t">
             <input
               type="text"
