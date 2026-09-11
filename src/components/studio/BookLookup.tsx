@@ -630,6 +630,60 @@ if (!title) throw new Error("No book found for this ISBN");
           </Button>
         </div>
       )}
+
+      {existingBookConflict && (
+        <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 mt-3 space-y-2">
+          <p className="text-sm font-medium text-foreground">
+            This book is already in your library
+          </p>
+          <div className="flex items-center gap-2">
+            {existingBookConflict.cover_image_url && (
+              <img
+                src={existingBookConflict.cover_image_url}
+                alt=""
+                className="h-10 w-7 object-cover rounded shrink-0"
+              />
+            )}
+            <div className="min-w-0">
+              <p className="text-sm font-medium truncate">
+                {existingBookConflict.title}
+              </p>
+              <p className="text-xs text-muted-foreground truncate">
+                {existingBookConflict.author}
+              </p>
+            </div>
+          </div>
+          <div className="flex gap-2 pt-1">
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => {
+                onSelect({
+                  id: existingBookConflict.id,
+                  title: existingBookConflict.title,
+                  author: existingBookConflict.author,
+                  coverImageUrl: existingBookConflict.cover_image_url ?? undefined,
+                  pending: false,
+                });
+                setExistingBookConflict(null);
+              }}
+            >
+              Use this book
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                setExistingBookConflict(null);
+                setManualIsbn("");
+              }}
+            >
+              Use different ISBN
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
