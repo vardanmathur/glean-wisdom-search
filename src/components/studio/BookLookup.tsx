@@ -456,15 +456,17 @@ if (!title) throw new Error("No book found for this ISBN");
             placeholder="Search book title…"
             className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
-          <p className="text-right">
-            <button
-              type="button"
-              onClick={() => setMode("scan")}
-              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-            >
-              Have an ISBN?
-            </button>
-          </p>
+          {search.trim().length >= 2 && (
+            <p className="text-right">
+              <button
+                type="button"
+                onClick={() => runExternalSearch(0, false)}
+                className="text-xs text-primary hover:text-primary/80 transition-colors"
+              >
+                Search all books →
+              </button>
+            </p>
+          )}
           {loading && (
             <p className="text-xs text-muted-foreground flex items-center gap-1">
               <Loader2 className="h-3 w-3 animate-spin" /> Searching…
@@ -499,6 +501,66 @@ if (!title) throw new Error("No book found for this ISBN");
                 </Button>
               </div>
             </div>
+          )}
+
+          {/* External catalog results */}
+          {externalSearching && (
+            <p className="text-xs text-muted-foreground flex items-center gap-1">
+              <Loader2 className="h-3 w-3 animate-spin" /> Searching all books…
+            </p>
+          )}
+          {externalBooks.length > 0 && (
+            <div>
+              <p className="text-xs uppercase tracking-wider text-muted-foreground mb-2">
+                From all books:
+              </p>
+              <div className="space-y-2">
+                {externalBooks.map((b, idx) => (
+                  <button
+                    key={`${b.title}-${b.author ?? "unknown"}-${idx}`}
+                    type="button"
+                    onClick={() => handleSelectExternal(b)}
+                    className="w-full text-left rounded-lg border bg-card p-3 hover:border-primary/40 transition-colors flex gap-3 items-center"
+                  >
+                    {b.coverUrl && (
+                      <img
+                        src={b.coverUrl}
+                        alt=""
+                        className="h-14 w-10 object-cover rounded shrink-0 border"
+                      />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm truncate">{b.title}</p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {b.author ?? "Unknown author"}
+                      </p>
+                      {b.isbn && (
+                        <p className="text-xs text-muted-foreground">
+                          ISBN: {b.isbn}
+                        </p>
+                      )}
+                      <p className="text-xs text-muted-foreground/60 mt-0.5">
+                        {b.source}
+                      </p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+              {externalHasMore && (
+                <button
+                  type="button"
+                  onClick={() => runExternalSearch(externalOffset + 5, true)}
+                  className="mt-2 text-xs text-primary hover:text-primary/80 transition-colors"
+                >
+                  Show 5 more →
+                </button>
+              )}
+            </div>
+          )}
+          {externalSearched && !externalSearching && externalBooks.length === 0 && (
+            <p className="text-xs text-muted-foreground">
+              No books found — try different search terms
+            </p>
           )}
         </>
       )}
