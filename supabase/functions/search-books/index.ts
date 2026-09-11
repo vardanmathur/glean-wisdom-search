@@ -78,7 +78,7 @@ serve(async (req) => {
         ? parts[parts.length - 1] + ", " + parts.slice(0, -1).join(" ")
         : authorStr;
       const res = await fetch(
-        `https://openlibrary.org/search.json?title=${encodeURIComponent(query)}&author=${encodeURIComponent(olAuthor)}&limit=10&offset=${startIndex}`
+        `https://openlibrary.org/search.json?q=${encodeURIComponent(query)}&author=${encodeURIComponent(olAuthor)}&limit=10&offset=${startIndex}`
       );
       if (res.ok) {
         const json = await res.json();
