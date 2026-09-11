@@ -20,9 +20,11 @@ interface AddHighlightModalProps {
   onOpenChange: (open: boolean) => void;
   onCreated: () => void;
   allTags: string[];
+  initialBook?: SelectedBook;
+  onChangeBook?: () => void;
 }
 
-const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags }: AddHighlightModalProps) => {
+const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags, initialBook, onChangeBook }: AddHighlightModalProps) => {
   const { user } = useAuth();
   const isMobile = useIsMobile();
   const [tab, setTab, clearTab] = useSessionStorageState<"type" | "dictate" | "scan">(`${DRAFT_KEY}_tab`, "type");
@@ -37,6 +39,7 @@ const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags }: Add
     "private",
   );
   const [saving, setSaving] = useState(false);
+  const [bookLookupOverride, setBookLookupOverride] = useState(false);
 
   // Scan tab state — Tesseract loaded lazily on first open
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -75,6 +78,7 @@ const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags }: Add
     clearDictatedText();
     stopCamera();
     stopDictation();
+    setBookLookupOverride(false);
   };
 
   // Track previous open state so reset only fires on an explicit open→close
@@ -86,6 +90,10 @@ const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags }: Add
     const wasOpen = prevOpenRef.current;
     prevOpenRef.current = open;
     if (wasOpen && !open) reset();
+    else if (!wasOpen && open && initialBook) {
+      setBook(initialBook);
+      setBookLookupOverride(false);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
@@ -97,6 +105,11 @@ const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags }: Add
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const handleChangeBook = () => {
+    onChangeBook?.();
+    setBookLookupOverride(true);
+  };
 
   const startDictation = () => {
     if (!speechSupported) return;
@@ -550,7 +563,27 @@ const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags }: Add
             <label className="text-sm font-medium">
               Book <span className="text-destructive">*</span>
             </label>
-            <BookLookup selectedBook={book} onSelect={setBook} onClear={() => setBook(null)} />
+            {initialBook && !bookLookupOverride ? (
+              <div className="rounded-lg border bg-muted/30 p-3 flex items-center gap-3">
+                {initialBook.coverImageUrl && (
+                  <img src={initialBook.coverImageUrl} className="h-12 w-8 object-cover rounded" />
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wider mb-0.5">Adding highlight to</p>
+                  <p className="font-medium text-sm truncate">{initialBook.title}</p>
+                  <p className="text-xs text-muted-foreground truncate">{initialBook.author}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleChangeBook}
+                  className="text-xs text-primary hover:text-primary/80 shrink-0 transition-colors"
+                >
+                  Change
+                </button>
+              </div>
+            ) : (
+              <BookLookup selectedBook={book} onSelect={setBook} onClear={() => setBook(null)} />
+            )}
           </div>
 
           <div className="space-y-2">

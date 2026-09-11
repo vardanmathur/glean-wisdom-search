@@ -1,18 +1,21 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getAmazonUrl, getBookByTitle, getGoodreadsUrl, getHighlightsByBook } from "@/lib/data";
 import HighlightCard from "@/components/HighlightCard";
 import SortFilterBar, { SortOption } from "@/components/SortFilterBar";
 import { useHighlightSaveCounts } from "@/hooks/useHighlightSaves";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
+import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
-import { BookOpen, ArrowLeft, Loader2, ShoppingCart, Pencil, RefreshCw } from "lucide-react";
+import { BookOpen, ArrowLeft, Loader2, ShoppingCart, Pencil, RefreshCw, Plus } from "lucide-react";
+import AddHighlightModal from "@/components/studio/AddHighlightModal";
+import { ALL_TAGS } from "@/lib/tags";
 
 const MIN_HIGHLIGHTS_FOR_SUMMARY = 10;
 
@@ -20,6 +23,8 @@ const BookDetail = () => {
   const { title } = useParams();
   const decodedTitle = decodeURIComponent(title || "");
   const { isAdmin } = useIsAdmin();
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
 
   const { data: book, isLoading } = useQuery({
     queryKey: ["book", decodedTitle],
@@ -36,6 +41,19 @@ const BookDetail = () => {
   const [sort, setSort] = useState<SortOption>("most-saved");
   const highlightIds = useMemo(() => bookHighlights.map((h) => h.id), [bookHighlights]);
   const { data: saveCounts } = useHighlightSaveCounts(highlightIds);
+  const [addHighlightOpen, setAddHighlightOpen] = useState(false);
+
+  const initialBook = useMemo(() => {
+    if (!book) return undefined;
+    return {
+      id: book.id,
+      title: book.title,
+      author: book.author,
+      coverImageUrl: book.coverImageUrl ?? undefined,
+      isbn: book.isbn ?? undefined,
+      pending: false,
+    };
+  }, [book]);
 
   // --- Summary state ---
   const [summary, setSummary] = useState<string>("");
@@ -320,9 +338,22 @@ const BookDetail = () => {
         )}
       </section>
 
-      <h2 className="font-display text-xl text-foreground mb-4">
-        Highlights ({bookHighlights.length})
-      </h2>
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="font-display text-xl text-foreground">
+          Highlights ({bookHighlights.length})
+        </h2>
+        {user && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setAddHighlightOpen(true)}
+            className="gap-1.5"
+          >
+            <Plus className="h-4 w-4" />
+            Add highlight
+          </Button>
+        )}
+      </div>
       {bookHighlights.length > 1 && (
         <SortFilterBar
           sort={sort}
@@ -335,6 +366,18 @@ const BookDetail = () => {
           <HighlightCard key={h.id} highlight={h} index={i} />
         ))}
       </div>
+
+      <AddHighlightModal
+        open={addHighlightOpen}
+        onOpenChange={setAddHighlightOpen}
+        initialBook={initialBook}
+        allTags={ALL_TAGS}
+        onCreated={() => {
+          if (book) {
+            queryClient.invalidateQueries({ queryKey: ["book-highlights", book.id] });
+          }
+        }}
+      />
 
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
         <DialogContent className="max-h-[90vh] overflow-y-auto">
