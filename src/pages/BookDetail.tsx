@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { getAmazonUrl, getBookByTitle, getGoodreadsUrl, getHighlightsByBook } from "@/lib/data";
+import { type Highlight, getAmazonUrl, getBookByTitle, getGoodreadsUrl, getHighlightsByBook } from "@/lib/data";
 import HighlightCard from "@/components/HighlightCard";
 import SortFilterBar, { SortOption } from "@/components/SortFilterBar";
 import { useHighlightSaveCounts } from "@/hooks/useHighlightSaves";
@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
-import { BookOpen, ArrowLeft, Loader2, ShoppingCart, Pencil, RefreshCw, Plus } from "lucide-react";
+import { BookOpen, ArrowLeft, Loader2, ShoppingCart, Pencil, RefreshCw, Plus, Trash2 } from "lucide-react";
 import AddHighlightModal from "@/components/studio/AddHighlightModal";
 import { ALL_TAGS } from "@/lib/tags";
 
@@ -25,6 +25,7 @@ const BookDetail = () => {
   const { isAdmin } = useIsAdmin();
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const { data: book, isLoading } = useQuery({
     queryKey: ["book", decodedTitle],
@@ -181,6 +182,22 @@ const BookDetail = () => {
     setSummaryFailed(false);
     setEditOpen(false);
     toast({ title: "Summary updated" });
+  };
+
+  const handleDeleteHighlight = async (highlightId: string) => {
+    if (!window.confirm("Delete this highlight?")) return;
+    setDeletingId(highlightId);
+    const { error } = await supabase.from("highlights").delete().eq("id", highlightId);
+    if (error) {
+      console.error(error);
+      toast({ title: "Failed to delete highlight", variant: "destructive" });
+      setDeletingId(null);
+      return;
+    }
+    queryClient.setQueryData<Highlight[]>(["book-highlights", book?.id], (prev) =>
+      prev ? prev.filter((hl) => hl.id !== highlightId) : prev
+    );
+    setDeletingId(null);
   };
 
   const sortedHighlights = useMemo(() => {
@@ -362,9 +379,30 @@ const BookDetail = () => {
         />
       )}
       <div className="space-y-4">
-        {sortedHighlights.map((h, i) => (
-          <HighlightCard key={h.id} highlight={h} index={i} />
-        ))}
+        {sortedHighlights.map((h, i) => {
+          const canDelete = isAdmin || h.userId === user?.id;
+          return (
+            <div key={h.id} className="relative">
+              <HighlightCard highlight={h} index={i} />
+              {canDelete && (
+                <button
+                  type="button"
+                  onClick={() => handleDeleteHighlight(h.id)}
+                  disabled={deletingId === h.id}
+                  className="absolute top-3 right-3 z-20 flex items-center justify-center h-7 w-7 rounded-md text-muted-foreground/40 hover:text-destructive transition-colors disabled:opacity-50"
+                  title="Delete highlight"
+                  aria-label="Delete highlight"
+                >
+                  {deletingId === h.id ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="h-4 w-4" />
+                  )}
+                </button>
+              )}
+            </div>
+          );
+        })}
       </div>
 
       <AddHighlightModal

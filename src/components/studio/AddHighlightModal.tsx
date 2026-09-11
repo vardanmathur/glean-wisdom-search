@@ -109,6 +109,7 @@ const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags, initi
   const handleChangeBook = () => {
     onChangeBook?.();
     setBookLookupOverride(true);
+    setBook(null);
   };
 
   const startDictation = () => {
