@@ -27,12 +27,27 @@ interface BookSuggestion {
 
 type Mode = "search" | "scan" | "manual";
 
+interface ExternalBook {
+  title: string;
+  author: string | null;
+  isbn: string | null;
+  coverUrl: string | null;
+  source: string;
+}
+
 const BookLookup = ({ selectedBook, onSelect, onClear }: BookLookupProps) => {
   const [mode, setMode] = useState<Mode>("search");
   const [search, setSearch] = useState("");
   const [suggestions, setSuggestions] = useState<BookSuggestion[]>([]);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
+
+  // External book search state
+  const [externalBooks, setExternalBooks] = useState<ExternalBook[]>([]);
+  const [externalSearching, setExternalSearching] = useState(false);
+  const [externalOffset, setExternalOffset] = useState(0);
+  const [externalHasMore, setExternalHasMore] = useState(false);
+  const [externalSearched, setExternalSearched] = useState(false);
 
   // ISBN scan state
   const videoRef = useRef<HTMLVideoElement>(null);
