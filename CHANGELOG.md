@@ -36,10 +36,23 @@ Notable changes to Glean, newest first. One entry per work session; group by wha
   filteredSuggestions case-insensitive dedup (4th location)
 - WhatsApp distribution — first user-facing post drafted
   and sent to readers group
+- Add highlight from Book Detail page — button for all
+  logged-in users, book pre-selected and locked, "Change"
+  override, auto-refresh highlights list via
+  queryClient.invalidateQueries
+- Delete highlight button on Book Detail page — visible
+  to admin and highlight owner only, optimistic removal
+- Duplicate ISBN detection in BookLookup — conflict UI
+  shows existing book with "Use this book" / "Use
+  different ISBN" options, no silent constraint failure
+- Single-click "Change book" fix — was requiring two
+  clicks due to stale selectedBook prop on BookLookup
 
 ### Deferred
 - ISBN-only books Find Covers OL fallback
 - Tag Management page — spec complete, ready to build
+- BookLookup conflict UI resets on window switch —
+  sessionStorage fix needed, low priority
 
 ---
 
