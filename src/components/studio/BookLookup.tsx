@@ -127,6 +127,20 @@ const BookLookup = ({ selectedBook, onSelect, onClear }: BookLookupProps) => {
     setExternalSearched(false);
   }, [search, mode]);
 
+  // Auto-trigger external catalog search when internal results are empty,
+  // the user has typed 3+ characters, and they've paused for 600ms.
+  useEffect(() => {
+    if (selectedBook || mode !== "search") return;
+    const term = search.trim();
+    if (term.length < 3 || suggestions.length > 0) {
+      return;
+    }
+    const t = setTimeout(() => {
+      runExternalSearch(0, false);
+    }, 600);
+    return () => clearTimeout(t);
+  }, [search, suggestions.length, mode, selectedBook]);
+
   const runExternalSearch = async (offset = 0, append = false) => {
     const term = search.trim();
     if (term.length < 2) return;
