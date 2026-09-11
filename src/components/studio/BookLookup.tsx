@@ -41,6 +41,12 @@ const BookLookup = ({ selectedBook, onSelect, onClear }: BookLookupProps) => {
   const [resolvingIsbn, setResolvingIsbn] = useState(false);
   const [manualIsbn, setManualIsbn] = useState("");
   const [manualIsbnError, setManualIsbnError] = useState<string | null>(null);
+  const [existingBookConflict, setExistingBookConflict] = useState<{
+    id: string;
+    title: string;
+    author: string;
+    cover_image_url: string | null;
+  } | null>(null);
 
   // Manual entry state
   const [manualTitle, setManualTitle] = useState("");
@@ -105,11 +111,19 @@ const BookLookup = ({ selectedBook, onSelect, onClear }: BookLookupProps) => {
   }, []);
 
   useEffect(() => {
+    setExistingBookConflict(null);
     if (mode !== "scan") {
       try { scannerRef.current?.stop(); } catch { /* noop */ }
       scannerRef.current = null;
     }
   }, [mode]);
+
+  // Clear any stale ISBN-conflict banner once a book has actually been
+  // selected — the interactive lookup panel is about to be replaced by
+  // the locked "selectedBook" view, so nothing should linger behind it.
+  useEffect(() => {
+    if (selectedBook) setExistingBookConflict(null);
+  }, [selectedBook]);
 
   const startScan = async () => {
     setScanError(null);
@@ -177,6 +191,7 @@ const BookLookup = ({ selectedBook, onSelect, onClear }: BookLookupProps) => {
   };
 
   const resolveIsbn = async (isbn: string) => {
+    setExistingBookConflict(null);
     if (!isbn || (isbn.length !== 10 && isbn.length !== 13)) {
       setScanError(`Unrecognised ISBN: ${isbn}`);
       return;
@@ -227,6 +242,20 @@ const BookLookup = ({ selectedBook, onSelect, onClear }: BookLookupProps) => {
         }
 
 if (!title) throw new Error("No book found for this ISBN");
+
+      // Proactively check whether this ISBN is already in the library
+      // before creating a pending book — avoids a unique-constraint
+      // failure at save time and lets the user reuse the existing row.
+      const { data: existingBook } = await supabase
+        .from("books")
+        .select("id, title, author, cover_image_url")
+        .eq("isbn", isbn)
+        .maybeSingle();
+
+      if (existingBook) {
+        setExistingBookConflict(existingBook);
+        return;
+      }
 
       onSelect({
         id: null,
@@ -395,7 +424,11 @@ if (!title) throw new Error("No book found for this ISBN");
               type="text"
               inputMode="numeric"
               value={manualIsbn}
-              onChange={(e) => { setManualIsbn(e.target.value); setManualIsbnError(null); }}
+              onChange={(e) => {
+                setManualIsbn(e.target.value);
+                setManualIsbnError(null);
+                setExistingBookConflict(null);
+              }}
               placeholder="Or type ISBN…"
               className="h-9 flex-1 rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             />
@@ -405,7 +438,59 @@ if (!title) throw new Error("No book found for this ISBN");
             </Button>
           </div>
           {manualIsbnError && <p className="text-xs text-destructive">{manualIsbnError}</p>}
-          {scanError && <p className="text-xs text-destructive">{scanError}</p>}
+          {existingBookConflict && (
+            <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 mt-3 space-y-2">
+              <p className="text-sm font-medium text-foreground">
+                This book is already in your library
+              </p>
+              <div className="flex items-center gap-2">
+                {existingBookConflict.cover_image_url && (
+                  <img
+                    src={existingBookConflict.cover_image_url}
+                    className="h-10 w-7 object-cover rounded shrink-0"
+                  />
+                )}
+                <div className="min-w-0">
+                  <p className="text-sm font-medium truncate">
+                    {existingBookConflict.title}
+                  </p>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {existingBookConflict.author}
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-2 pt-1">
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => {
+                    onSelect({
+                      id: existingBookConflict.id,
+                      title: existingBookConflict.title,
+                      author: existingBookConflict.author,
+                      coverImageUrl: existingBookConflict.cover_image_url ?? undefined,
+                      pending: false,
+                    });
+                    setExistingBookConflict(null);
+                  }}
+                >
+                  Use this book
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setExistingBookConflict(null);
+                    setManualIsbn("");
+                  }}
+                >
+                  Use different ISBN
+                </Button>
+              </div>
+            </div>
+          )}
+          {scanError && !existingBookConflict && <p className="text-xs text-destructive">{scanError}</p>}
         </div>
       )}
 
