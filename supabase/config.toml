@@ -23,3 +23,6 @@ verify_jwt = false
 
 [functions.search-books]
 verify_jwt = false
+
+[functions.analyse-tags]
+verify_jwt = false
