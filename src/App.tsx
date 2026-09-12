@@ -26,6 +26,7 @@ import AdminBooks from "./pages/AdminBooks";
 import AdminHub from "./pages/AdminHub";
 import AdminWorksheets from "./pages/AdminWorksheets";
 import AdminSearchLogs from "./pages/AdminSearchLogs";
+import AdminTagManagement from "./pages/AdminTagManagement";
 
 const queryClient = new QueryClient();
 
@@ -57,6 +58,7 @@ const App = () => (
             <Route path="/admin" element={<AdminHub />} />
             <Route path="/admin/worksheets" element={<AdminWorksheets />} />
             <Route path="/admin/search-logs" element={<AdminSearchLogs />} />
+            <Route path="/admin/tag-management" element={<AdminTagManagement />} />
             <Route path="/import" element={<Import />} />
             <Route path="/studio" element={<UserStudio />} />
             <Route path="*" element={<NotFound />} />

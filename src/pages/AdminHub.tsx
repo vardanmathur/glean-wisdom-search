@@ -19,7 +19,7 @@ const tools: ToolCard[] = [
   { title: "Worksheets", description: "View and download user worksheet downloads", icon: FileText, to: "/admin/worksheets" },
   { title: "Search Logs", description: "See what people are searching for and identify library gaps", icon: Search, to: "/admin/search-logs" },
   { title: "Think! Usage", description: "Monitor Think! usage across users", icon: Brain, comingSoon: true },
-  { title: "Tag Management", description: "Manage and merge tags across highlights", icon: Tag, comingSoon: true },
+  { title: "Tag Management", description: "Analyse tag taxonomy, find overlaps and rename tags", icon: Tag, to: "/admin/tag-management" },
 ];
 
 const AdminHub = () => {
