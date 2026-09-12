@@ -15,7 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
 import { BookOpen, ArrowLeft, Loader2, ShoppingCart, Pencil, RefreshCw, Plus, Trash2 } from "lucide-react";
 import AddHighlightModal from "@/components/studio/AddHighlightModal";
-import { ALL_TAGS } from "@/lib/tags";
+import { useAllTags } from "@/hooks/useAllTags";
 
 const MIN_HIGHLIGHTS_FOR_SUMMARY = 10;
 
@@ -25,6 +25,7 @@ const BookDetail = () => {
   const { isAdmin } = useIsAdmin();
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const allTags = useAllTags();
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const { data: book, isLoading } = useQuery({
@@ -409,7 +410,7 @@ const BookDetail = () => {
         open={addHighlightOpen}
         onOpenChange={setAddHighlightOpen}
         initialBook={initialBook}
-        allTags={ALL_TAGS}
+        allTags={allTags}
         onCreated={() => {
           if (book) {
             queryClient.invalidateQueries({ queryKey: ["book-highlights", book.id] });

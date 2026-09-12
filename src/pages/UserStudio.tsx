@@ -22,6 +22,7 @@ import {
 import StudioAddHighlightModal from "@/components/studio/AddHighlightModal";
 import { useSessionStorageState } from "@/hooks/useSessionStorageState";
 import { toTitleCase } from "@/lib/utils";
+import { useAllTags } from "@/hooks/useAllTags";
 
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 
@@ -101,16 +102,7 @@ const UserStudio = () => {
 
   const enabled = !!user && allowed;
 
-  const { data: allTags } = useQuery({
-    queryKey: ["user-studio-tags"],
-    queryFn: async () => {
-      const { data } = await supabase.from("highlights").select("tags");
-      const set = new Set<string>();
-      data?.forEach((h) => h.tags?.forEach((t: string) => set.add(t)));
-      return Array.from(set).sort();
-    },
-    enabled,
-  });
+  const allTags = useAllTags();
 
   const { data: highlightsData, isLoading } = useQuery({
     queryKey: ["user-studio-highlights", user?.id, page, sortBy, searchQuery],
@@ -400,7 +392,7 @@ const UserStudio = () => {
 
       <EditPanel
         highlight={editingHighlight}
-        allTags={allTags ?? []}
+        allTags={allTags}
         onClose={() => setEditingHighlight(null)}
         onSave={(id, updates) => {
           updateMutation.mutate({ id, updates }, {
@@ -413,7 +405,7 @@ const UserStudio = () => {
       <StudioAddHighlightModal
         open={showAdd}
         onOpenChange={setShowAdd}
-        allTags={allTags ?? []}
+        allTags={allTags}
         onCreated={() => queryClient.invalidateQueries({ queryKey: ["user-studio-highlights"] })}
       />
     </div>

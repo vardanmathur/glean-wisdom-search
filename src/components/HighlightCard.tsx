@@ -17,7 +17,7 @@ import {
 import { Bookmark, ThumbsUp, ThumbsDown, Flag, Pencil, ChevronDown, ChevronUp } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { ALL_TAGS } from "@/lib/tags";
+import { useAllTags } from "@/hooks/useAllTags";
 import { toTitleCase } from "@/lib/utils";
 import HighlightEditPanel from "./HighlightEditPanel";
 
@@ -32,6 +32,7 @@ const HighlightCard = ({ highlight, index = 0, showSaveCount = false }: Highligh
   const navigate = useNavigate();
   const { user } = useAuth();
   const { isAdmin } = useIsAdmin();
+  const allTags = useAllTags();
   const { toast } = useToast();
 
   const saved = useIsHighlightSaved(highlight.id);
@@ -291,7 +292,7 @@ const HighlightCard = ({ highlight, index = 0, showSaveCount = false }: Highligh
       {isAdmin && (
         <HighlightEditPanel
           highlight={highlight}
-          allTags={ALL_TAGS}
+          allTags={allTags}
           open={editOpen}
           onOpenChange={setEditOpen}
         />

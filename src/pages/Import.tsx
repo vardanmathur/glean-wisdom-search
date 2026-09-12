@@ -11,7 +11,7 @@ import { ChevronDown, Upload, FileText, ArrowLeft, AlertCircle, Loader2, CheckCi
 import { toast } from "sonner";
 import { Link, useNavigate } from "react-router-dom";
 import AddHighlightModal from "@/components/studio/AddHighlightModal";
-import { ALL_TAGS } from "@/lib/tags";
+import { useAllTags } from "@/hooks/useAllTags";
 
 // ============================================================================
 // Kindle parsing — pure functions
@@ -445,6 +445,7 @@ const Import = () => {
   const [importProgress, setImportProgress] = useState({ done: 0, total: 0 });
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [addModalOpen, setAddModalOpen] = useState(false);
+  const allTags = useAllTags();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Derived state for Step 3 — must be declared before any early returns
@@ -1674,7 +1675,7 @@ const Import = () => {
         open={addModalOpen}
         onOpenChange={setAddModalOpen}
         onCreated={() => {}}
-        allTags={ALL_TAGS}
+        allTags={allTags}
       />
     </div>
   );
