@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toTitleCase } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -154,7 +155,7 @@ const AdminTagManagement = () => {
         (prev ?? []).map((t) => (t.tag === oldTag ? { tag: newTag, count: t.count } : t))
       );
 
-      toast.success(`Renamed "${oldTag}" → "${newTag}". Update src/lib/tags.ts to reflect this change.`);
+      toast.success(`Renamed '${oldTag}' → '${newTag}'. Embeddings are being refreshed in the background.`);
       setRenamingTag(null);
       setRenameValue("");
     } catch (err) {
@@ -194,13 +195,24 @@ const AdminTagManagement = () => {
     }
   };
 
-  // --- Delete unused tag (count === 0, no DB write) ---
-  const handleConfirmDelete = () => {
+  // --- Delete unused tag (count === 0) ---
+  const handleConfirmDelete = async () => {
     if (!confirmDeleteTag) return;
     const tag = confirmDeleteTag.tag;
-    queryClient.setQueryData<TagCount[]>(["tag-counts"], (prev) => (prev ?? []).filter((t) => t.tag !== tag));
-    toast.success(`Tag deleted. Remove "${tag}" from src/lib/tags.ts (no DB change needed — tag isn't on any highlight).`);
-    setConfirmDeleteTag(null);
+    try {
+      const { error } = await supabase
+        .from("tags")
+        .delete()
+        .eq("name", tag);
+      if (error) throw error;
+      queryClient.invalidateQueries({ queryKey: ["tag-counts"] });
+      queryClient.invalidateQueries({ queryKey: ["tags-table"] });
+      toast.success(`Tag '${tag}' removed from taxonomy.`);
+      setConfirmDeleteTag(null);
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to delete tag");
+    }
   };
 
   // --- Find overlapping tags ---
@@ -275,267 +287,274 @@ const AdminTagManagement = () => {
         <p className="mt-2 text-muted-foreground">Analyse tag taxonomy, find overlaps and rename tags</p>
       </div>
 
-      {/* Section 1 — Tag Inventory */}
-      <section className="mb-10">
-        <div className="flex flex-wrap items-center gap-3 mb-4">
-          <h2 className="text-lg font-medium text-foreground mr-auto">Tag Inventory</h2>
-          <div className="flex items-center gap-1">
-            <Button
-              type="button"
-              size="sm"
-              variant={sortBy === "count" ? "default" : "outline"}
-              onClick={() => setSortBy("count")}
-            >
-              By count
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant={sortBy === "name" ? "default" : "outline"}
-              onClick={() => setSortBy("name")}
-            >
-              By name
-            </Button>
-          </div>
-          <input
-            type="search"
-            value={tagFilter}
-            onChange={(e) => setTagFilter(e.target.value)}
-            placeholder="Filter tags..."
-            className="h-9 w-full max-w-xs rounded-md border border-input bg-background px-3 text-sm text-foreground"
-          />
+      <Tabs defaultValue="inventory">
+        <div className="flex items-center justify-between mb-4">
+          <TabsList>
+            <TabsTrigger value="inventory">Tag Inventory</TabsTrigger>
+            <TabsTrigger value="overlaps">Find Overlaps</TabsTrigger>
+            <TabsTrigger value="ai">AI Analysis</TabsTrigger>
+          </TabsList>
           <Button type="button" size="sm" variant="outline" onClick={() => setAddingTag(true)} className="gap-1.5">
             <Plus className="h-3.5 w-3.5" /> Add tag
           </Button>
         </div>
 
-        {isLoading ? (
-          <div className="flex items-center justify-center py-16">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-          </div>
-        ) : filteredTags.length === 0 ? (
-          <div className="rounded-lg border bg-card p-8 text-center text-muted-foreground">
-            No tags match "{tagFilter}".
-          </div>
-        ) : (
-          <div className="rounded-xl border bg-card card-shadow overflow-hidden">
-            {/* Desktop table */}
-            <div className="hidden md:block overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-secondary/50 text-muted-foreground">
-                  <tr>
-                    <th className="text-left font-medium px-4 py-3">Tag</th>
-                    <th className="text-left font-medium px-4 py-3">Highlights</th>
-                    <th className="text-left font-medium px-4 py-3">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredTags.map((t) => (
-                    <tr key={t.tag} className="border-t">
-                      <td className="px-4 py-3 text-foreground">{toTitleCase(t.tag)}</td>
-                      <td className="px-4 py-3">
-                        <span className="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
-                          {t.count}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-1">
-                          <Button
-                            type="button"
-                            size="icon"
-                            variant="ghost"
-                            className="h-7 w-7"
-                            onClick={() => { setRenamingTag(t); setRenameValue(t.tag); }}
-                            aria-label={`Rename ${t.tag}`}
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                          </Button>
-                          <TooltipProvider delayDuration={0}>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <span>
-                                  <Button
-                                    type="button"
-                                    size="icon"
-                                    variant="ghost"
-                                    className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                                    disabled={t.count > 0}
-                                    onClick={() => setConfirmDeleteTag(t)}
-                                    aria-label={`Delete ${t.tag}`}
-                                  >
-                                    <Trash2 className="h-3.5 w-3.5" />
-                                  </Button>
-                                </span>
-                              </TooltipTrigger>
-                              {t.count > 0 && <TooltipContent>Has highlights</TooltipContent>}
-                            </Tooltip>
-                          </TooltipProvider>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+        <TabsContent value="inventory">
+          <div className="flex flex-wrap items-center gap-3 mb-4">
+            <div className="flex items-center gap-1">
+              <Button
+                type="button"
+                size="sm"
+                variant={sortBy === "count" ? "default" : "outline"}
+                onClick={() => setSortBy("count")}
+              >
+                By count
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={sortBy === "name" ? "default" : "outline"}
+                onClick={() => setSortBy("name")}
+              >
+                By name
+              </Button>
             </div>
+            <input
+              type="search"
+              value={tagFilter}
+              onChange={(e) => setTagFilter(e.target.value)}
+              placeholder="Filter tags..."
+              className="h-9 w-full max-w-xs rounded-md border border-input bg-background px-3 text-sm text-foreground"
+            />
+          </div>
 
-            {/* Mobile cards */}
-            <div className="md:hidden divide-y">
-              {filteredTags.map((t) => (
-                <div key={t.tag} className="p-3 flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span className="text-sm text-foreground truncate">{toTitleCase(t.tag)}</span>
-                    <span className="shrink-0 inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
-                      {t.count}
+          {isLoading ? (
+            <div className="flex items-center justify-center py-16">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : filteredTags.length === 0 ? (
+            <div className="rounded-lg border bg-card p-8 text-center text-muted-foreground">
+              No tags match "{tagFilter}".
+            </div>
+          ) : (
+            <div className="rounded-xl border bg-card card-shadow overflow-hidden">
+              {/* Desktop table */}
+              <div className="hidden md:block overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-secondary/50 text-muted-foreground">
+                    <tr>
+                      <th className="text-left font-medium px-4 py-3">Tag</th>
+                      <th className="text-left font-medium px-4 py-3">Highlights</th>
+                      <th className="text-left font-medium px-4 py-3">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredTags.map((t) => (
+                      <tr key={t.tag} className="border-t">
+                        <td className="px-4 py-3 text-foreground">{toTitleCase(t.tag)}</td>
+                        <td className="px-4 py-3">
+                          <span className="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                            {t.count}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-1">
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant="ghost"
+                              className="h-7 w-7"
+                              onClick={() => { setRenamingTag(t); setRenameValue(t.tag); }}
+                              aria-label={`Rename ${t.tag}`}
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                            <TooltipProvider delayDuration={0}>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span>
+                                    <Button
+                                      type="button"
+                                      size="icon"
+                                      variant="ghost"
+                                      className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                                      disabled={t.count > 0}
+                                      onClick={() => setConfirmDeleteTag(t)}
+                                      aria-label={`Delete ${t.tag}`}
+                                    >
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                    </Button>
+                                  </span>
+                                </TooltipTrigger>
+                                {t.count > 0 && <TooltipContent>Has highlights</TooltipContent>}
+                              </Tooltip>
+                            </TooltipProvider>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Mobile cards */}
+              <div className="md:hidden divide-y">
+                {filteredTags.map((t) => (
+                  <div key={t.tag} className="p-3 flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-sm text-foreground truncate">{toTitleCase(t.tag)}</span>
+                      <span className="shrink-0 inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                        {t.count}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        className="h-7 w-7"
+                        onClick={() => { setRenamingTag(t); setRenameValue(t.tag); }}
+                        aria-label={`Rename ${t.tag}`}
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                        disabled={t.count > 0}
+                        onClick={() => setConfirmDeleteTag(t)}
+                        aria-label={`Delete ${t.tag}`}
+                        title={t.count > 0 ? "Has highlights" : undefined}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="overlaps">
+          <p className="text-sm text-muted-foreground mb-4">
+            See which highlights share both tags before deciding to merge or rename.
+          </p>
+          <div className="flex flex-wrap items-center gap-3 mb-4">
+            <select
+              value={overlapTagA}
+              onChange={(e) => setOverlapTagA(e.target.value)}
+              className="h-9 rounded-md border border-input bg-background px-3 text-sm text-foreground"
+            >
+              <option value="">Tag A…</option>
+              {[...tagCounts].sort((a, b) => a.tag.localeCompare(b.tag)).map((t) => (
+                <option key={t.tag} value={t.tag}>{toTitleCase(t.tag)}</option>
+              ))}
+            </select>
+            <select
+              value={overlapTagB}
+              onChange={(e) => setOverlapTagB(e.target.value)}
+              className="h-9 rounded-md border border-input bg-background px-3 text-sm text-foreground"
+            >
+              <option value="">Tag B…</option>
+              {[...tagCounts].sort((a, b) => a.tag.localeCompare(b.tag)).map((t) => (
+                <option key={t.tag} value={t.tag}>{toTitleCase(t.tag)}</option>
+              ))}
+            </select>
+            <Button
+              type="button"
+              size="sm"
+              onClick={handleFindOverlaps}
+              disabled={!overlapTagA || !overlapTagB || overlapTagA === overlapTagB || overlapLoading}
+            >
+              {overlapLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
+              Find overlaps
+            </Button>
+          </div>
+
+          {overlapResults !== null && (
+            <>
+              {overlapResults.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No highlights share both tags.</p>
+              ) : (
+                <>
+                  <p className="text-sm font-medium text-foreground mb-3">
+                    {overlapResults.length} highlight{overlapResults.length !== 1 ? "s" : ""} have both "{toTitleCase(overlapTagA)}" and "{toTitleCase(overlapTagB)}"
+                    {overlapResults.length === 50 && (
+                      <span className="text-muted-foreground font-normal"> (preview — up to 50)</span>
+                    )}
+                  </p>
+                  <div className="space-y-2">
+                    {overlapResults.map((h) => (
+                      <div key={h.id} className="rounded-lg border bg-card p-3 text-sm">
+                        <p className="text-foreground">
+                          "{h.quote.length > 100 ? `${h.quote.slice(0, 100)}…` : h.quote}"
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">— {h.bookTitle}, {h.author}</p>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </>
+          )}
+        </TabsContent>
+
+        <TabsContent value="ai">
+          <p className="text-sm text-muted-foreground mb-4">
+            Identify tags that may be duplicates or could be merged
+          </p>
+          <Button
+            type="button"
+            onClick={handleAnalyse}
+            disabled={analysing}
+            className="gap-1.5 bg-teal-600 hover:bg-teal-700 text-white mb-4"
+          >
+            {analysing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+            {analysing ? "Analysing…" : "Analyse tags"}
+          </Button>
+
+          {analysing && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
+              <Loader2 className="h-4 w-4 animate-spin" /> Analysing your tag taxonomy...
+            </div>
+          )}
+
+          {!analysing && analysed && suggestions.length === 0 && (
+            <div className="rounded-lg border bg-card p-6 text-center text-muted-foreground text-sm">
+              No significant overlaps found — your taxonomy looks clean!
+            </div>
+          )}
+
+          {!analysing && suggestions.length > 0 && (
+            <div className="space-y-3">
+              {suggestions.map((s, i) => (
+                <div key={`${s.tag1}-${s.tag2}-${i}`} className="rounded-lg border bg-card p-4">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="bg-primary/10 text-primary rounded-full px-2 py-0.5 text-xs font-medium">
+                      {s.tag1}
+                    </span>
+                    <span className="text-muted-foreground">↔</span>
+                    <span className="bg-primary/10 text-primary rounded-full px-2 py-0.5 text-xs font-medium">
+                      {s.tag2}
+                    </span>
+                    <span className={`ml-auto rounded-full px-2 py-0.5 text-xs font-medium ${CONFIDENCE_STYLES[s.confidence]}`}>
+                      {s.confidence}
                     </span>
                   </div>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <Button
-                      type="button"
-                      size="icon"
-                      variant="ghost"
-                      className="h-7 w-7"
-                      onClick={() => { setRenamingTag(t); setRenameValue(t.tag); }}
-                      aria-label={`Rename ${t.tag}`}
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button
-                      type="button"
-                      size="icon"
-                      variant="ghost"
-                      className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                      disabled={t.count > 0}
-                      onClick={() => setConfirmDeleteTag(t)}
-                      aria-label={`Delete ${t.tag}`}
-                      title={t.count > 0 ? "Has highlights" : undefined}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
+                  <p className="text-sm text-muted-foreground mt-2">Reason: {s.reason}</p>
+                  <p className="text-xs text-muted-foreground mt-1">Recommended: keep {s.keep}</p>
+                  <p className="text-xs text-muted-foreground/70 mt-2 pt-2 border-t">
+                    Use Find Overlapping Tags above to investigate, then merge in Phase 3 (coming soon)
+                  </p>
                 </div>
               ))}
             </div>
-          </div>
-        )}
-      </section>
-
-      {/* Section 2 — Find Overlapping Tags */}
-      <section className="mb-10">
-        <h2 className="text-lg font-medium text-foreground mb-1">Find Overlapping Tags</h2>
-        <p className="text-sm text-muted-foreground mb-4">
-          See which highlights share both tags before deciding to merge or rename.
-        </p>
-        <div className="flex flex-wrap items-center gap-3 mb-4">
-          <select
-            value={overlapTagA}
-            onChange={(e) => setOverlapTagA(e.target.value)}
-            className="h-9 rounded-md border border-input bg-background px-3 text-sm text-foreground"
-          >
-            <option value="">Tag A…</option>
-            {[...tagCounts].sort((a, b) => a.tag.localeCompare(b.tag)).map((t) => (
-              <option key={t.tag} value={t.tag}>{toTitleCase(t.tag)}</option>
-            ))}
-          </select>
-          <select
-            value={overlapTagB}
-            onChange={(e) => setOverlapTagB(e.target.value)}
-            className="h-9 rounded-md border border-input bg-background px-3 text-sm text-foreground"
-          >
-            <option value="">Tag B…</option>
-            {[...tagCounts].sort((a, b) => a.tag.localeCompare(b.tag)).map((t) => (
-              <option key={t.tag} value={t.tag}>{toTitleCase(t.tag)}</option>
-            ))}
-          </select>
-          <Button
-            type="button"
-            size="sm"
-            onClick={handleFindOverlaps}
-            disabled={!overlapTagA || !overlapTagB || overlapTagA === overlapTagB || overlapLoading}
-          >
-            {overlapLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
-            Find overlaps
-          </Button>
-        </div>
-
-        {overlapResults !== null && (
-          <div className="rounded-lg border bg-card p-4">
-            {overlapResults.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No highlights share both tags.</p>
-            ) : (
-              <>
-                <p className="text-sm font-medium text-foreground mb-3">
-                  {overlapResults.length} highlight{overlapResults.length !== 1 ? "s" : ""} have both "{toTitleCase(overlapTagA)}" and "{toTitleCase(overlapTagB)}"
-                </p>
-                <div className="space-y-2">
-                  {overlapResults.map((h) => (
-                    <div key={h.id} className="rounded-md border bg-background p-3 text-sm">
-                      <p className="text-foreground">
-                        "{h.quote.length > 100 ? `${h.quote.slice(0, 100)}…` : h.quote}"
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-1">— {h.bookTitle}, {h.author}</p>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
-        )}
-      </section>
-
-      {/* Section 3 — AI Redundancy Analysis */}
-      <section>
-        <h2 className="text-lg font-medium text-foreground mb-1">AI Redundancy Analysis</h2>
-        <p className="text-sm text-muted-foreground mb-4">
-          Identify tags that may be duplicates or could be merged
-        </p>
-        <Button
-          type="button"
-          onClick={handleAnalyse}
-          disabled={analysing}
-          className="gap-1.5 bg-teal-600 hover:bg-teal-700 text-white mb-4"
-        >
-          {analysing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-          {analysing ? "Analysing…" : "Analyse tags"}
-        </Button>
-
-        {analysing && (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
-            <Loader2 className="h-4 w-4 animate-spin" /> Analysing your tag taxonomy...
-          </div>
-        )}
-
-        {!analysing && analysed && suggestions.length === 0 && (
-          <div className="rounded-lg border bg-card p-6 text-center text-muted-foreground text-sm">
-            No significant overlaps found — your taxonomy looks clean!
-          </div>
-        )}
-
-        {!analysing && suggestions.length > 0 && (
-          <div className="space-y-3">
-            {suggestions.map((s, i) => (
-              <div key={`${s.tag1}-${s.tag2}-${i}`} className="rounded-lg border bg-card p-4">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="bg-primary/10 text-primary rounded-full px-2 py-0.5 text-xs font-medium">
-                    {s.tag1}
-                  </span>
-                  <span className="text-muted-foreground">↔</span>
-                  <span className="bg-primary/10 text-primary rounded-full px-2 py-0.5 text-xs font-medium">
-                    {s.tag2}
-                  </span>
-                  <span className={`ml-auto rounded-full px-2 py-0.5 text-xs font-medium ${CONFIDENCE_STYLES[s.confidence]}`}>
-                    {s.confidence}
-                  </span>
-                </div>
-                <p className="text-sm text-muted-foreground mt-2">Reason: {s.reason}</p>
-                <p className="text-xs text-muted-foreground mt-1">Recommended: keep {s.keep}</p>
-                <p className="text-xs text-muted-foreground/70 mt-2 pt-2 border-t">
-                  Use Find Overlapping Tags above to investigate, then merge in Phase 3 (coming soon)
-                </p>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
+          )}
+        </TabsContent>
+      </Tabs>
 
       {/* Rename dialog */}
       <Dialog open={!!renamingTag} onOpenChange={(o) => !o && !renaming && setRenamingTag(null)}>
