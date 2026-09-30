@@ -59,6 +59,7 @@ const HighlightEditPanel = ({ highlight, allTags, open, onOpenChange }: Highligh
   const [suggesting, setSuggesting] = useState(false);
   const [hasFetchedSuggestions, setHasFetchedSuggestions] = useState(false);
   const [lastSuggestedQuote, setLastSuggestedQuote] = useState<string>("");
+  const [pendingTaxonomyTag, setPendingTaxonomyTag] = useState<string | null>(null);
 
   // Always hydrate from server data on open / id change. sessionStorage is for
   // surviving mid-edit window switches, not persisting across reopens.
@@ -69,6 +70,7 @@ const HighlightEditPanel = ({ highlight, allTags, open, onOpenChange }: Highligh
     setNotes(highlight.myNotes ?? "");
     setVisibility(highlight.visibility ?? "public");
     setTagInput("");
+    setPendingTaxonomyTag(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [highlight?.id, open]);
 
@@ -88,6 +90,7 @@ const HighlightEditPanel = ({ highlight, allTags, open, onOpenChange }: Highligh
     setSuggestedTags([]);
     setHasFetchedSuggestions(false);
     setLastSuggestedQuote("");
+    setPendingTaxonomyTag(null);
   };
 
   const handleSuggestTags = async () => {
@@ -135,6 +138,13 @@ const HighlightEditPanel = ({ highlight, allTags, open, onOpenChange }: Highligh
     ) ?? toTitleCase(t);
     if (!tags.some((existing) => existing.toLowerCase() === canonical.toLowerCase())) {
       setTags([...tags, canonical]);
+    }
+    // Check if tag is off-taxonomy (not in allTags)
+    const isOffTaxonomy = !allTags.some(
+      (existing) => existing.toLowerCase() === canonical.toLowerCase()
+    );
+    if (isOffTaxonomy) {
+      setPendingTaxonomyTag(canonical);
     }
     setTagInput("");
   };
@@ -280,6 +290,39 @@ const HighlightEditPanel = ({ highlight, allTags, open, onOpenChange }: Highligh
                   </Badge>
                 ))}
               </div>
+              {pendingTaxonomyTag && (
+                <div className="flex items-center gap-2 mt-2 p-2 rounded-md bg-primary/5 border border-primary/20">
+                  <p className="text-xs text-muted-foreground flex-1">
+                    '{pendingTaxonomyTag}' is a new tag. Add to taxonomy?
+                  </p>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        const { error } = await supabase
+                          .from("tags")
+                          .insert({ name: pendingTaxonomyTag });
+                        if (error) throw error;
+                        queryClient.invalidateQueries({ queryKey: ["tags-table"] });
+                        sonnerToast.success(`'${pendingTaxonomyTag}' added to taxonomy`);
+                      } catch {
+                        sonnerToast.error("Failed to add to taxonomy");
+                      }
+                      setPendingTaxonomyTag(null);
+                    }}
+                    className="text-xs text-primary font-medium hover:text-primary/80 transition-colors"
+                  >
+                    Add
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPendingTaxonomyTag(null)}
+                    className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              )}
               <div className="relative">
                 <input
                   value={tagInput}

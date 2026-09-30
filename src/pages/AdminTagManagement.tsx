@@ -6,7 +6,6 @@ import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { supabase } from "@/integrations/supabase/client";
-import { ALL_TAGS } from "@/lib/tags";
 import { toTitleCase } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -51,24 +50,27 @@ const AdminTagManagement = () => {
   const { data: tagCounts = [], isLoading } = useQuery({
     queryKey: ["tag-counts"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("highlights")
-        .select("tags");
-      if (error) throw error;
+      const [{ data: tagRows, error: tagsError }, { data: highlightRows, error: highlightsError }] =
+        await Promise.all([
+          supabase.from("tags").select("name"),
+          supabase.from("highlights").select("tags"),
+        ]);
+      if (tagsError) throw tagsError;
+      if (highlightsError) throw highlightsError;
 
       const countMap = new Map<string, number>();
-      (data ?? []).forEach((row) => {
+      (highlightRows ?? []).forEach((row) => {
         (row.tags ?? []).forEach((t: string) => {
           if (t) countMap.set(t, (countMap.get(t) ?? 0) + 1);
         });
       });
 
-      // Merge in canonical taxonomy tags not currently used on any
-      // highlight, with count 0 — otherwise they'd never appear here
-      // and the "delete unused tag" flow below would have nothing to
-      // act on (every tag in a pure DB aggregation has count >= 1).
-      ALL_TAGS.forEach((t) => {
-        if (!countMap.has(t)) countMap.set(t, 0);
+      // Every tag registered in public.tags appears here, even with
+      // 0 highlights — otherwise unused tags would never show up in
+      // the inventory and the "delete unused tag" flow below would
+      // have nothing to act on.
+      (tagRows ?? []).forEach((row) => {
+        if (!countMap.has(row.name)) countMap.set(row.name, 0);
       });
 
       return Array.from(countMap.entries())

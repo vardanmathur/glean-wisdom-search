@@ -1192,6 +1192,7 @@ interface EditPanelProps {
 }
 
 const EditPanel = ({ highlight, allTags, onClose, onSave, saving }: EditPanelProps) => {
+  const queryClient = useQueryClient();
   const draftKey = `${ADMIN_EDIT_DRAFT_PREFIX}_${highlight?.id ?? "none"}`;
 
   const [quote, setQuote, clearQuote] = useSessionStorageState<string>(`${draftKey}_quote`, "");
@@ -1200,6 +1201,7 @@ const EditPanel = ({ highlight, allTags, onClose, onSave, saving }: EditPanelPro
   const [visibility, setVisibility, clearVisibility] = useSessionStorageState<string>(`${draftKey}_visibility`, "public");
   const [tagInput, setTagInput, clearTagInput] = useSessionStorageState<string>(`${draftKey}_tagInput`, "");
 
+  const [pendingTaxonomyTag, setPendingTaxonomyTag] = useState<string | null>(null);
   const [suggestedTags, setSuggestedTags] = useState<string[]>([]);
   const [suggesting, setSuggesting] = useState(false);
   const [hasFetchedSuggestions, setHasFetchedSuggestions] = useState(false);
@@ -1215,6 +1217,7 @@ const EditPanel = ({ highlight, allTags, onClose, onSave, saving }: EditPanelPro
     setNotes(highlight.my_notes ?? "");
     setVisibility(highlight.visibility ?? "public");
     setTagInput("");
+    setPendingTaxonomyTag(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [highlight?.id, open]);
 
@@ -1227,6 +1230,7 @@ const EditPanel = ({ highlight, allTags, onClose, onSave, saving }: EditPanelPro
     setSuggestedTags([]);
     setHasFetchedSuggestions(false);
     setLastSuggestedQuote("");
+    setPendingTaxonomyTag(null);
   };
 
   const handleSuggestTags = async () => {
@@ -1271,6 +1275,13 @@ const EditPanel = ({ highlight, allTags, onClose, onSave, saving }: EditPanelPro
     ) ?? toTitleCase(t);
     if (!tags.some((existing) => existing.toLowerCase() === canonical.toLowerCase())) {
       setTags([...tags, canonical]);
+    }
+    // Check if tag is off-taxonomy (not in allTags)
+    const isOffTaxonomy = !allTags.some(
+      (existing) => existing.toLowerCase() === canonical.toLowerCase()
+    );
+    if (isOffTaxonomy) {
+      setPendingTaxonomyTag(canonical);
     }
     setTagInput("");
   };
@@ -1365,6 +1376,39 @@ const EditPanel = ({ highlight, allTags, onClose, onSave, saving }: EditPanelPro
                 </Badge>
               ))}
             </div>
+            {pendingTaxonomyTag && (
+              <div className="flex items-center gap-2 mt-2 p-2 rounded-md bg-primary/5 border border-primary/20">
+                <p className="text-xs text-muted-foreground flex-1">
+                  '{pendingTaxonomyTag}' is a new tag. Add to taxonomy?
+                </p>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      const { error } = await supabase
+                        .from("tags")
+                        .insert({ name: pendingTaxonomyTag });
+                      if (error) throw error;
+                      queryClient.invalidateQueries({ queryKey: ["tags-table"] });
+                      toast.success(`'${pendingTaxonomyTag}' added to taxonomy`);
+                    } catch {
+                      toast.error("Failed to add to taxonomy");
+                    }
+                    setPendingTaxonomyTag(null);
+                  }}
+                  className="text-xs text-primary font-medium hover:text-primary/80 transition-colors"
+                >
+                  Add
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPendingTaxonomyTag(null)}
+                  className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  Dismiss
+                </button>
+              </div>
+            )}
             <div className="relative">
               <input
                 value={tagInput}
