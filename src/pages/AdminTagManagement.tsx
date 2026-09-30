@@ -170,13 +170,26 @@ const AdminTagManagement = () => {
     tagCounts.some((t) => t.tag.toLowerCase() === newTagTrimmed.toLowerCase());
   const newTagValid = newTagTrimmed.length > 0 && !newTagIsDuplicate;
 
-  const handleAddTag = () => {
+  const handleAddTag = async () => {
     if (!newTagValid) return;
     const display = toTitleCase(newTagTrimmed);
-    queryClient.setQueryData<TagCount[]>(["tag-counts"], (prev) => [...(prev ?? []), { tag: display, count: 0 }]);
-    toast.success(`Add "${display}" to src/lib/tags.ts to make it available in the taxonomy.`);
-    setAddingTag(false);
-    setNewTagValue("");
+    try {
+      const { error } = await supabase
+        .from("tags")
+        .insert({ name: display });
+      if (error) throw error;
+      // Refresh tag counts from DB
+      queryClient.invalidateQueries({ queryKey: ["tag-counts"] });
+      // Also invalidate useAllTags so autocomplete updates everywhere
+      queryClient.invalidateQueries({ queryKey: ["tags-table"] });
+      toast.success(`Tag "${display}" added to taxonomy.`);
+      setAddingTag(false);
+      setNewTagValue("");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message :
+        "Failed to add tag";
+      toast.error(message);
+    }
   };
 
   // --- Delete unused tag (count === 0, no DB write) ---

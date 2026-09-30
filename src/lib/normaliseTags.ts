@@ -1,4 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
+// TODO: migrate to read from public.tags DB table
+// when tags.ts is removed as source of truth.
+// Currently in sync with DB (66 tags seeded Sep 2026).
 import { ALL_TAGS } from "@/lib/tags";
 
 // Derived from the canonical taxonomy so this file can never drift from
