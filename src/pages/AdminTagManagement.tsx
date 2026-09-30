@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Link, Navigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Loader2, Pencil, Trash2, Plus, Sparkles } from "lucide-react";
@@ -102,6 +102,9 @@ const AdminTagManagement = () => {
   const [analysing, setAnalysing] = useState(false);
   const [suggestions, setSuggestions] = useState<TagSuggestion[]>([]);
   const [analysed, setAnalysed] = useState(false);
+  const [activeTab, setActiveTab] = useState("inventory");
+  const [justAddedTag, setJustAddedTag] = useState<string | null>(null);
+  const scrolledForTagRef = useRef<string | null>(null);
 
   const filteredTags = useMemo(() => {
     const q = tagFilter.trim().toLowerCase();
@@ -186,6 +189,10 @@ const AdminTagManagement = () => {
       // Also invalidate useAllTags so autocomplete updates everywhere
       queryClient.invalidateQueries({ queryKey: ["tags-table"] });
       toast.success(`Tag "${display}" added to taxonomy.`);
+      setJustAddedTag(display);
+      setActiveTab("inventory");
+      scrolledForTagRef.current = null;
+      setTimeout(() => setJustAddedTag(null), 3000);
       setAddingTag(false);
       setNewTagValue("");
     } catch (err: unknown) {
@@ -287,15 +294,16 @@ const AdminTagManagement = () => {
         <p className="mt-2 text-muted-foreground">Analyse tag taxonomy, find overlaps and rename tags</p>
       </div>
 
-      <Tabs defaultValue="inventory">
-        <div className="flex items-center justify-between mb-4">
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
           <TabsList>
             <TabsTrigger value="inventory">Tag Inventory</TabsTrigger>
             <TabsTrigger value="overlaps">Find Overlaps</TabsTrigger>
             <TabsTrigger value="ai">AI Analysis</TabsTrigger>
           </TabsList>
-          <Button type="button" size="sm" variant="outline" onClick={() => setAddingTag(true)} className="gap-1.5">
-            <Plus className="h-3.5 w-3.5" /> Add tag
+          <Button type="button" size="sm" variant="outline" onClick={() => setAddingTag(true)} className="w-full sm:w-auto">
+            <Plus className="h-4 w-4 sm:mr-1" />
+            <span className="hidden sm:inline">Add tag</span>
           </Button>
         </div>
 
@@ -350,7 +358,16 @@ const AdminTagManagement = () => {
                   </thead>
                   <tbody>
                     {filteredTags.map((t) => (
-                      <tr key={t.tag} className="border-t">
+                      <tr
+                        key={t.tag}
+                        ref={(el) => {
+                          if (el && justAddedTag === t.tag && scrolledForTagRef.current !== t.tag && el.offsetParent !== null) {
+                            scrolledForTagRef.current = t.tag;
+                            el.scrollIntoView({ behavior: "smooth", block: "center" });
+                          }
+                        }}
+                        className={`border-t ${justAddedTag === t.tag ? "bg-primary/10 transition-colors duration-500" : ""}`}
+                      >
                         <td className="px-4 py-3 text-foreground">{toTitleCase(t.tag)}</td>
                         <td className="px-4 py-3">
                           <span className="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
@@ -400,7 +417,16 @@ const AdminTagManagement = () => {
               {/* Mobile cards */}
               <div className="md:hidden divide-y">
                 {filteredTags.map((t) => (
-                  <div key={t.tag} className="p-3 flex items-center justify-between gap-2">
+                  <div
+                    key={t.tag}
+                    ref={(el) => {
+                      if (el && justAddedTag === t.tag && scrolledForTagRef.current !== t.tag && el.offsetParent !== null) {
+                        scrolledForTagRef.current = t.tag;
+                        el.scrollIntoView({ behavior: "smooth", block: "center" });
+                      }
+                    }}
+                    className={`p-3 flex items-center justify-between gap-2 ${justAddedTag === t.tag ? "bg-primary/10 transition-colors duration-500" : ""}`}
+                  >
                     <div className="flex items-center gap-2 min-w-0">
                       <span className="text-sm text-foreground truncate">{toTitleCase(t.tag)}</span>
                       <span className="shrink-0 inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
