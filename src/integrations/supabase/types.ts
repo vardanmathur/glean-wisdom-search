@@ -293,6 +293,24 @@ export type Database = {
         }
         Relationships: []
       }
+      tags: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
       think_config: {
         Row: {
           created_at: string
@@ -505,6 +523,14 @@ export type Database = {
           tags: string[]
           vector_score: number
         }[]
+      }
+      merge_tags: {
+        Args: { source_tag: string; target_tag: string }
+        Returns: Json
+      }
+      preview_tag_merge: {
+        Args: { source_tag: string; target_tag: string }
+        Returns: Json
       }
       search_books_fuzzy: {
         Args: { search_term: string }
