@@ -2,6 +2,27 @@
 
 Notable changes to Glean, newest first. One entry per work session; group by what changed, not by file.
 
+## 2026-10-02 — Mobile Tag Entry, Admin Taxonomy Prompt, Modal Overflow
+
+### Shipped
+- Fixed: tag entry on mobile — some Android keyboards don't
+  send a usable Enter key, so tags weren't being added. Added
+  an "Add" button next to the tag input (HighlightEditPanel,
+  AdminStudioHighlights edit panel, UserStudio edit panel,
+  Add highlight modal), plus enterKeyHint="done" and a more
+  tolerant key check (Enter, comma, keyCode 13)
+- Added: admins now get the "Add to taxonomy?" prompt in the
+  Add highlight modal and the My Studio edit panel, not only
+  the two admin edit panels. Non-admins never see it, because
+  inserts into public.tags are admin-only
+- Fixed: Add highlight modal overflowed sideways on mobile —
+  visibility buttons now wrap, and long book titles wrap
+  instead of truncating
+- Changed: build label in the avatar dropdown now shows time
+  as well as date
+
+---
+
 ## 2026-10-02 — Tag System DB Migration, Admin UX, Bug Fixes
 
 ### Shipped
@@ -27,13 +48,11 @@ Notable changes to Glean, newest first. One entry per work session; group by wha
   component fix in dialog.tsx)
 - Navbar version indicator — build timestamp injected at
   Vite build time via VITE_BUILD_TIME
-- AdminSeed TODO — useIsAdmin gate missing (backlog)
 - normaliseTags.ts — TODO comment pointing to DB migration
 
 ### Deferred
 - Tag Management Phase 3 (merge UI) — RPCs deployed,
   UI not built yet
-- "Add to taxonomy" prompt not triggering on Enter — bug
 - Tag count badge linking to topic page
 
 ---

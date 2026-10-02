@@ -182,6 +182,19 @@ and topic URLs.
 
 ---
 
+## Backlog
+
+- Consolidate the four addTag() implementations and the four
+  copies of the "Add to taxonomy?" prompt (HighlightEditPanel,
+  AdminStudioHighlights, UserStudio, AddHighlightModal) into
+  one shared hook/component
+- BookLookup.tsx locked-book view still truncates long titles;
+  AddHighlightModal's header now wraps them
+- Dead `open` dependency in the EditPanel hydrate effect at
+  AdminStudioHighlights.tsx:1214 (resolves to window.open)
+
+---
+
 ## Design standards
 
 See GLEAN_DESIGN_STANDARDS.md (in Claude Project files)
