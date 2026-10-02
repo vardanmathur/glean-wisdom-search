@@ -282,7 +282,12 @@ const Navbar = () => {
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <div className="px-2 py-1.5 text-xs text-muted-foreground/60 text-center select-none">
-                  v21
+                  v21 ·{" "}
+                  {new Date(import.meta.env.VITE_BUILD_TIME ?? Date.now()).toLocaleDateString("en-GB", {
+                    day: "2-digit",
+                    month: "short",
+                    year: "2-digit",
+                  })}
                 </div>
               </DropdownMenuContent>
             </DropdownMenu>
