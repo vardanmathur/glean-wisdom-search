@@ -2,6 +2,42 @@
 
 Notable changes to Glean, newest first. One entry per work session; group by what changed, not by file.
 
+## 2026-10-02 — Tag System DB Migration, Admin UX, Bug Fixes
+
+### Shipped
+- public.tags table — 66 canonical tags, case-insensitive
+  uniqueness, RLS (public SELECT, admin INSERT/DELETE/UPDATE),
+  service_role grants
+- merge_tags RPC — atomic tag merge with dedup, admin-only,
+  transactional, deletes source tag after replacement
+- preview_tag_merge RPC — shows impact counts before merge,
+  authenticated only, public highlights only
+- useAllTags hook — migrated to read from public.tags table,
+  React Query cached, tags.ts no longer source of truth
+- AdminStudioHighlights allTags — migrated from local
+  highlights scan to useAllTags hook
+- handleAddTag — real INSERT to public.tags table
+- Tag inventory — shows all tags including 0-count ones
+- Tag Management tab layout — Inventory / Find Overlaps /
+  AI Analysis tabs, controlled tab state
+- Tag Management delete — real DELETE from public.tags
+- "Add to taxonomy?" prompt — in HighlightEditPanel and
+  AdminStudioHighlights when admin adds off-taxonomy tag
+- Mobile dialog fix — 1rem gutter on all dialogs (base
+  component fix in dialog.tsx)
+- Navbar version indicator — build timestamp injected at
+  Vite build time via VITE_BUILD_TIME
+- AdminSeed TODO — useIsAdmin gate missing (backlog)
+- normaliseTags.ts — TODO comment pointing to DB migration
+
+### Deferred
+- Tag Management Phase 3 (merge UI) — RPCs deployed,
+  UI not built yet
+- "Add to taxonomy" prompt not triggering on Enter — bug
+- Tag count badge linking to topic page
+
+---
+
 ## 2026-09-05 — Search Logging, Find Covers, Tag Fixes, UX
 
 ### Shipped

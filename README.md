@@ -62,8 +62,9 @@ npm run dev
 
 - Never select("*") on highlights table —
   embedding column (vector 768d) will kill performance
-- Tags stored in DB as Title Case — canonical list
-  in src/lib/tags.ts (66 tags)
+- Tags stored in DB as Title Case — canonical taxonomy
+  lives in the public.tags table (66 tags); src/lib/tags.ts
+  is legacy/bootstrap only
 - Book insert happens at highlight save time only —
   never during ISBN lookup (prevents orphaned books)
 - Edge functions deployed via Lovable only —
@@ -114,6 +115,10 @@ scripts/
 | generate-reflection-questions | Worksheet coaching questions | public |
 | suggest-tags | LLM-based tag suggestion (Gemini) | public |
 | find-book-covers | Multi-source book cover search (OL + Google Books) | public |
+| analyse-tags | AI redundancy analysis for tag taxonomy | public |
+| search-books | External book search via Google Books + OL | public |
+| rerank-highlights | Reranks semantic search results | public |
+| seed-highlights | Batch highlight seeding utility | admin |
 
 ---
 
@@ -130,6 +135,8 @@ Access via /admin hub:
 | Permissions | /admin/permissions | User access management |
 | Worksheets | /admin/worksheets | View downloaded worksheets |
 | Search Logs | /admin/search-logs | Search query analytics |
+| Tag Management | /admin/tag-management | Tag taxonomy — inventory, overlaps, AI analysis, rename |
+| Admin Seed | /admin/seed | Batch utilities — normalise tags, seed data |
 
 ---
 
@@ -150,6 +157,7 @@ Access via /admin hub:
 | user_profiles | Display names |
 | saved_highlights | Per-user highlight saves |
 | feedback | Thumbs up/down per highlight |
+| tags | Canonical tag taxonomy — 66 tags, DB-backed since Sep 2026 |
 
 ---
 
@@ -158,7 +166,8 @@ Access via /admin hub:
 - **Project ref:** bynjngujlvgcchirmnea
 - **Storage bucket:** worksheets (private)
 - **Key RPCs:** has_role(), match_highlights(),
-  increment_think_usage(), suggest_tags_for_quote()
+  increment_think_usage(), suggest_tags_for_quote(),
+  merge_tags(), preview_tag_merge()
 
 ---
 
