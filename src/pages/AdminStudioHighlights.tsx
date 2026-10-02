@@ -23,6 +23,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useSessionStorageState } from "@/hooks/useSessionStorageState";
+import { useAllTags } from "@/hooks/useAllTags";
 import { useAuthGate } from "@/hooks/useAuthGate";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { toTitleCase } from "@/lib/utils";
@@ -251,16 +252,7 @@ const AdminStudioHighlights = () => {
     enabled: isAdmin,
   });
 
-  const { data: allTags } = useQuery({
-    queryKey: ["studio-tags"],
-    queryFn: async () => {
-      const { data } = await supabase.from("highlights").select("tags");
-      const tagSet = new Set<string>();
-      data?.forEach((h) => h.tags?.forEach((t: string) => tagSet.add(t)));
-      return Array.from(tagSet).sort();
-    },
-    enabled: isAdmin,
-  });
+  const allTags = useAllTags();
 
   const { data: highlightsData, isLoading } = useQuery({
     queryKey: ["studio-highlights", page, filterBook, filterTags, filterNoNotes, filterUnrefreshed, sortBy, searchQuery],
@@ -735,7 +727,7 @@ const AdminStudioHighlights = () => {
           </SelectContent>
         </Select>
 
-        <MultiTagFilter allTags={allTags ?? []} selected={filterTags} onChange={setFilterTags} />
+        <MultiTagFilter allTags={allTags} selected={filterTags} onChange={setFilterTags} />
 
         <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer">
           <Checkbox checked={filterNoNotes} onCheckedChange={(v) => setFilterNoNotes(v === true)} />
@@ -1160,7 +1152,7 @@ const AdminStudioHighlights = () => {
       {/* Edit Panel */}
       <EditPanel
         highlight={editingHighlight}
-        allTags={allTags ?? []}
+        allTags={allTags}
         onClose={() => setEditingHighlight(null)}
         onSave={(id, updates) => {
           updateMutation.mutate({ id, updates }, {
