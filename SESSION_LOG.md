@@ -1,5 +1,28 @@
 ---
 
+## [2026-10-02] Glean — Mobile tag entry fixed, admin taxonomy prompt extended, modal overflow fixed
+
+**Mode**: Claude Code  
+**Mem0**: not connected
+
+### What happened
+Fixed tag entry on Android soft keyboards (visible Add button + `enterKeyHint` + tolerant key check) across four tag inputs, extended the admin-only "Add to taxonomy?" prompt to the Add highlight modal and My Studio edit panel, and fixed the Add highlight modal scrolling sideways at 360px. Moved `AdminStudioHighlights` onto `useAllTags()`, added a build timestamp to the Navbar version label, and updated CHANGELOG/README (new README `## Backlog` section). Confirmed Glean's dictation already uses `continuous=false` + restart-on-`onend` + a 2.5s silence stop.
+
+### Key decisions
+- Taxonomy prompt gated on `useIsAdmin()` at the setter, not the render: `public.tags` INSERT is admin-only and the modal is reachable by any signed-in user.
+- Modal overflow fixed at the elements (`min-w-0` grid item, `flex-wrap`, `break-words`), not `overflow-x-hidden` on `dialog.tsx` — that would hide the Add button and break other dialogs.
+- Removed the "AdminSeed gate missing" CHANGELOG line — the gate already exists; it came from an unverified spec.
+
+### Open threads
+- [ ] Test the mobile tag Add button and the modal at 360px on a real Android device (nothing verified in a browser this session).
+- [ ] `handleRename` in AdminTagManagement still doesn't rename the row in `public.tags`.
+- [ ] Consolidate the four `addTag()` + taxonomy-prompt copies into one hook/component (in README Backlog).
+
+### Artifacts
+- `AddHighlightModal.tsx`, `UserStudio.tsx`, `HighlightEditPanel.tsx`, `AdminStudioHighlights.tsx`; CHANGELOG.md, README.md
+
+---
+
 ## [2026-09-30] Glean — Tag taxonomy moved to DB, Admin Tag Management page shipped
 
 **Mode**: Claude Code  
