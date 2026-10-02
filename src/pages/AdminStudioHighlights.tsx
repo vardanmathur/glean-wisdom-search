@@ -1401,19 +1401,31 @@ const EditPanel = ({ highlight, allTags, onClose, onSave, saving }: EditPanelPro
                 </button>
               </div>
             )}
-            <div className="relative">
+            <div className="relative flex items-center gap-2">
               <input
                 value={tagInput}
                 onChange={(e) => setTagInput(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter" && tagInput.trim()) {
+                  if ((e.key === "Enter" || e.key === "," || e.keyCode === 13) && tagInput.trim()) {
                     e.preventDefault();
                     addTag(tagInput);
                   }
                 }}
+                enterKeyHint="done"
                 placeholder="Add tag…"
-                className="h-8 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                className="h-8 min-w-0 flex-1 rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               />
+              {tagInput.trim() && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8 shrink-0 px-3 text-xs"
+                  onClick={() => addTag(tagInput)}
+                >
+                  Add
+                </Button>
+              )}
               {tagInput && filteredSuggestions.length > 0 && (
                 <div className="absolute z-10 top-full left-0 mt-1 w-full bg-card border rounded-md shadow-md max-h-40 overflow-y-auto">
                   {filteredSuggestions.map((s) => (

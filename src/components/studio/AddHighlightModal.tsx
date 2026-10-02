@@ -632,19 +632,31 @@ const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags, initi
                 ))}
               </div>
             )}
-            <div className="relative">
+            <div className="relative flex items-center gap-2">
               <input
                 value={tagInput}
                 onChange={(e) => setTagInput(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter" && tagInput.trim()) {
+                  if ((e.key === "Enter" || e.key === "," || e.keyCode === 13) && tagInput.trim()) {
                     e.preventDefault();
                     addTag(tagInput);
                   }
                 }}
+                enterKeyHint="done"
                 placeholder="Add tag…"
-                className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="h-9 min-w-0 flex-1 rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               />
+              {tagInput.trim() && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-9 shrink-0 px-3 text-xs"
+                  onClick={() => addTag(tagInput)}
+                >
+                  Add
+                </Button>
+              )}
               {tagInput && tagSuggestions.length > 0 && (
                 <div className="absolute z-10 top-full left-0 mt-1 w-full bg-card border rounded-md shadow-md max-h-40 overflow-y-auto">
                   {tagSuggestions.map((s) => (
