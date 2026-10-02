@@ -570,20 +570,20 @@ const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags, initi
         </Tabs>
 
         {/* Shared fields below tabs */}
-        <div className="space-y-4 mt-4">
+        <div className="space-y-4 mt-4 min-w-0">
           <div className="space-y-1.5">
             <label className="text-sm font-medium">
               Book <span className="text-destructive">*</span>
             </label>
             {initialBook && !bookLookupOverride ? (
-              <div className="rounded-lg border bg-muted/30 p-3 flex items-center gap-3">
+              <div className="rounded-lg border bg-muted/30 p-3 flex items-start gap-3">
                 {initialBook.coverImageUrl && (
                   <img src={initialBook.coverImageUrl} className="h-12 w-8 object-cover rounded" />
                 )}
                 <div className="flex-1 min-w-0">
                   <p className="text-xs text-muted-foreground uppercase tracking-wider mb-0.5">Adding highlight to</p>
-                  <p className="font-medium text-sm truncate">{initialBook.title}</p>
-                  <p className="text-xs text-muted-foreground truncate">{initialBook.author}</p>
+                  <p className="font-medium text-sm break-words">{initialBook.title}</p>
+                  <p className="text-xs text-muted-foreground break-words">{initialBook.author}</p>
                 </div>
                 <button
                   type="button"
@@ -733,7 +733,7 @@ const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags, initi
 
           <div className="space-y-1.5">
             <label className="text-sm font-medium">Visibility</label>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <Button
                 type="button"
                 size="sm"
