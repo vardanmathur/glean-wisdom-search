@@ -428,6 +428,8 @@ interface EditPanelProps {
 }
 
 const EditPanel = ({ highlight, allTags, onClose, onSave, saving }: EditPanelProps) => {
+  const { isAdmin } = useIsAdmin();
+  const queryClient = useQueryClient();
   // Persistence keyed on highlight id so concurrent unrelated edits don't
   // collide. Survives mobile PWA backgrounding; cleared explicitly on save/cancel.
   const draftKey = `${EDIT_DRAFT_PREFIX}_${highlight?.id ?? "none"}`;
@@ -442,6 +444,7 @@ const EditPanel = ({ highlight, allTags, onClose, onSave, saving }: EditPanelPro
   const [suggesting, setSuggesting] = useState(false);
   const [hasFetchedSuggestions, setHasFetchedSuggestions] = useState(false);
   const [lastSuggestedQuote, setLastSuggestedQuote] = useState("");
+  const [pendingTaxonomyTag, setPendingTaxonomyTag] = useState<string | null>(null);
 
   // Always hydrate from the highlight prop on open / id change. sessionStorage
   // is for surviving window switches mid-edit, not for restoring a previous
@@ -456,6 +459,7 @@ const EditPanel = ({ highlight, allTags, onClose, onSave, saving }: EditPanelPro
     setSuggestedTags([]);
     setHasFetchedSuggestions(false);
     setLastSuggestedQuote("");
+    setPendingTaxonomyTag(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [highlight?.id]);
 
@@ -503,6 +507,7 @@ const EditPanel = ({ highlight, allTags, onClose, onSave, saving }: EditPanelPro
     clearNotes();
     clearVisibility();
     clearTagInput();
+    setPendingTaxonomyTag(null);
   };
 
   const addTag = (tag: string) => {
@@ -513,6 +518,9 @@ const EditPanel = ({ highlight, allTags, onClose, onSave, saving }: EditPanelPro
     ) ?? toTitleCase(t);
     if (!tags.some((existing) => existing.toLowerCase() === canonical.toLowerCase())) {
       setTags([...tags, canonical]);
+    }
+    if (isAdmin && !allTags.some((existing) => existing.toLowerCase() === canonical.toLowerCase())) {
+      setPendingTaxonomyTag(canonical);
     }
     setTagInput("");
   };
@@ -618,6 +626,39 @@ const EditPanel = ({ highlight, allTags, onClose, onSave, saving }: EditPanelPro
                 </Badge>
               ))}
             </div>
+            {pendingTaxonomyTag && (
+              <div className="flex items-center gap-2 mt-2 p-2 rounded-md bg-primary/5 border border-primary/20">
+                <p className="text-xs text-muted-foreground flex-1">
+                  '{pendingTaxonomyTag}' is a new tag. Add to taxonomy?
+                </p>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      const { error } = await supabase
+                        .from("tags")
+                        .insert({ name: pendingTaxonomyTag });
+                      if (error) throw error;
+                      queryClient.invalidateQueries({ queryKey: ["tags-table"] });
+                      toast.success(`'${pendingTaxonomyTag}' added to taxonomy`);
+                    } catch {
+                      toast.error("Failed to add to taxonomy");
+                    }
+                    setPendingTaxonomyTag(null);
+                  }}
+                  className="text-xs text-primary font-medium hover:text-primary/80 transition-colors"
+                >
+                  Add
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPendingTaxonomyTag(null)}
+                  className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  Dismiss
+                </button>
+              </div>
+            )}
             <div className="relative flex items-center gap-2">
               <input
                 value={tagInput}

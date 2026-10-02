@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -10,6 +11,7 @@ import { Loader2, Camera, X, Mic, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import BookLookup, { type SelectedBook } from "./BookLookup";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { useSessionStorageState } from "@/hooks/useSessionStorageState";
 import { toTitleCase } from "@/lib/utils";
 
@@ -26,6 +28,8 @@ interface AddHighlightModalProps {
 
 const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags, initialBook, onChangeBook }: AddHighlightModalProps) => {
   const { user } = useAuth();
+  const { isAdmin } = useIsAdmin();
+  const queryClient = useQueryClient();
   const isMobile = useIsMobile();
   const [tab, setTab, clearTab] = useSessionStorageState<"type" | "dictate" | "scan">(`${DRAFT_KEY}_tab`, "type");
 
@@ -66,6 +70,7 @@ const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags, initi
   const [suggesting, setSuggesting] = useState(false);
   const [hasFetchedSuggestions, setHasFetchedSuggestions] = useState(false);
   const [lastSuggestedQuote, setLastSuggestedQuote] = useState<string>("");
+  const [pendingTaxonomyTag, setPendingTaxonomyTag] = useState<string | null>(null);
 
   const reset = () => {
     clearQuote();
@@ -79,6 +84,7 @@ const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags, initi
     stopCamera();
     stopDictation();
     setBookLookupOverride(false);
+    setPendingTaxonomyTag(null);
   };
 
   // Track previous open state so reset only fires on an explicit open→close
@@ -262,7 +268,12 @@ const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags, initi
     const canonical = allTags.find(
       (tag) => tag.toLowerCase() === t.toLowerCase()
     ) ?? toTitleCase(t);
-    if (!tags.includes(canonical)) setTags([...tags, canonical]);
+    if (!tags.some((existing) => existing.toLowerCase() === canonical.toLowerCase())) {
+      setTags([...tags, canonical]);
+    }
+    if (isAdmin && !allTags.some((existing) => existing.toLowerCase() === canonical.toLowerCase())) {
+      setPendingTaxonomyTag(canonical);
+    }
     setTagInput("");
   };
   const removeTag = (t: string) => setTags(tags.filter((x) => x !== t));
@@ -630,6 +641,39 @@ const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags, initi
                     <X className="h-3 w-3" />
                   </Badge>
                 ))}
+              </div>
+            )}
+            {pendingTaxonomyTag && (
+              <div className="flex items-center gap-2 mt-2 p-2 rounded-md bg-primary/5 border border-primary/20">
+                <p className="text-xs text-muted-foreground flex-1">
+                  '{pendingTaxonomyTag}' is a new tag. Add to taxonomy?
+                </p>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      const { error } = await supabase
+                        .from("tags")
+                        .insert({ name: pendingTaxonomyTag });
+                      if (error) throw error;
+                      queryClient.invalidateQueries({ queryKey: ["tags-table"] });
+                      toast.success(`'${pendingTaxonomyTag}' added to taxonomy`);
+                    } catch {
+                      toast.error("Failed to add to taxonomy");
+                    }
+                    setPendingTaxonomyTag(null);
+                  }}
+                  className="text-xs text-primary font-medium hover:text-primary/80 transition-colors"
+                >
+                  Add
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPendingTaxonomyTag(null)}
+                  className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  Dismiss
+                </button>
               </div>
             )}
             <div className="relative flex items-center gap-2">
