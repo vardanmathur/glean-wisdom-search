@@ -16,7 +16,6 @@ import {
   parseClippings,
   attachNotesAndFilter,
   detectDuplicatesLevel1,
-  filterByLastImportDate,
   matchAgainstLibrary,
   looksGarbled,
   type StagingRowDraft,
@@ -36,9 +35,6 @@ type ParseSummary = {
   unknownAuthorBooks: number;
   oversizedCount: number;
   malformedCount: number;
-  filteredByDate: number;
-  lastImportDate: Date | null;
-  showingAll: boolean;
 };
 
 type StagedRow = {
@@ -206,7 +202,7 @@ const Import = () => {
     return matchAgainstLibrary(drafts, allLib);
   };
 
-  const runParse = async (showAll: boolean) => {
+  const runParse = async () => {
     if (!fileContents || !user) return;
     setParsing(true);
     setError(null);
@@ -222,34 +218,7 @@ const Import = () => {
 
       const withNotes = attachNotesAndFilter(parsed.highlights);
 
-      let lastImportDate: Date | null = null;
-      if (!showAll) {
-        const [hRes, sRes] = await Promise.all([
-          supabase
-            .from("highlights")
-            .select("created_at")
-            .eq("user_id", user.id)
-            .eq("source", "user")
-            .order("created_at", { ascending: false })
-            .limit(1)
-            .maybeSingle(),
-          supabase
-            .from("kindle_import_staging")
-            .select("created_at")
-            .eq("user_id", user.id)
-            .order("created_at", { ascending: false })
-            .limit(1)
-            .maybeSingle(),
-        ]);
-        const hDate = hRes.data?.created_at ? new Date(hRes.data.created_at) : null;
-        const sDate = sRes.data?.created_at ? new Date(sRes.data.created_at) : null;
-        if (hDate && sDate) lastImportDate = hDate > sDate ? hDate : sDate;
-        else lastImportDate = hDate ?? sDate;
-      }
-
-      const { working, filteredByDate } = filterByLastImportDate(withNotes, lastImportDate);
-
-      const detected = detectDuplicatesLevel1(working);
+      const detected = detectDuplicatesLevel1(withNotes);
 
       if (detected.rows.length === 0) {
         setSummary({
@@ -260,9 +229,6 @@ const Import = () => {
           unknownAuthorBooks: 0,
           oversizedCount: parsed.oversizedCount,
           malformedCount: parsed.malformedCount,
-          filteredByDate,
-          lastImportDate,
-          showingAll: showAll,
         });
         setStep(2);
         setParsing(false);
@@ -385,9 +351,6 @@ const Import = () => {
         unknownAuthorBooks,
         oversizedCount: parsed.oversizedCount,
         malformedCount: parsed.malformedCount,
-        filteredByDate,
-        lastImportDate,
-        showingAll: showAll,
       });
       setStep(2);
       toast.success("Saved to staging — ready for your review");
@@ -847,7 +810,7 @@ const Import = () => {
 
           <div className="flex justify-end">
             <Button
-              onClick={() => runParse(false)}
+              onClick={() => runParse()}
               disabled={!file || !fileContents || parsing}
               size="lg"
             >
@@ -875,36 +838,10 @@ const Import = () => {
             </Card>
           ) : (
             <>
-              {summary.lastImportDate && !summary.showingAll && summary.filteredByDate > 0 && (
-                <div className="rounded-lg border border-primary/30 bg-primary/5 p-4 text-sm">
-                  <p className="text-foreground">
-                    Showing {summary.totalReady} highlights added after{" "}
-                    <span className="font-medium">
-                      {summary.lastImportDate.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })}
-                    </span>{" "}
-                    — your last import. {summary.filteredByDate} older highlights skipped.
-                  </p>
-                  <button
-                    onClick={() => runParse(true)}
-                    className="mt-2 text-sm font-medium text-primary underline-offset-2 hover:underline"
-                  >
-                    Show all highlights including older ones
-                  </button>
-                </div>
-              )}
-
               {summary.totalReady === 0 ? (
                 <Card className="p-6">
                   <p className="text-foreground">
-                    No new highlights found in this file. If you've imported before, all highlights may already be in your library.{" "}
-                    {!summary.showingAll && (
-                      <button
-                        onClick={() => runParse(true)}
-                        className="font-medium text-primary underline-offset-2 hover:underline"
-                      >
-                        Try "Show all highlights including older ones"
-                      </button>
-                    )}
+                    No highlights found in this file.
                   </p>
                 </Card>
               ) : (

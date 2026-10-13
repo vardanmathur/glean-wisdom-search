@@ -6,8 +6,8 @@ import path from "node:path";
 import {
   parseClippings,
   attachNotesAndFilter,
+  collapseNoteChains,
   detectDuplicatesLevel1,
-  filterByLastImportDate,
   matchAgainstLibrary,
   looksGarbled,
   levenshtein,
@@ -164,10 +164,12 @@ function classify(contents: string): Classified {
 type NoteStat = { book: string; quotePreview: string; notes: number; myNotesLength: number };
 
 function analyseNotes(entries: ParsedHighlight[], attached: ParsedHighlight[]) {
+  const notesBefore = entries.filter((e) => e.entry_type === "Note").length;
+  const collapsed = collapseNoteChains(entries);
   const result: { h: ParsedHighlight; notes: number }[] = [];
   let attachedCount = 0;
   let dropped = 0;
-  for (const e of entries) {
+  for (const e of collapsed) {
     if (e.entry_type === "Bookmark") continue;
     if (e.entry_type === "Note") {
       const last = result[result.length - 1];
@@ -192,7 +194,14 @@ function analyseNotes(entries: ParsedHighlight[], attached: ParsedHighlight[]) {
     }))
     .filter((s) => s.notes > 0)
     .sort((a, b) => b.notes - a.notes);
-  return { attachedCount, dropped, stats, consistent };
+  return {
+    attachedCount,
+    dropped,
+    stats,
+    consistent,
+    notesBefore,
+    notesAfter: collapsed.filter((e) => e.entry_type === "Note").length,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -230,7 +239,6 @@ function level1Pairs(rows: StagingRowDraft[]): L1Pair[] {
 // Import simulation (in-memory library, no DB). Follows runParse -> Step 3 -> runImport.
 // ---------------------------------------------------------------------------
 type Outcome =
-  | "filtered_by_date"
   | "exact_duplicate_removed"
   | "level1_flagged_skipped"
   | "level2_flagged_skipped"
@@ -239,7 +247,6 @@ type Outcome =
   | "imported";
 
 const OUTCOMES: Outcome[] = [
-  "filtered_by_date",
   "exact_duplicate_removed",
   "level1_flagged_skipped",
   "level2_flagged_skipped",
@@ -251,10 +258,7 @@ const OUTCOMES: Outcome[] = [
 type LibRow = { id: string; quote: string; book_title: string; created_at: Date; my_notes: string | null; origin: string };
 
 type SimOptions = {
-  showAll: boolean;
   reviewPolicy: "skip" | "keep";
-  manualAddAt?: Date | null;
-  abandonedStagingAt?: Date | null;
   renameMap?: Record<string, string>;
 };
 
@@ -262,13 +266,10 @@ type RowDecision = { title: string; ts: string; quotePreview: string; origin: "n
 
 type SessionResult = {
   file: string;
-  showAll: boolean;
-  lastImportDate: string;
   parsedEntries: number;
   malformed: number;
   oversized: number;
   highlightsAfterAttach: number;
-  filteredByDate: number;
   staged: number;
   exactRemoved: number;
   level1Flagged: number;
@@ -296,15 +297,7 @@ function runSession(
   const parsed = parseClippings(contents);
   const withNotes = attachNotesAndFilter(parsed.highlights);
 
-  let lastImportDate: Date | null = null;
-  if (!opts.showAll) {
-    const hDate = library.length ? new Date(Math.max(...library.map((r) => r.created_at.getTime()))) : null;
-    const sDate = opts.abandonedStagingAt ?? null;
-    if (hDate && sDate) lastImportDate = hDate > sDate ? hDate : sDate;
-    else lastImportDate = hDate ?? sDate;
-  }
-  const { working, filteredByDate } = filterByLastImportDate(withNotes, lastImportDate);
-  const detected = detectDuplicatesLevel1(working);
+  const detected = detectDuplicatesLevel1(withNotes);
 
   const l1Flagged = new Set<StagingRowDraft>(detected.rows.filter((r) => r.status === "near_duplicate"));
   const libInput: LibraryHighlight[] = library.map((r) => ({ id: r.id, quote: r.quote, book_title: r.book_title }));
@@ -346,7 +339,6 @@ function runSession(
     imported++;
   }
 
-  const workingSet = new Set(working);
   const draftByKey = new Map<string, StagingRowDraft>();
   for (const d of detected.rows) draftByKey.set(`${d.book_title}\u0000${d.quote}`, d);
   const claimed = new Set<StagingRowDraft>();
@@ -357,19 +349,15 @@ function runSession(
   for (const h of withNotes) {
     const origin: "new" | "prior" = priorKeys.has(keyOf(h.book_title, h.kindle_timestamp, h.quote)) ? "prior" : "new";
     let outcome: Outcome;
-    if (!workingSet.has(h)) {
-      outcome = "filtered_by_date";
+    const d = draftByKey.get(`${h.book_title}\u0000${h.quote}`);
+    const sameTs = d && (d.kindle_timestamp?.getTime() ?? null) === (h.kindle_timestamp?.getTime() ?? null);
+    if (!d || !sameTs || claimed.has(d)) {
+      outcome = "exact_duplicate_removed";
     } else {
-      const d = draftByKey.get(`${h.book_title}\u0000${h.quote}`);
-      const sameTs = d && (d.kindle_timestamp?.getTime() ?? null) === (h.kindle_timestamp?.getTime() ?? null);
-      if (!d || !sameTs || claimed.has(d)) {
-        outcome = "exact_duplicate_removed";
-      } else {
-        claimed.add(d);
-        if (l1Flagged.has(d)) outcome = d.status === "skipped" ? "level1_flagged_skipped" : "flagged_kept_imported";
-        else if (l2Flagged.has(d)) outcome = d.status === "skipped" ? "level2_flagged_skipped" : "flagged_kept_imported";
-        else outcome = d.status === "pending" ? "imported" : "winner_skipped_by_keep";
-      }
+      claimed.add(d);
+      if (l1Flagged.has(d)) outcome = d.status === "skipped" ? "level1_flagged_skipped" : "flagged_kept_imported";
+      else if (l2Flagged.has(d)) outcome = d.status === "skipped" ? "level2_flagged_skipped" : "flagged_kept_imported";
+      else outcome = d.status === "pending" ? "imported" : "winner_skipped_by_keep";
     }
     (origin === "new" ? outcomesNew : outcomesPrior)[outcome]++;
     rows.push({
@@ -383,13 +371,10 @@ function runSession(
 
   return {
     file: fileName,
-    showAll: opts.showAll,
-    lastImportDate: fmt(lastImportDate),
     parsedEntries: parsed.highlights.length,
     malformed: parsed.malformedCount,
     oversized: parsed.oversizedCount,
     highlightsAfterAttach: withNotes.length,
-    filteredByDate,
     staged: detected.rows.length,
     exactRemoved: detected.exactDuplicatesRemoved,
     level1Flagged: detected.flaggedCount,
@@ -407,7 +392,7 @@ function runSession(
 type Scenario = {
   label: string;
   sequence: ("Sep" | "Oct")[];
-  opts: SimOptions; // opts.showAll applies to every session after the first
+  opts: SimOptions;
   note?: string;
 };
 
@@ -415,24 +400,8 @@ function runScenario(sc: Scenario, files: Record<"Sep" | "Oct", string>, now: Da
   const library: LibRow[] = [];
   const priorKeys = new Set<string>();
   const sessions: SessionResult[] = [];
-  sc.sequence.forEach((name, i) => {
-    const isLast = i === sc.sequence.length - 1;
-    if (isLast && sc.opts.manualAddAt) {
-      library.push({
-        id: "manual",
-        quote: "A manually added highlight that is not in either Kindle file.",
-        book_title: "Manual Book",
-        created_at: sc.opts.manualAddAt,
-        my_notes: null,
-        origin: "manual",
-      });
-    }
-    const opts: SimOptions = {
-      ...sc.opts,
-      showAll: i === 0 ? false : sc.opts.showAll,
-      abandonedStagingAt: isLast ? sc.opts.abandonedStagingAt : null,
-    };
-    const res = runSession(name, files[name], library, opts, priorKeys, now);
+  sc.sequence.forEach((name) => {
+    const res = runSession(name, files[name], library, sc.opts, priorKeys, now);
     sessions.push(res);
     const withNotes = attachNotesAndFilter(parseClippings(files[name]).highlights);
     for (const h of withNotes) priorKeys.add(keyOf(h.book_title, h.kindle_timestamp, h.quote));
@@ -489,6 +458,7 @@ describe.skipIf(!HAVE_FILES)("Kindle import dry run (local files, no database)",
       out(`FILE ${name}: ${path.basename(name === "Sep" ? SEP_FILE : OCT_FILE)}`);
       out(`${"=".repeat(100)}`);
       out(`blocks: ${cls.totalBlocks} | parseClippings: kept ${parsed.highlights.length} (Highlight ${types.Highlight}, Note ${types.Note}, Bookmark ${types.Bookmark}) | malformedCount ${parsed.malformedCount} | oversizedCount ${parsed.oversizedCount}`);
+      out(`notes in file ${notes.notesBefore} -> after chain collapse ${notes.notesAfter}`);
       out(`after attachNotesAndFilter: ${attached.length} highlights | notes attached ${notes.attachedCount} | notes dropped (no same-book preceding highlight) ${notes.dropped} | highlights carrying notes ${notes.stats.length}`);
       out(`highlight timestamps: ${fmt(minTs)}  ->  ${fmt(maxTs)}`);
       out("");
@@ -550,17 +520,11 @@ describe.skipIf(!HAVE_FILES)("Kindle import dry run (local files, no database)",
     out(`S5 rename rule renames ${Object.keys(RENAMES).length} distinct titles (underscore ${renameCategories.underscore}, bare lowercase ${renameCategories.bareLowercase}); '--'-only titles are left alone`);
     json.renamedTitles = Object.keys(RENAMES);
     const scenarios: Scenario[] = [
-      { label: "S1  Sep -> Oct, DEFAULT mode (what the Parse button does)", sequence: ["Sep", "Oct"], opts: { showAll: false, reviewPolicy: "skip" } },
-      { label: "S2  Sep -> Oct, SHOW-ALL mode, review = skip every flagged row", sequence: ["Sep", "Oct"], opts: { showAll: true, reviewPolicy: "skip" } },
-      { label: "S3  Sep -> Oct, DEFAULT + one manually added highlight (created_at = now)", sequence: ["Sep", "Oct"], opts: { showAll: false, reviewPolicy: "skip", manualAddAt: now } },
-      { label: "S4  Sep -> Oct, DEFAULT + abandoned staging rows (created_at = now)", sequence: ["Sep", "Oct"], opts: { showAll: false, reviewPolicy: "skip", abandonedStagingAt: now } },
-      { label: "S5  Sep -> Oct, SHOW-ALL + Step-3 renames of garbled-looking titles in both sessions", sequence: ["Sep", "Oct"], opts: { showAll: true, reviewPolicy: "skip", renameMap: RENAMES } },
-      { label: "S6  Sep -> Oct, SHOW-ALL, review = KEEP every flagged row (worst case)", sequence: ["Sep", "Oct"], opts: { showAll: true, reviewPolicy: "keep" } },
-      { label: "C1  CONTROL: Oct alone into an empty library", sequence: ["Oct"], opts: { showAll: false, reviewPolicy: "skip" } },
-      { label: "C2  CONTROL: Oct -> Sep, DEFAULT mode (reverse order)", sequence: ["Oct", "Sep"], opts: { showAll: false, reviewPolicy: "skip" } },
-      { label: "C3  CONTROL: Oct -> Sep, SHOW-ALL mode (reverse order)", sequence: ["Oct", "Sep"], opts: { showAll: true, reviewPolicy: "skip" } },
-      { label: "C4  CONTROL: Oct alone, library holds ONE manual highlight (created_at = now), DEFAULT", sequence: ["Oct"], opts: { showAll: false, reviewPolicy: "skip", manualAddAt: now } },
-      { label: "C5  CONTROL: Oct alone, abandoned staging rows (created_at = now), DEFAULT", sequence: ["Oct"], opts: { showAll: false, reviewPolicy: "skip", abandonedStagingAt: now } },
+      { label: "S2  Sep -> Oct, review = skip every flagged row", sequence: ["Sep", "Oct"], opts: { reviewPolicy: "skip" } },
+      { label: "S5  Sep -> Oct, Step-3 renames of garbled-looking titles in both sessions", sequence: ["Sep", "Oct"], opts: { reviewPolicy: "skip", renameMap: RENAMES } },
+      { label: "S6  Sep -> Oct, review = KEEP every flagged row (worst case)", sequence: ["Sep", "Oct"], opts: { reviewPolicy: "keep" } },
+      { label: "C1  CONTROL: Oct alone into an empty library", sequence: ["Oct"], opts: { reviewPolicy: "skip" } },
+      { label: "C3  CONTROL: Oct -> Sep (reverse order)", sequence: ["Oct", "Sep"], opts: { reviewPolicy: "skip" } },
     ];
 
     const scenarioJson: unknown[] = [];
@@ -569,12 +533,12 @@ describe.skipIf(!HAVE_FILES)("Kindle import dry run (local files, no database)",
       const run = runScenario(sc, files, now);
       out(`${"-".repeat(100)}`);
       out(sc.label);
-      out(`options: showAll(after 1st session)=${sc.opts.showAll} review=${sc.opts.reviewPolicy} manualAddAt=${fmt(sc.opts.manualAddAt)} abandonedStagingAt=${fmt(sc.opts.abandonedStagingAt)} renames=${sc.opts.renameMap ? Object.keys(sc.opts.renameMap).length : 0}`);
+      out(`options: review=${sc.opts.reviewPolicy} renames=${sc.opts.renameMap ? Object.keys(sc.opts.renameMap).length : 0}`);
       for (const s of run.sessions) {
         // each session's outcomes must account for every highlight that came out of the parser
         expect(Object.values(s.outcomesNew).reduce((a, b) => a + b, 0) + Object.values(s.outcomesPrior).reduce((a, b) => a + b, 0)).toBe(s.highlightsAfterAttach);
-        out(`  session ${s.file} (${s.showAll ? "show-all" : "default"}): lastImportDate=${s.lastImportDate}`);
-        out(`    parsed entries ${s.parsedEntries} | malformed ${s.malformed} | highlights after notes ${s.highlightsAfterAttach} | filtered by date ${s.filteredByDate} | staged ${s.staged} | exact dups removed ${s.exactRemoved}`);
+        out(`  session ${s.file}`);
+        out(`    parsed entries ${s.parsedEntries} | malformed ${s.malformed} | highlights after notes ${s.highlightsAfterAttach} | staged ${s.staged} | exact dups removed ${s.exactRemoved}`);
         out(`    Level-1 flagged ${s.level1Flagged} | Level-2 flagged ${s.level2Flagged} | pending after review ${s.pendingAfterReview} | IMPORTED ${s.imported}`);
         if (s.priorTotal > 0 || sc.sequence.indexOf(s.file as "Sep" | "Oct") > 0) {
           out(`    of the file's highlights: ${s.newTotal} NEW (not in an earlier file) | ${s.priorTotal} already in an earlier file`);
@@ -587,9 +551,9 @@ describe.skipIf(!HAVE_FILES)("Kindle import dry run (local files, no database)",
       const importedPrior = last.outcomesPrior.imported + last.outcomesPrior.flagged_kept_imported;
       const legitDedupe = last.outcomesNew.exact_duplicate_removed + last.outcomesNew.level1_flagged_skipped;
       out(`  >>> final session vs expectation: new highlights available ${last.newTotal} | imported ${importedNew} | shortfall ${last.newTotal - importedNew} | re-imported old ones ${importedPrior} | library rows after run ${run.libraryRows}`);
-      out(`      of the shortfall: filtered by date ${last.outcomesNew.filtered_by_date}, within-file dedupe/near-dup (Level 1) ${legitDedupe}, matched as duplicate of library (Level 2) ${last.outcomesNew.level2_flagged_skipped}, other ${last.newTotal - importedNew - last.outcomesNew.filtered_by_date - legitDedupe - last.outcomesNew.level2_flagged_skipped}`);
-      summaryRows.push(`  ${col(sc.label.slice(0, 3), 4)} new ${num(last.newTotal, 3)} | imported new ${num(importedNew, 3)} | filtered by date ${num(last.outcomesNew.filtered_by_date, 3)} | L1 dedupe ${num(legitDedupe, 3)} | L2 skipped ${num(last.outcomesNew.level2_flagged_skipped, 3)} | re-imported old ${num(importedPrior, 3)}`);
-      scenarioJson.push({ label: sc.label, options: { ...sc.opts, manualAddAt: fmt(sc.opts.manualAddAt), abandonedStagingAt: fmt(sc.opts.abandonedStagingAt) }, sessions: run.sessions, libraryRows: run.libraryRows });
+      out(`      of the shortfall: within-file dedupe/near-dup (Level 1) ${legitDedupe}, matched as duplicate of library (Level 2) ${last.outcomesNew.level2_flagged_skipped}, other ${last.newTotal - importedNew - legitDedupe - last.outcomesNew.level2_flagged_skipped}`);
+      summaryRows.push(`  ${col(sc.label.slice(0, 3), 4)} new ${num(last.newTotal, 3)} | imported new ${num(importedNew, 3)} | L1 dedupe ${num(legitDedupe, 3)} | L2 skipped ${num(last.outcomesNew.level2_flagged_skipped, 3)} | re-imported old ${num(importedPrior, 3)}`);
+      scenarioJson.push({ label: sc.label, options: sc.opts, sessions: run.sessions, libraryRows: run.libraryRows });
     }
     json.scenarios = scenarioJson;
 

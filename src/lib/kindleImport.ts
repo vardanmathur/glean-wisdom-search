@@ -213,7 +213,45 @@ export function parseClippings(contents: string): {
   return { highlights, oversizedCount, malformedCount };
 }
 
-export function attachNotesAndFilter(entries: ParsedHighlight[]): ParsedHighlight[] {
+export const NOTE_CHAIN_GAP_MS = 60_000;
+
+const isWordChar = (ch: string) => /[\p{L}\p{N}_]/u.test(ch);
+
+function extendsNoteText(later: string, earlier: string): boolean {
+  const prefix = earlier.trimEnd();
+  if (prefix.length === 0 || !later.startsWith(prefix)) return false;
+  return prefix.length === later.length || !isWordChar(later[prefix.length]);
+}
+
+export function collapseNoteChains(entries: ParsedHighlight[]): ParsedHighlight[] {
+  const kept: (ParsedHighlight | null)[] = [];
+  const survivorsByKey = new Map<string, number[]>();
+
+  for (const e of entries) {
+    if (e.entry_type !== "Note" || !e.kindle_location) {
+      kept.push(e);
+      continue;
+    }
+    const key = JSON.stringify([e.book_title, e.kindle_location]);
+    const survivors = (survivorsByKey.get(key) ?? []).filter((idx) => kept[idx] !== null);
+    const eTs = e.kindle_timestamp ? e.kindle_timestamp.getTime() : null;
+
+    survivors.forEach((idx, pos) => {
+      const prev = kept[idx];
+      const prevTs = prev?.kindle_timestamp ? prev.kindle_timestamp.getTime() : null;
+      if (!prev || eTs === null || prevTs === null || eTs < prevTs) return;
+      const withinGap = pos === survivors.length - 1 && eTs - prevTs <= NOTE_CHAIN_GAP_MS;
+      if (withinGap || extendsNoteText(e.quote, prev.quote)) kept[idx] = null;
+    });
+
+    survivorsByKey.set(key, [...survivors.filter((idx) => kept[idx] !== null), kept.length]);
+    kept.push(e);
+  }
+  return kept.filter((e): e is ParsedHighlight => e !== null);
+}
+
+export function attachNotesAndFilter(rawEntries: ParsedHighlight[]): ParsedHighlight[] {
+  const entries = collapseNoteChains(rawEntries);
   const result: ParsedHighlight[] = [];
   for (let i = 0; i < entries.length; i++) {
     const e = entries[i];
@@ -372,21 +410,6 @@ export function looksGarbled(title: string): boolean {
   // No spaces and entirely lowercase letters/digits
   if (!/\s/.test(title) && /^[a-z0-9]+$/.test(title)) return true;
   return false;
-}
-
-export function filterByLastImportDate(
-  withNotes: ParsedHighlight[],
-  lastImportDate: Date | null
-): { working: ParsedHighlight[]; filteredByDate: number } {
-  let filteredByDate = 0;
-  let working = withNotes;
-  if (lastImportDate) {
-    const cutoff = lastImportDate.getTime();
-    const newer = withNotes.filter((h) => h.kindle_timestamp && h.kindle_timestamp.getTime() > cutoff);
-    filteredByDate = withNotes.length - newer.length;
-    working = newer;
-  }
-  return { working, filteredByDate };
 }
 
 export function matchAgainstLibrary(
