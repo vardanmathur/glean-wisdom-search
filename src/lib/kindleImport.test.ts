@@ -1,5 +1,20 @@
 import { describe, it, expect } from "vitest";
-import { attachNotesAndFilter, collapseNoteChains, NOTE_CHAIN_GAP_MS, type ParsedHighlight } from "@/lib/kindleImport";
+import {
+  attachNotesAndFilter,
+  collapseNoteChains,
+  defaultReviewStatus,
+  levenshtein,
+  levenshteinWithin,
+  loadMatchPool,
+  matchAgainstLibrary,
+  normaliseQuote,
+  NOTE_CHAIN_GAP_MS,
+  toMatchPool,
+  type LibraryHighlight,
+  type ParsedHighlight,
+  type RawLibraryRow,
+  type StagingRowDraft,
+} from "@/lib/kindleImport";
 
 const at = (seconds: number) => new Date(2020, 0, 1, 12, 0, seconds);
 const entry = (over: Partial<ParsedHighlight> & Pick<ParsedHighlight, "entry_type" | "quote">): ParsedHighlight => ({
@@ -129,5 +144,367 @@ describe("attachNotesAndFilter with chains", () => {
   it("still joins genuinely separate notes with a newline", () => {
     const out = attachNotesAndFilter([highlight("a passage long enough"), note("first thought", 1), note("second thought", 200)]);
     expect(out[0].my_notes).toBe("first thought\nsecond thought");
+  });
+});
+
+let draftCounter = 0;
+const draft = (quote: string, title = "Book A", status: StagingRowDraft["status"] = "pending"): StagingRowDraft => ({
+  client_id: `d${++draftCounter}`,
+  quote,
+  book_title: title,
+  author: null,
+  kindle_location: null,
+  kindle_timestamp: null,
+  my_notes: null,
+  status,
+  duplicate_of_client_id: null,
+});
+const lib = (id: string, quote: string, title = "Book A", scope?: "library" | "shared"): LibraryHighlight => ({
+  id,
+  quote,
+  book_title: title,
+  scope,
+});
+const matchOf = (d: StagingRowDraft, pool: LibraryHighlight[]) => matchAgainstLibrary([d], pool).get(d.client_id);
+
+function rng(seed: number) {
+  let t = seed >>> 0;
+  return () => {
+    t += 0x6d2b79f5;
+    let r = Math.imul(t ^ (t >>> 15), 1 | t);
+    r ^= r + Math.imul(r ^ (r >>> 7), 61 | r);
+    return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
+  };
+}
+const randomLetters = (rand: () => number, len: number) =>
+  Array.from({ length: len }, () => String.fromCharCode(97 + Math.floor(rand() * 26))).join("");
+const mutate = (rand: () => number, s: string, edits: number) => {
+  const chars = s.split("");
+  for (let i = 0; i < edits; i++) {
+    const pos = Math.floor(rand() * chars.length);
+    const kind = Math.floor(rand() * 3);
+    if (kind === 0) chars[pos] = String.fromCharCode(97 + ((chars[pos].charCodeAt(0) - 97 + 1 + Math.floor(rand() * 25)) % 26));
+    else if (kind === 1) chars.splice(pos, 0, String.fromCharCode(97 + Math.floor(rand() * 26)));
+    else if (chars.length > 1) chars.splice(pos, 1);
+  }
+  return chars.join("");
+};
+const substituteFirst = (s: string, k: number) =>
+  s
+    .split("")
+    .map((c, i) => (i < k ? String.fromCharCode(97 + ((c.charCodeAt(0) - 97 + 1) % 26)) : c))
+    .join("");
+
+// The matching rules as they were before normalisation and the banded distance (same-title bucket).
+function originalRule(a: string, b: string): boolean {
+  if (a === b || a.includes(b) || b.includes(a)) return true;
+  const maxLen = Math.max(a.length, b.length);
+  const minLen = Math.min(a.length, b.length);
+  if ((maxLen - minLen) / maxLen > 0.15) return false;
+  return 1 - levenshtein(a, b) / maxLen > 0.85;
+}
+
+describe("normaliseQuote", () => {
+  it("lowercases and collapses whitespace", () => {
+    expect(normaliseQuote("  The   Quick\nBrown\tFox  ")).toBe("the quick brown fox");
+  });
+
+  it("unifies curly and straight quotes", () => {
+    expect(normaliseQuote("It’s “fine” today")).toBe(normaliseQuote("It's \"fine\" today"));
+    expect(normaliseQuote("It’s ‘fine’ today")).toBe(normaliseQuote("It's 'fine' today"));
+  });
+
+  it("unifies dashes", () => {
+    const plain = normaliseQuote("a well-known idea");
+    expect(normaliseQuote("a well–known idea")).toBe(plain);
+    expect(normaliseQuote("a well—known idea")).toBe(plain);
+  });
+
+  it("strips surrounding punctuation but keeps inner punctuation", () => {
+    expect(normaliseQuote("\"Hello, world.\"")).toBe("hello, world");
+    expect(normaliseQuote("…and so on…")).toBe("and so on");
+  });
+
+  it("treats non-breaking spaces, zero-width characters and soft hyphens as invisible or plain", () => {
+    expect(normaliseQuote(`a${String.fromCharCode(160)}b`)).toBe("a b");
+    expect(normaliseQuote(`ab${String.fromCharCode(8203)}c`)).toBe("abc");
+    expect(normaliseQuote(`ab${String.fromCharCode(173)}c`)).toBe("abc");
+  });
+
+  it("returns an empty string for punctuation-only text", () => {
+    expect(normaliseQuote("—…!")).toBe("");
+  });
+});
+
+describe("levenshteinWithin", () => {
+  it("equals the original distance when within the limit and maxDist + 1 otherwise", () => {
+    const rand = rng(12345);
+    for (let n = 0; n < 400; n++) {
+      const len = 5 + Math.floor(rand() * 120);
+      const a = randomLetters(rand, len);
+      const b = n % 4 === 0 ? randomLetters(rand, len + Math.floor(rand() * 6)) : mutate(rand, a, Math.floor(rand() * len * 0.3));
+      const maxLen = Math.max(a.length, b.length);
+      for (const maxDist of [0, 1, 2, 5, Math.ceil(0.15 * maxLen), maxLen]) {
+        expect(levenshteinWithin(a, b, maxDist)).toBe(Math.min(levenshtein(a, b), maxDist + 1));
+      }
+    }
+  });
+});
+
+describe("matchAgainstLibrary: same decisions as the original rules", () => {
+  it("agrees with the original rule on random near-duplicates and unrelated text", () => {
+    const rand = rng(777);
+    let matches = 0;
+    for (let n = 0; n < 400; n++) {
+      const len = 8 + Math.floor(rand() * 150);
+      const a = randomLetters(rand, len);
+      const b = n % 5 === 0 ? randomLetters(rand, len) : mutate(rand, a, Math.floor(rand() * len * 0.3));
+      const got = !!matchOf(draft(a), [lib("x", b)]);
+      expect(got).toBe(originalRule(a, b));
+      if (got) matches++;
+    }
+    expect(matches).toBeGreaterThan(50);
+  });
+
+  it("sits exactly on the 15% boundary: similarity of exactly 0.85 is not a match", () => {
+    const rand = rng(99);
+    for (const [len, matchK, noMatchK] of [
+      [20, 2, 3],
+      [40, 5, 6],
+      [60, 8, 9],
+      [100, 14, 15],
+    ] as const) {
+      const a = randomLetters(rand, len);
+      expect(matchOf(draft(a), [lib("x", substituteFirst(a, matchK))])).toBeDefined();
+      expect(matchOf(draft(a), [lib("x", substituteFirst(a, noMatchK))])).toBeUndefined();
+    }
+  });
+});
+
+describe("matchAgainstLibrary: behaviour", () => {
+  const passage = "The garden needs patience and a steady hand every single morning of the year.";
+
+  it("catches a duplicate whose book was renamed", () => {
+    const m = matchOf(draft(passage, "Original Title"), [lib("L1", passage, "Renamed Title")]);
+    expect(m?.highlight_id).toBe("L1");
+    expect(m?.sameTitle).toBe(false);
+    expect(m?.scope).toBe("library");
+    expect(m?.book_title).toBe("Renamed Title");
+  });
+
+  it("reports sameTitle for a match under the same title, ignoring case", () => {
+    expect(matchOf(draft(passage, "book a"), [lib("L1", passage, "Book A")])?.sameTitle).toBe(true);
+  });
+
+  it("matches a typed or dictated copy that differs in quotes, dashes and capitalisation", () => {
+    const kindle = "“The garden needs patience—and a steady hand,” she said every single morning.";
+    const typed = "the garden needs patience - and a steady hand, she said every single morning";
+    expect(matchOf(draft(kindle, "Book A"), [lib("L1", typed, "Book A")])).toBeDefined();
+  });
+
+  it("does not match unrelated quotes", () => {
+    expect(matchOf(draft(passage), [lib("L1", "Completely different words that share nothing with it at all today.")])).toBeUndefined();
+  });
+
+  it("prefers your own library over a shared copy, whatever the order", () => {
+    const pool = [lib("S1", passage, "Book A", "shared"), lib("M1", passage, "Other Title", "library")];
+    const m = matchOf(draft(passage, "Book A"), pool);
+    expect(m?.highlight_id).toBe("M1");
+    expect(m?.scope).toBe("library");
+  });
+
+  it("only matches drafts that are still pending", () => {
+    expect(matchOf(draft(passage, "Book A", "near_duplicate"), [lib("L1", passage)])).toBeUndefined();
+  });
+
+  it("never matches on empty normalised text", () => {
+    expect(matchOf(draft("—…!"), [lib("L1", "...")])).toBeUndefined();
+  });
+
+  it("any-title pass needs at least 25 characters of contained text; same-title does not", () => {
+    const filler = " lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et";
+    const long30 = "the quick brown fox jumps over";
+    const short19 = "the quick brown fox";
+    expect(matchOf(draft(long30), [lib("L1", long30 + filler, "Other Title")])).toBeDefined();
+    expect(matchOf(draft(short19), [lib("L1", short19 + filler, "Other Title")])).toBeUndefined();
+    expect(matchOf(draft(short19), [lib("L1", short19 + filler, "Book A")])).toBeDefined();
+  });
+});
+
+describe("toMatchPool", () => {
+  const rows: RawLibraryRow[] = [
+    { id: "own-private", quote: "q1", user_id: "me", visibility: "private", book_title: "B" },
+    { id: "own-public", quote: "q2", user_id: "me", visibility: "public", book_title: "B" },
+    { id: "own-null", quote: "q3", user_id: "me", visibility: null, book_title: null },
+    { id: "other-public", quote: "q4", user_id: "you", visibility: "public", book_title: "B" },
+    { id: "other-private", quote: "q5", user_id: "you", visibility: "private", book_title: "B" },
+    { id: "other-null", quote: "q6", user_id: "you", visibility: null, book_title: "B" },
+    { id: "unowned-public", quote: "q7", user_id: null, visibility: "public", book_title: "B" },
+    { id: "unowned-private", quote: "q8", user_id: null, visibility: "private", book_title: "B" },
+    { id: "unowned-null", quote: "q9", user_id: null, visibility: null, book_title: "B" },
+  ];
+
+  it("keeps your rows in any visibility and other rows only when exactly public", () => {
+    const pool = toMatchPool(rows, "me");
+    expect(pool.map((p) => p.id)).toEqual(["own-private", "own-public", "own-null", "other-public", "unowned-public"]);
+    expect(pool.map((p) => p.scope)).toEqual(["library", "library", "library", "shared", "shared"]);
+    expect(pool[2].book_title).toBe("");
+  });
+
+  it("labels nothing as your library when there is no signed-in id", () => {
+    const pool = toMatchPool(rows, "");
+    expect(pool.map((p) => p.id)).toEqual(["own-public", "other-public", "unowned-public"]);
+    expect(pool.every((p) => p.scope === "shared")).toBe(true);
+  });
+
+  it("another user's private row is never matched, even for identical text", () => {
+    const text = "A sentence that only exists in someone else's private library, word for word.";
+    const privateRows: RawLibraryRow[] = [{ id: "p1", quote: text, user_id: "you", visibility: "private", book_title: "Book A" }];
+    expect(matchOf(draft(text, "Book A"), toMatchPool(privateRows, "me"))).toBeUndefined();
+    const publicRows: RawLibraryRow[] = [{ id: "p2", quote: text, user_id: "you", visibility: "public", book_title: "Book A" }];
+    expect(matchOf(draft(text, "Book A"), toMatchPool(publicRows, "me"))?.scope).toBe("shared");
+  });
+});
+
+describe("defaultReviewStatus", () => {
+  it("skips a shared match under the same title", () => {
+    expect(defaultReviewStatus({ scope: "shared", sameTitle: true })).toBe("skipped");
+  });
+  it("keeps a shared match under a different title for a decision", () => {
+    expect(defaultReviewStatus({ scope: "shared", sameTitle: false })).toBe("near_duplicate");
+  });
+  it("keeps a match in your own library for a decision, same title or not", () => {
+    expect(defaultReviewStatus({ scope: "library", sameTitle: true })).toBe("near_duplicate");
+    expect(defaultReviewStatus({ scope: "library", sameTitle: false })).toBe("near_duplicate");
+  });
+  it("applies to real matches", () => {
+    const text = "A shared passage that appears word for word in another reader's public library.";
+    const shared = [lib("S1", text, "Book A", "shared")];
+    const same = matchOf(draft(text, "Book A"), shared);
+    const other = matchOf(draft(text, "Different Book"), shared);
+    expect(same && defaultReviewStatus(same)).toBe("skipped");
+    expect(other && defaultReviewStatus(other)).toBe("near_duplicate");
+  });
+});
+
+describe("loadMatchPool", () => {
+  const row = (id: string, user_id: string | null, visibility: string | null): RawLibraryRow => ({
+    id,
+    quote: `placeholder passage ${id}`,
+    user_id,
+    visibility,
+    book_title: "Book A",
+  });
+  const mine = (n: number) =>
+    Array.from({ length: n }, (_, i) => row(`r${String(i + 1).padStart(2, "0")}`, "me", "private"));
+
+  // A fake server: rows ordered by id, at most `cap` rows per page, only ids greater than the one asked for.
+  function fakeServer(all: RawLibraryRow[], cap: number) {
+    const sorted = [...all].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+    const calls: (string | null)[] = [];
+    const fetchPage = async (afterId: string | null) => {
+      calls.push(afterId);
+      return { data: sorted.filter((r) => afterId === null || r.id > afterId).slice(0, cap), error: null };
+    };
+    return { fetchPage, calls };
+  }
+
+  it("keeps paging with the last id seen until a page comes back empty", async () => {
+    const { fetchPage, calls } = fakeServer(mine(7), 3);
+    const pool = await loadMatchPool(fetchPage, "me");
+    expect(pool.map((p) => p.id)).toEqual(["r01", "r02", "r03", "r04", "r05", "r06", "r07"]);
+    expect(calls).toEqual([null, "r03", "r06", "r07"]);
+  });
+
+  it("continues after a first page smaller than the nominal page size", async () => {
+    const { fetchPage, calls } = fakeServer(mine(5), 2);
+    const pool = await loadMatchPool(fetchPage, "me");
+    expect(pool).toHaveLength(5);
+    expect(calls).toHaveLength(4);
+  });
+
+  it("an error on page 2 throws and returns nothing", async () => {
+    const calls: (string | null)[] = [];
+    const fetchPage = async (afterId: string | null) => {
+      calls.push(afterId);
+      return calls.length === 2 ? { data: null, error: new Error("boom") } : { data: mine(3), error: null };
+    };
+    await expect(loadMatchPool(fetchPage, "me")).rejects.toThrow("boom");
+    expect(calls).toHaveLength(2);
+  });
+
+  it("wraps a non-Error page error in a generic error", async () => {
+    const fetchPage = async () => ({ data: null, error: { message: "x" } });
+    await expect(loadMatchPool(fetchPage, "me")).rejects.toThrow("Library page failed to load");
+  });
+
+  it("never lets another user's non-public rows into the pool", async () => {
+    const all = [
+      row("a1", "me", "private"),
+      row("a2", "me", null),
+      row("b1", "you", "public"),
+      row("b2", "you", "private"),
+      row("b3", "you", null),
+      row("c1", null, "private"),
+      row("c2", null, null),
+    ];
+    const { fetchPage } = fakeServer(all, 2);
+    const pool = await loadMatchPool(fetchPage, "me");
+    expect(pool.map((p) => p.id)).toEqual(["a1", "a2", "b1"]);
+    expect(pool.map((p) => p.scope)).toEqual(["library", "library", "shared"]);
+  });
+
+  it("an empty library gives an empty pool after one call", async () => {
+    const { fetchPage, calls } = fakeServer([], 5);
+    expect(await loadMatchPool(fetchPage, "me")).toEqual([]);
+    expect(calls).toEqual([null]);
+  });
+
+  it("refuses to loop forever if paging does not advance", async () => {
+    const fetchPage = async () => ({ data: mine(2), error: null });
+    await expect(loadMatchPool(fetchPage, "me")).rejects.toThrow("did not advance");
+  });
+});
+
+describe("matchAgainstLibrary: trigram pre-filter keeps every decision", () => {
+  it("600 pairs, including the 15% threshold and strings too short for the filter, match the original rule", () => {
+    const rand = rng(4242);
+    let pairs = 0;
+    let atThreshold = 0;
+    let tooShortForFilter = 0;
+    let matched = 0;
+    const check = (a: string, b: string) => {
+      const longest = Math.max(a.length, b.length);
+      if (longest - 2 - 3 * Math.ceil(0.15 * longest) <= 0) tooShortForFilter++;
+      if (Math.abs(levenshtein(a, b) - 0.15 * longest) < 1) atThreshold++;
+      const got = !!matchOf(draft(a), [lib("x", b)]);
+      expect(got).toBe(originalRule(a, b));
+      pairs++;
+      if (got) matched++;
+    };
+
+    // Pairs built to sit on the threshold: lengths that are multiples of 20, so 0.15 * length is a whole number.
+    for (let len = 20; len <= 400; len += 20) {
+      const a = randomLetters(rand, len);
+      for (const delta of [-1, 0, 1]) check(a, substituteFirst(a, Math.round(0.15 * len) + delta));
+    }
+    // Short strings, where the filter's requirement is zero or negative and the filter is skipped.
+    for (let n = 0; n < 150; n++) {
+      const len = 3 + Math.floor(rand() * 7);
+      const a = randomLetters(rand, len);
+      check(a, n % 3 === 0 ? randomLetters(rand, len) : mutate(rand, a, Math.floor(rand() * 3)));
+    }
+    // Lengths 80 to 400 with edit counts straddling the threshold, and some unrelated pairs.
+    for (let n = 0; n < 390; n++) {
+      const len = 80 + Math.floor(rand() * 321);
+      const a = randomLetters(rand, len);
+      const edits = Math.max(0, Math.ceil(0.15 * len) + Math.floor(rand() * 9) - 4);
+      check(a, n % 6 === 0 ? randomLetters(rand, len) : mutate(rand, a, edits));
+    }
+
+    expect(pairs).toBe(600);
+    expect(atThreshold).toBeGreaterThan(40);
+    expect(tooShortForFilter).toBeGreaterThan(40);
+    expect(matched).toBeGreaterThan(100);
   });
 });

@@ -12,9 +12,12 @@ import {
   looksGarbled,
   levenshtein,
   parseTitleAndAuthor,
+  defaultReviewStatus,
+  toMatchPool,
   type ParsedHighlight,
   type StagingRowDraft,
   type LibraryHighlight,
+  type RawLibraryRow,
 } from "@/lib/kindleImport";
 
 const DATA_DIR = path.resolve(process.cwd(), "test data");
@@ -568,5 +571,176 @@ describe.skipIf(!HAVE_FILES)("Kindle import dry run (local files, no database)",
     mkdirSync(OUT_DIR, { recursive: true });
     writeFileSync(path.join(OUT_DIR, "report.txt"), report, "utf8");
     writeFileSync(path.join(OUT_DIR, "report.json"), JSON.stringify(json, null, 2), "utf8");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Synthetic scenarios and timing. Placeholder data only; nothing here comes from the clippings files.
+// ---------------------------------------------------------------------------
+const PLACEHOLDER_WORDS = [
+  "alpha", "bravo", "charlie", "delta", "echo", "foxtrot", "golf", "hotel", "india", "juliet", "kilo", "lima", "mike",
+  "november", "oscar", "papa", "quebec", "romeo", "sierra", "tango", "uniform", "victor", "whiskey", "xray", "yankee", "zulu",
+];
+
+function seededRandom(seed: number) {
+  let t = seed >>> 0;
+  return () => {
+    t += 0x6d2b79f5;
+    let r = Math.imul(t ^ (t >>> 15), 1 | t);
+    r ^= r + Math.imul(r ^ (r >>> 7), 61 | r);
+    return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+const placeholderPassage = (rand: () => number, words: number) =>
+  Array.from({ length: words }, () => PLACEHOLDER_WORDS[Math.floor(rand() * PLACEHOLDER_WORDS.length)]).join(" ");
+
+const synthDraft = (n: number, quote: string, title: string): StagingRowDraft => ({
+  client_id: `s${n}`,
+  quote,
+  book_title: title,
+  author: null,
+  kindle_location: null,
+  kindle_timestamp: null,
+  my_notes: null,
+  status: "pending",
+  duplicate_of_client_id: null,
+});
+
+describe("Synthetic library scenarios (placeholder data only)", () => {
+  it("renamed titles, shared defaults, review needs, own-before-shared, and private rows never matched", () => {
+    const rand = seededRandom(2024);
+    const p = Array.from({ length: 9 }, () => placeholderPassage(rand, 14));
+    const ME = "user-me";
+    const OTHER = "user-other";
+    const rows: RawLibraryRow[] = [
+      { id: "own-private", quote: p[0], user_id: ME, visibility: "private", book_title: "Own Book" },
+      { id: "own-renamed", quote: p[1], user_id: ME, visibility: "public", book_title: "Own Book Renamed" },
+      { id: "own-copy", quote: p[2], user_id: ME, visibility: "private", book_title: "Copy Book" },
+      { id: "shared-copy", quote: p[2], user_id: OTHER, visibility: "public", book_title: "Copy Book" },
+      { id: "shared-same", quote: p[3], user_id: OTHER, visibility: "public", book_title: "Shared Book" },
+      { id: "shared-elsewhere", quote: p[4], user_id: OTHER, visibility: "public", book_title: "Shared Elsewhere" },
+      { id: "other-private", quote: p[5], user_id: OTHER, visibility: "private", book_title: "Private Book" },
+      { id: "other-null", quote: p[6], user_id: OTHER, visibility: null, book_title: "Null Book" },
+    ];
+    const pool = toMatchPool(rows, ME);
+    const reversed = [...pool].reverse();
+
+    type Expect = { id: string | null; scope?: "library" | "shared"; sameTitle?: boolean; status?: "near_duplicate" | "skipped" };
+    const cases: { name: string; quote: string; title: string; pool: LibraryHighlight[]; expect: Expect }[] = [
+      { name: "renamed-title duplicate is caught", quote: p[1], title: "Own Book Before Rename", pool, expect: { id: "own-renamed", scope: "library", sameTitle: false, status: "near_duplicate" } },
+      { name: "own private highlight is matched", quote: p[0], title: "Own Book", pool, expect: { id: "own-private", scope: "library", sameTitle: true, status: "near_duplicate" } },
+      { name: "shared same-title match defaults to Skip", quote: p[3], title: "Shared Book", pool, expect: { id: "shared-same", scope: "shared", sameTitle: true, status: "skipped" } },
+      { name: "shared different-title match needs review", quote: p[4], title: "Another Title", pool, expect: { id: "shared-elsewhere", scope: "shared", sameTitle: false, status: "near_duplicate" } },
+      { name: "own library is searched before shared", quote: p[2], title: "Copy Book", pool, expect: { id: "own-copy", scope: "library", sameTitle: true, status: "near_duplicate" } },
+      { name: "own library wins even when the shared copy is listed first", quote: p[2], title: "Copy Book", pool: reversed, expect: { id: "own-copy", scope: "library", sameTitle: true, status: "near_duplicate" } },
+      { name: "another user's private row is never matched", quote: p[5], title: "Private Book", pool, expect: { id: null } },
+      { name: "another user's NULL-visibility row is never matched", quote: p[6], title: "Null Book", pool, expect: { id: null } },
+      { name: "new text matches nothing", quote: p[7], title: "Brand New", pool, expect: { id: null } },
+    ];
+
+    const lines = ["SYNTHETIC SCENARIOS (placeholder data)", `pool size ${pool.length} of ${rows.length} rows (non-public rows of other users excluded)`];
+    cases.forEach((c, i) => {
+      const d = synthDraft(i, c.quote, c.title);
+      const m = matchAgainstLibrary([d], c.pool).get(d.client_id);
+      const status = m ? defaultReviewStatus(m) : undefined;
+      lines.push(`  ${col(c.name, 62)} -> ${m ? `${m.highlight_id} | ${m.scope} | sameTitle ${m.sameTitle} | default ${status}` : "no match"}`);
+      expect(m?.highlight_id ?? null).toBe(c.expect.id);
+      if (c.expect.id) {
+        expect(m?.scope).toBe(c.expect.scope);
+        expect(m?.sameTitle).toBe(c.expect.sameTitle);
+        expect(status).toBe(c.expect.status);
+      }
+    });
+    console.log(lines.join("\n"));
+  });
+});
+
+// Realistic-shaped placeholder prose for the timing check: 5,000 pseudo-words (random letters with English-like
+// letter and word-length shares), drawn with a Zipf-skewed frequency. Contains nothing from any real text.
+const LETTER_SHARES: [string, number][] = [
+  ["e", 12.7], ["t", 9.1], ["a", 8.2], ["o", 7.5], ["i", 7.0], ["n", 6.7], ["s", 6.3], ["h", 6.1], ["r", 6.0],
+  ["d", 4.3], ["l", 4.0], ["c", 2.8], ["u", 2.8], ["m", 2.4], ["w", 2.4], ["f", 2.2], ["g", 2.0], ["y", 2.0],
+  ["p", 1.9], ["b", 1.5], ["v", 1.0], ["k", 0.8], ["j", 0.15], ["x", 0.15], ["q", 0.1], ["z", 0.07],
+];
+const WORD_LENGTH_SHARES = [0, 3, 17, 21, 16, 11, 9, 7, 5, 4, 3, 2, 1]; // index = word length
+
+function weightedPick(rand: () => number, weights: number[]): number {
+  let total = 0;
+  for (const w of weights) total += w;
+  let r = rand() * total;
+  for (let i = 0; i < weights.length; i++) {
+    r -= weights[i];
+    if (r <= 0) return i;
+  }
+  return weights.length - 1;
+}
+
+function buildProse(rand: () => number, vocabSize = 5000) {
+  const letterWeights = LETTER_SHARES.map(([, w]) => w);
+  const vocab = Array.from({ length: vocabSize }, () => {
+    const len = weightedPick(rand, WORD_LENGTH_SHARES);
+    return Array.from({ length: len }, () => LETTER_SHARES[weightedPick(rand, letterWeights)][0]).join("");
+  });
+  const cumulative: number[] = [];
+  let acc = 0;
+  for (let rank = 1; rank <= vocabSize; rank++) {
+    acc += 1 / rank;
+    cumulative.push(acc);
+  }
+  const pickWord = () => {
+    const x = rand() * acc;
+    let lo = 0;
+    let hi = cumulative.length - 1;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (cumulative[mid] < x) lo = mid + 1;
+      else hi = mid;
+    }
+    return vocab[lo];
+  };
+  return (words: number) => Array.from({ length: words }, pickWord).join(" ");
+}
+
+describe.skipIf(!HAVE_FILES)("Match timing (synthetic library, local only)", () => {
+  it("about 3,000 library rows against about 2,000 drafts", { timeout: 120_000 }, () => {
+    const rand = seededRandom(31337);
+    const prose = buildProse(rand);
+    const wordCount = () => 6 + Math.floor(rand() * 55);
+    const poolRows: LibraryHighlight[] = Array.from({ length: 3000 }, (_, i) => ({
+      id: `lib-${i}`,
+      quote: prose(wordCount()),
+      book_title: `Placeholder Book ${Math.floor(rand() * 300)}`,
+      scope: i < 1000 ? "library" : "shared",
+    }));
+    const drafts: StagingRowDraft[] = [];
+    const plantedIds = new Set<string>();
+    for (let i = 0; i < 2000; i++) {
+      const kind = i % 5; // 0: exact copy under another title, 1: one-character change, 2-4: unrelated
+      const title = `Placeholder Book ${Math.floor(rand() * 300)}`;
+      if (kind <= 1) {
+        const src = poolRows[Math.floor(rand() * poolRows.length)];
+        const pos = Math.floor(rand() * src.quote.length);
+        const quote = kind === 0 ? src.quote : `${src.quote.slice(0, pos)}x${src.quote.slice(pos + 1)}`;
+        drafts.push(synthDraft(i, quote, title));
+        plantedIds.add(`s${i}`);
+      } else {
+        drafts.push(synthDraft(i, prose(wordCount()), title));
+      }
+    }
+
+    const t0 = performance.now();
+    const matches = matchAgainstLibrary(drafts, poolRows);
+    const ms = performance.now() - t0;
+
+    const missed = [...plantedIds].filter((id) => !matches.has(id)).length;
+    const extra = matches.size - (plantedIds.size - missed);
+    const line = `TIMING: ${poolRows.length} library rows x ${drafts.length} drafts -> ${ms.toFixed(0)} ms (${((ms * 1000) / drafts.length).toFixed(0)} microseconds per draft) | planted duplicates ${plantedIds.size}, found ${plantedIds.size - missed}, missed ${missed}, unplanted matches ${extra}`;
+    console.log(line);
+    mkdirSync(OUT_DIR, { recursive: true });
+    writeFileSync(path.join(OUT_DIR, "timing.txt"), line, "utf8");
+    expect(missed).toBe(0);
+    expect(extra).toBeLessThanOrEqual(5);
+    expect(ms).toBeLessThan(10_000);
   });
 });

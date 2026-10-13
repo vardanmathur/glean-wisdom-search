@@ -399,7 +399,22 @@ export function detectDuplicatesLevel1(highlights: ParsedHighlight[]): Detected 
 // Pure helpers extracted from the Import page component
 // ============================================================================
 
-export type LibraryHighlight = { id: string; quote: string; book_title: string };
+export type LibraryScope = "library" | "shared";
+export type LibraryHighlight = { id: string; quote: string; book_title: string; scope?: LibraryScope };
+export type LibraryMatch = {
+  highlight_id: string;
+  book_title: string;
+  quote: string;
+  scope: LibraryScope;
+  sameTitle: boolean;
+};
+export type RawLibraryRow = {
+  id: string;
+  quote: string;
+  user_id: string | null;
+  visibility: string | null;
+  book_title: string | null;
+};
 
 export function looksGarbled(title: string): boolean {
   if (!title) return false;
@@ -412,53 +427,190 @@ export function looksGarbled(title: string): boolean {
   return false;
 }
 
+// Defence in depth: only your own rows (any visibility) and other users' rows that are exactly 'public'.
+// A NULL visibility on someone else's row, or an unowned row that is not 'public', is dropped.
+export function toMatchPool(rows: RawLibraryRow[], myId: string): LibraryHighlight[] {
+  const pool: LibraryHighlight[] = [];
+  for (const r of rows) {
+    const scope: LibraryScope | null = myId && r.user_id === myId ? "library" : r.visibility === "public" ? "shared" : null;
+    if (scope) pool.push({ id: r.id, quote: r.quote, book_title: r.book_title ?? "", scope });
+  }
+  return pool;
+}
+
+export type PoolPage = { data: RawLibraryRow[] | null; error: unknown };
+export type PoolPageFetcher = (afterId: string | null) => Promise<PoolPage>;
+
+// Loads the whole match pool through an injected page fetcher. Keyset pagination on id: each call gets the
+// last id seen, and the loop only stops on an empty page, so a server-side row cap can never truncate it.
+// Any page error throws and no partial pool is returned. Everything goes through toMatchPool.
+export async function loadMatchPool(fetchPage: PoolPageFetcher, myId: string): Promise<LibraryHighlight[]> {
+  const rows: RawLibraryRow[] = [];
+  let lastId: string | null = null;
+  while (true) {
+    const { data, error } = await fetchPage(lastId);
+    if (error) throw error instanceof Error ? error : new Error("Library page failed to load");
+    if (!data || data.length === 0) break;
+    const nextId = data[data.length - 1].id;
+    if (nextId === lastId) throw new Error("Library paging did not advance");
+    rows.push(...data);
+    lastId = nextId;
+  }
+  return toMatchPool(rows, myId);
+}
+
+// A shared match under the same book title is skipped by default; anything else needs a decision.
+export function defaultReviewStatus(match: Pick<LibraryMatch, "scope" | "sameTitle">): "near_duplicate" | "skipped" {
+  return match.scope === "shared" && match.sameTitle ? "skipped" : "near_duplicate";
+}
+
+export function normaliseQuote(raw: string): string {
+  return raw
+    .normalize("NFKC")
+    .replace(/\p{Cf}/gu, "")
+    .toLowerCase()
+    .replace(/[\p{Pi}\p{Pf}'"`]/gu, "'")
+    .replace(/\p{Pd}/gu, "-")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, "");
+}
+
+// Exact edit distance when it is <= maxDist, otherwise maxDist + 1. Banded, with early exit.
+export function levenshteinWithin(a: string, b: string, maxDist: number): number {
+  const m = a.length;
+  const n = b.length;
+  const over = maxDist + 1;
+  if (Math.abs(m - n) > maxDist) return over;
+  let prev = new Array<number>(n + 1).fill(over);
+  let curr = new Array<number>(n + 1).fill(over);
+  for (let j = 0; j <= Math.min(n, maxDist); j++) prev[j] = j;
+  for (let i = 1; i <= m; i++) {
+    const lo = Math.max(1, i - maxDist);
+    const hi = Math.min(n, i + maxDist);
+    curr[lo - 1] = lo === 1 ? (i <= maxDist ? i : over) : over;
+    let rowMin = lo === 1 ? curr[0] : over;
+    const ca = a.charCodeAt(i - 1);
+    for (let j = lo; j <= hi; j++) {
+      const cost = ca === b.charCodeAt(j - 1) ? 0 : 1;
+      const v = Math.min(prev[j - 1] + cost, prev[j] + 1, curr[j - 1] + 1);
+      curr[j] = v > over ? over : v;
+      if (curr[j] < rowMin) rowMin = curr[j];
+    }
+    if (rowMin > maxDist) return over;
+    if (hi < n) curr[hi + 1] = over;
+    [prev, curr] = [curr, prev];
+  }
+  return Math.min(prev[n], over);
+}
+
+const CROSS_TITLE_MIN_CONTAINED = 25;
+
+// Trigram check, exact and sort-free. Each trigram maps to one of 65,536 buckets. A draft's bucket counts are loaded
+// into a shared table once; each library row then ticks off matching buckets in a single pass. Distinct trigrams that
+// share a bucket can only RAISE the shared count (a sum of minimums never exceeds the minimum of sums), so the count
+// is always >= the true number of shared trigrams and a true match can never be rejected.
+const GRAM_BUCKETS = 65536;
+const gramTable = new Uint16Array(GRAM_BUCKETS);
+let gramTouched = new Int32Array(1024);
+
+function trigramBuckets(s: string): Uint16Array {
+  const n = s.length - 2;
+  if (n <= 0) return new Uint16Array(0);
+  const out = new Uint16Array(n);
+  for (let i = 0; i < n; i++) {
+    const h = Math.imul(Math.imul(s.charCodeAt(i), 31) + s.charCodeAt(i + 1), 31) + s.charCodeAt(i + 2);
+    out[i] = (h ^ (h >>> 16)) & 0xffff;
+  }
+  return out;
+}
+
+function loadGramTable(g: Uint16Array) {
+  for (let i = 0; i < g.length; i++) gramTable[g[i]]++;
+}
+
+function clearGramTable(g: Uint16Array) {
+  for (let i = 0; i < g.length; i++) gramTable[g[i]] = 0;
+}
+
+// How many of the row's trigrams match the loaded table. Stops once `needed` can no longer be reached.
+function sharedGramCount(row: Uint16Array, needed: number): number {
+  if (gramTouched.length < row.length) gramTouched = new Int32Array(row.length);
+  let touched = 0;
+  const len = row.length;
+  for (let i = 0; i < len; i++) {
+    const b = row[i];
+    if (gramTable[b] > 0) {
+      gramTable[b]--;
+      gramTouched[touched++] = b;
+    } else if (touched + (len - i - 1) < needed) break;
+  }
+  for (let i = 0; i < touched; i++) gramTable[gramTouched[i]]++; // restore the table for the next row
+  return touched;
+}
+
+function quotesMatch(a: string, b: string, minContained: number, gb: Uint16Array): boolean {
+  if (a.length === 0 || b.length === 0) return false;
+  if (a === b) return true;
+  const shorter = a.length <= b.length ? a : b;
+  const longer = shorter === a ? b : a;
+  if (shorter.length >= minContained && longer.includes(shorter)) return true;
+  const maxLen = longer.length;
+  if ((maxLen - shorter.length) / maxLen > 0.15) return false;
+  const maxDist = Math.ceil(0.15 * maxLen);
+  // q-gram lemma: strings within edit distance k share at least max length - 2 - 3k trigrams.
+  const needed = maxLen - 2 - 3 * maxDist;
+  if (needed > 0 && sharedGramCount(gb, needed) < needed) return false;
+  const dist = levenshteinWithin(a, b, maxDist);
+  return 1 - dist / maxLen > 0.85;
+}
+
+type PreparedLib = { lib: LibraryHighlight; norm: string; titleKey: string; grams: Uint16Array };
+
 export function matchAgainstLibrary(
   drafts: StagingRowDraft[],
   allLib: LibraryHighlight[]
-): Map<string, { highlight_id: string; book_title: string; quote: string }> {
-  // Bucket library by lowercased book title
-  const libBuckets = new Map<string, LibraryHighlight[]>();
+): Map<string, LibraryMatch> {
+  const pools: Record<LibraryScope, PreparedLib[]> = { library: [], shared: [] };
+  const byTitle: Record<LibraryScope, Map<string, PreparedLib[]>> = { library: new Map(), shared: new Map() };
   for (const lib of allLib) {
-    const key = lib.book_title.toLowerCase();
-    const arr = libBuckets.get(key) ?? [];
-    arr.push(lib);
-    libBuckets.set(key, arr);
+    const norm = normaliseQuote(lib.quote);
+    if (norm.length === 0) continue;
+    const scope = lib.scope ?? "library";
+    const prepared: PreparedLib = { lib, norm, titleKey: lib.book_title.toLowerCase(), grams: trigramBuckets(norm) };
+    pools[scope].push(prepared);
+    const bucket = byTitle[scope].get(prepared.titleKey) ?? [];
+    bucket.push(prepared);
+    byTitle[scope].set(prepared.titleKey, bucket);
   }
 
-  const matches = new Map<string, { highlight_id: string; book_title: string; quote: string }>();
+  const matches = new Map<string, LibraryMatch>();
   for (const draft of drafts) {
     // Skip drafts already flagged by Level 1
     if (draft.status !== "pending") continue;
-    const bucket = libBuckets.get(draft.book_title.toLowerCase());
-    if (!bucket) continue;
-
-    const a = draft.quote;
-    let matched: { id: string; quote: string; book_title: string } | null = null;
-
-    for (const lib of bucket) {
-      const b = lib.quote;
-      if (a === b || a.includes(b) || b.includes(a)) {
-        matched = lib;
-        break;
+    const a = normaliseQuote(draft.quote);
+    if (a.length === 0) continue;
+    const titleKey = draft.book_title.toLowerCase();
+    const ga = trigramBuckets(a);
+    loadGramTable(ga);
+    try {
+      // Your library first, then shared. Same title uses the original rules; any title needs a longer contained text.
+      for (const scope of ["library", "shared"] as const) {
+        const sameTitleHit = (byTitle[scope].get(titleKey) ?? []).find((p) => quotesMatch(a, p.norm, 0, p.grams));
+        const hit = sameTitleHit ?? pools[scope].find((p) => quotesMatch(a, p.norm, CROSS_TITLE_MIN_CONTAINED, p.grams));
+        if (hit) {
+          matches.set(draft.client_id, {
+            highlight_id: hit.lib.id,
+            book_title: hit.lib.book_title,
+            quote: hit.lib.quote,
+            scope,
+            sameTitle: !!sameTitleHit,
+          });
+          break;
+        }
       }
-      const maxLen = Math.max(a.length, b.length);
-      const minLen = Math.min(a.length, b.length);
-      if (maxLen === 0) continue;
-      if ((maxLen - minLen) / maxLen > 0.15) continue;
-      const dist = levenshtein(a, b);
-      const sim = 1 - dist / maxLen;
-      if (sim > 0.85) {
-        matched = lib;
-        break;
-      }
-    }
-
-    if (matched) {
-      matches.set(draft.client_id, {
-        highlight_id: matched.id,
-        book_title: matched.book_title,
-        quote: matched.quote,
-      });
+    } finally {
+      clearGramTable(ga); // the shared table is always left empty
     }
   }
   return matches;

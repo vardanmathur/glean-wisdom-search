@@ -18,6 +18,11 @@ import {
   detectDuplicatesLevel1,
   matchAgainstLibrary,
   looksGarbled,
+  loadMatchPool,
+  defaultReviewStatus,
+  type LibraryHighlight,
+  type LibraryMatch,
+  type RawLibraryRow,
   type StagingRowDraft,
 } from "@/lib/kindleImport";
 
@@ -35,6 +40,7 @@ type ParseSummary = {
   unknownAuthorBooks: number;
   oversizedCount: number;
   malformedCount: number;
+  sharedSkippedCount: number;
 };
 
 type StagedRow = {
@@ -52,7 +58,7 @@ type StagedRow = {
 };
 
 type MatchSource = {
-  scope: "import" | "library";
+  scope: "import" | "library" | "shared";
   book_title: string;
   quote: string;
 };
@@ -63,6 +69,9 @@ type ImportResult = {
   booksTouched: number;
   booksMissingAuthor: number;
 };
+
+const LIBRARY_LOAD_ERROR =
+  "Couldn't load your library to check for duplicates. Nothing was imported — please try again.";
 
 const Import = () => {
   const { user, authLoading } = useAuth();
@@ -128,11 +137,16 @@ const Import = () => {
     () => reviewSnapshotRows.filter((r) => r.status !== "near_duplicate").length,
     [reviewSnapshotRows]
   );
+  const sharedMatchCount = useMemo(
+    () => reviewSnapshotRows.filter((r) => r.duplicate_of && matchLookup[r.duplicate_of]?.scope === "shared").length,
+    [reviewSnapshotRows, matchLookup]
+  );
 
   // Capture snapshot once when entering Step 3 with near-duplicates present
   useEffect(() => {
     if (step === 3 && reviewSnapshot === null && stagedRows.length > 0) {
-      const flagged = stagedRows.filter((r) => r.status === "near_duplicate").map((r) => r.id);
+      // On entry the only non-pending rows are near-duplicates and rows pre-skipped as shared matches.
+      const flagged = stagedRows.filter((r) => r.status !== "pending").map((r) => r.id);
       setReviewSnapshot(flagged);
     }
   }, [step, reviewSnapshot, stagedRows]);
@@ -173,34 +187,39 @@ const Import = () => {
   // ============================================================================
   // Level 2 — match against user's library
   // ============================================================================
-  const runLevel2Match = async (
-    drafts: StagingRowDraft[]
-  ): Promise<Map<string, { highlight_id: string; book_title: string; quote: string }>> => {
-    if (!user) return new Map();
-    // Fetch user's library — explicit columns only, never embedding, paginated
-    const allLib: { id: string; quote: string; book_title: string }[] = [];
-    let from = 0;
-    const PAGE = 1000;
-    while (true) {
-      const { data, error: libErr } = await supabase
+  // Match pool = your rows (any visibility) + other users' rows that are exactly 'public'. The filter is explicit
+  // here and re-applied in loadMatchPool/toMatchPool, so another user's non-public row can never enter the pool.
+  const fetchMatchPool = (): Promise<LibraryHighlight[]> =>
+    loadMatchPool(async (afterId) => {
+      let filter = supabase
         .from("highlights")
-        .select("id, quote, book_id, books!inner(id, title)")
-        .eq("user_id", user.id)
-        .range(from, from + PAGE - 1);
+        .select("id, quote, user_id, visibility, books(title)") // explicit columns, never embedding
+        .or(`user_id.eq.${user!.id},visibility.eq.public`);
+      if (afterId) filter = filter.gt("id", afterId);
+      const { data, error: libErr } = await filter.order("id", { ascending: true }).limit(1000);
       if (libErr) {
-        console.error("[Import] Level 2 library fetch error", libErr);
-        break;
+        console.error("[Import] library fetch error", libErr);
+        return { data: null, error: libErr };
       }
-      if (!data || data.length === 0) break;
-      for (const r of data as unknown as { id: string; quote: string; books: { title: string } }[]) {
-        allLib.push({ id: r.id, quote: r.quote, book_title: r.books?.title ?? "" });
-      }
-      if (data.length < PAGE) break;
-      from += PAGE;
-    }
+      const rows = (data ?? []) as unknown as {
+        id: string;
+        quote: string;
+        user_id: string | null;
+        visibility: string | null;
+        books: { title: string } | null;
+      }[];
+      const mapped: RawLibraryRow[] = rows.map((r) => ({
+        id: r.id,
+        quote: r.quote,
+        user_id: r.user_id,
+        visibility: r.visibility,
+        book_title: r.books?.title ?? null,
+      }));
+      return { data: mapped, error: null };
+    }, user!.id);
 
-    return matchAgainstLibrary(drafts, allLib);
-  };
+  const runLevel2Match = async (drafts: StagingRowDraft[]): Promise<Map<string, LibraryMatch>> =>
+    matchAgainstLibrary(drafts, await fetchMatchPool());
 
   const runParse = async () => {
     if (!fileContents || !user) return;
@@ -226,6 +245,7 @@ const Import = () => {
           uniqueBooks: 0,
           exactDuplicatesRemoved: detected.exactDuplicatesRemoved,
           flaggedCount: 0,
+          sharedSkippedCount: 0,
           unknownAuthorBooks: 0,
           oversizedCount: parsed.oversizedCount,
           malformedCount: parsed.malformedCount,
@@ -236,16 +256,28 @@ const Import = () => {
       }
 
       // Level 2 — match against library BEFORE writing to staging so duplicate_of can be set
-      const libMatches = await runLevel2Match(detected.rows);
-      let level2Flagged = 0;
+      let libMatches: Map<string, LibraryMatch>;
+      try {
+        libMatches = await runLevel2Match(detected.rows);
+      } catch (libErr) {
+        // Never continue with a partial library: nothing has been written to staging yet.
+        console.error(libErr);
+        setError(LIBRARY_LOAD_ERROR);
+        setParsing(false);
+        return;
+      }
+      let level2Review = 0;
+      let sharedSkipped = 0;
       for (const draft of detected.rows) {
         const m = libMatches.get(draft.client_id);
         if (m) {
-          draft.status = "near_duplicate";
+          // Shared match under the same book title => "skipped"; everything else => "near_duplicate"
+          draft.status = defaultReviewStatus(m);
           // We'll set duplicate_of to the library highlight UUID after staging insert
           // Store it temporarily by overwriting client_id reference with the library id, marked
           (draft as StagingRowDraft & { _library_match_id?: string })._library_match_id = m.highlight_id;
-          level2Flagged++;
+          if (draft.status === "skipped") sharedSkipped++;
+          else level2Review++;
         }
       }
 
@@ -347,7 +379,8 @@ const Import = () => {
         totalReady: detected.rows.length,
         uniqueBooks,
         exactDuplicatesRemoved: detected.exactDuplicatesRemoved,
-        flaggedCount: detected.flaggedCount + level2Flagged,
+        flaggedCount: detected.flaggedCount + level2Review,
+        sharedSkippedCount: sharedSkipped,
         unknownAuthorBooks,
         oversizedCount: parsed.oversizedCount,
         malformedCount: parsed.malformedCount,
@@ -402,17 +435,25 @@ const Import = () => {
         }
       }
       const remaining = refIds.filter((id) => !lookup[id]);
-      if (remaining.length > 0) {
-        // Library refs — explicit columns, never embedding, table-prefixed via select
+      // Library refs — your rows or other users' public rows only; explicit columns, never embedding.
+      // Chunked so the .in() list stays short now that more rows can be flagged.
+      for (let i = 0; i < remaining.length; i += 100) {
         const { data: libRefs } = await supabase
           .from("highlights")
-          .select("id, quote, books!inner(title)")
-          .in("id", remaining)
-          .eq("user_id", user.id);
-        if (libRefs) {
-          for (const l of libRefs as unknown as { id: string; quote: string; books: { title: string } }[]) {
-            lookup[l.id] = { scope: "library", book_title: l.books?.title ?? "", quote: l.quote };
-          }
+          .select("id, quote, user_id, books(title)")
+          .in("id", remaining.slice(i, i + 100))
+          .or(`user_id.eq.${user.id},visibility.eq.public`);
+        for (const l of (libRefs ?? []) as unknown as {
+          id: string;
+          quote: string;
+          user_id: string | null;
+          books: { title: string } | null;
+        }[]) {
+          lookup[l.id] = {
+            scope: l.user_id === user.id ? "library" : "shared",
+            book_title: l.books?.title ?? "",
+            quote: l.quote,
+          };
         }
       }
     }
@@ -860,6 +901,9 @@ const Import = () => {
                     {summary.flaggedCount > 0 && (
                       <SummaryRow label={`${summary.flaggedCount} highlights flagged for review (near duplicates)`} />
                     )}
+                    {summary.sharedSkippedCount > 0 && (
+                      <SummaryRow label={`${summary.sharedSkippedCount} highlights already in Glean's shared highlights, skipped by default (you can still import them)`} />
+                    )}
                     {summary.unknownAuthorBooks > 0 && (
                       <SummaryRow label={`${summary.unknownAuthorBooks} books need author information`} />
                     )}
@@ -933,6 +977,11 @@ const Import = () => {
               <p className="text-sm text-muted-foreground mb-2">
                 {reviewSnapshotRows.length} {reviewSnapshotRows.length === 1 ? "highlight looks" : "highlights look"} similar to existing ones. Decide whether to import or skip each.
               </p>
+              {sharedMatchCount > 0 && (
+                <p className="text-sm text-muted-foreground mb-2">
+                  {sharedMatchCount} of these match Glean's shared highlights. Same-book matches are skipped by default — switch any you want to import.
+                </p>
+              )}
               <p className="text-xs text-muted-foreground mb-4 italic">
                 Your existing library is never modified — you are only deciding which new highlights to add.
               </p>
@@ -941,10 +990,13 @@ const Import = () => {
                   const match = row.duplicate_of ? matchLookup[row.duplicate_of] : null;
                   const decided = row.status !== "near_duplicate";
                   const willImport = row.status === "pending";
+                  const titlesDiffer = !!match && match.book_title.toLowerCase() !== row.book_title.toLowerCase();
                   const rightLabel = match
                     ? match.scope === "import"
                       ? "Similar highlight in this import — the longer one will be kept by default"
-                      : "Already in your library — will not be deleted"
+                      : match.scope === "shared"
+                        ? "Already in Glean's shared highlights — not yours, never modified"
+                        : "Already in your library — will not be deleted"
                     : "Match reference unavailable";
                   return (
                     <div
@@ -975,6 +1027,9 @@ const Import = () => {
                               {match ? (
                                 <>
                                   <div className="text-sm font-medium text-foreground mb-1 truncate">{match.book_title}</div>
+                                  {titlesDiffer && (
+                                    <div className="text-xs italic text-muted-foreground mb-1">Different book title</div>
+                                  )}
                                   <div className={`text-sm whitespace-pre-wrap ${leftIsSurvivor && match.scope === "import" ? skippedQuoteCls : "text-foreground"}`}>{match.quote}</div>
                                 </>
                               ) : (
@@ -997,10 +1052,17 @@ const Import = () => {
                         )}
                         <div className="flex gap-2">
                           {decided ? (
-                            <Button variant="outline" size="sm" onClick={() => undoRow(row)}>
-                              <Undo2 className="mr-1.5 h-3.5 w-3.5" />
-                              Undo
-                            </Button>
+                            <>
+                              {!willImport && match?.scope === "shared" && (
+                                <Button size="sm" onClick={() => keepRow(row)}>
+                                  Import this one
+                                </Button>
+                              )}
+                              <Button variant="outline" size="sm" onClick={() => undoRow(row)}>
+                                <Undo2 className="mr-1.5 h-3.5 w-3.5" />
+                                Undo
+                              </Button>
+                            </>
                           ) : (
                             <>
                               <Button variant="outline" size="sm" onClick={() => skipRow(row)}>
