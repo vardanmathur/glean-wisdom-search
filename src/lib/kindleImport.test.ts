@@ -10,10 +10,14 @@ import {
   matchAgainstLibrary,
   normaliseQuote,
   NOTE_CHAIN_GAP_MS,
+  planReviewChange,
   toMatchPool,
   type LibraryHighlight,
   type ParsedHighlight,
   type RawLibraryRow,
+  type ReviewAction,
+  type ReviewStatus,
+  type ReviewVersion,
   type StagingRowDraft,
 } from "@/lib/kindleImport";
 
@@ -617,5 +621,83 @@ describe("detectDuplicatesLevel1: banded distance and trigram filter keep every 
     expect(flagged).toBeGreaterThan(100);
     expect(atThreshold).toBeGreaterThan(40);
     expect(shortPairs).toBeGreaterThan(20);
+  });
+});
+
+describe("planReviewChange", () => {
+  const pair: ReviewVersion[] = [
+    { id: "winner", role: "winner" },
+    { id: "short", role: "loser" },
+  ];
+  const group = (losers: number): ReviewVersion[] => [
+    { id: "winner", role: "winner" },
+    ...Array.from({ length: losers }, (_, i) => ({ id: `short${i + 1}`, role: "loser" as const })),
+  ];
+  const statuses = (changes: { id: string; status: ReviewStatus }[]) => Object.fromEntries(changes.map((c) => [c.id, c.status]));
+  const standalone: ReviewVersion[] = [{ id: "row", role: "loser" }];
+
+  it("importing the shorter version skips the longer one", () => {
+    expect(statuses(planReviewChange(pair, { kind: "import", id: "short" }))).toEqual({ short: "pending", winner: "skipped" });
+  });
+
+  it("importing the longer version skips the shorter one", () => {
+    expect(statuses(planReviewChange(pair, { kind: "import", id: "winner" }))).toEqual({ short: "skipped", winner: "pending" });
+  });
+
+  it("skip both skips every version", () => {
+    expect(statuses(planReviewChange(pair, { kind: "skipAll" }))).toEqual({ short: "skipped", winner: "skipped" });
+  });
+
+  it("reset returns the pair to its default: the longer staged to import, the shorter undecided", () => {
+    expect(statuses(planReviewChange(pair, { kind: "reset" }))).toEqual({ short: "near_duplicate", winner: "pending" });
+  });
+
+  it.each([3, 4])("in a group of %i versions, importing any one skips all the others", (size) => {
+    const versions = group(size - 1);
+    for (const chosen of versions) {
+      const result = statuses(planReviewChange(versions, { kind: "import", id: chosen.id }));
+      expect(Object.values(result).filter((s) => s === "pending")).toHaveLength(1);
+      expect(result[chosen.id]).toBe("pending");
+      expect(Object.values(result).filter((s) => s === "skipped")).toHaveLength(size - 1);
+    }
+  });
+
+  it("every plan covers every version exactly once", () => {
+    const versions = group(3);
+    for (const action of [{ kind: "import", id: "short2" }, { kind: "skipAll" }, { kind: "reset" }] as ReviewAction[]) {
+      expect(planReviewChange(versions, action).map((c) => c.id)).toEqual(versions.map((v) => v.id));
+    }
+  });
+
+  it("a standalone library row: import adds it, skip drops it, reset makes it undecided", () => {
+    expect(statuses(planReviewChange(standalone, { kind: "import", id: "row" }))).toEqual({ row: "pending" });
+    expect(statuses(planReviewChange(standalone, { kind: "skipAll" }))).toEqual({ row: "skipped" });
+    expect(statuses(planReviewChange(standalone, { kind: "reset" }))).toEqual({ row: "near_duplicate" });
+  });
+
+  it("property: at most one version in a group is ever pending, and reset always restores the default", () => {
+    const rand = rng(5150);
+    for (let round = 0; round < 300; round++) {
+      const versions = group(1 + Math.floor(rand() * 3));
+      const current: Record<string, ReviewStatus> = Object.fromEntries(
+        versions.map((v) => [v.id, v.role === "winner" ? "pending" : "near_duplicate"])
+      );
+      const steps = 1 + Math.floor(rand() * 12);
+      for (let step = 0; step < steps; step++) {
+        const roll = rand();
+        const action: ReviewAction =
+          roll < 0.6
+            ? { kind: "import", id: versions[Math.floor(rand() * versions.length)].id }
+            : roll < 0.8
+              ? { kind: "skipAll" }
+              : { kind: "reset" };
+        for (const c of planReviewChange(versions, action)) current[c.id] = c.status;
+        expect(Object.values(current).filter((s) => s === "pending").length).toBeLessThanOrEqual(1);
+        if (action.kind === "reset") {
+          expect(current.winner).toBe("pending");
+          for (const v of versions.filter((x) => x.role === "loser")) expect(current[v.id]).toBe("near_duplicate");
+        }
+      }
+    }
   });
 });

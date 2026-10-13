@@ -486,6 +486,22 @@ export function defaultReviewStatus(match: Pick<LibraryMatch, "scope" | "sameTit
   return match.scope === "shared" && match.sameTitle ? "skipped" : "near_duplicate";
 }
 
+export type ReviewStatus = "pending" | "skipped" | "near_duplicate";
+export type ReviewVersion = { id: string; role: "winner" | "loser" };
+export type ReviewAction = { kind: "import"; id: string } | { kind: "skipAll" } | { kind: "reset" };
+
+// Status changes for one passage that exists in several versions within an import: the longest ("winner", staged
+// to import by default) and the shorter ones ("loser", flagged against it). A standalone row, such as a match
+// against your library, is a single loser. Importing one version skips every other, so two copies of the same
+// passage can never both be imported; "reset" returns the whole group to its original state.
+export function planReviewChange(versions: ReviewVersion[], action: ReviewAction): { id: string; status: ReviewStatus }[] {
+  return versions.map((v) => {
+    if (action.kind === "import") return { id: v.id, status: v.id === action.id ? "pending" : "skipped" };
+    if (action.kind === "skipAll") return { id: v.id, status: "skipped" };
+    return { id: v.id, status: v.role === "winner" ? "pending" : "near_duplicate" };
+  });
+}
+
 export function normaliseQuote(raw: string): string {
   return raw
     .normalize("NFKC")

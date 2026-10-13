@@ -20,9 +20,12 @@ import {
   looksGarbled,
   loadMatchPool,
   defaultReviewStatus,
+  planReviewChange,
   type LibraryHighlight,
   type LibraryMatch,
   type RawLibraryRow,
+  type ReviewAction,
+  type ReviewVersion,
   type StagingRowDraft,
 } from "@/lib/kindleImport";
 
@@ -467,50 +470,58 @@ const Import = () => {
   // ============================================================================
   // Step 3 actions
   // ============================================================================
-  // For Level 1 (within-import) duplicates, find the partner staged row
-  // (the "winner" referenced by row.duplicate_of, only if it is also a staging row).
-  const getLevel1Partner = (row: StagedRow): StagedRow | null => {
+  // The versions of one passage within this import: the longest (staged to import by default) and every shorter
+  // one flagged against it. Null for a library or shared match, which has no other version in this import.
+  const getGroup = (row: StagedRow): { winner: StagedRow; versions: StagedRow[] } | null => {
     if (!row.duplicate_of) return null;
     const match = matchLookup[row.duplicate_of];
     if (!match || match.scope !== "import") return null;
-    return stagedRows.find((r) => r.id === row.duplicate_of) ?? null;
+    const winner = stagedRows.find((r) => r.id === row.duplicate_of);
+    if (!winner) return null;
+    return { winner, versions: [winner, ...stagedRows.filter((r) => r.duplicate_of === winner.id)] };
   };
 
-  const keepRow = async (row: StagedRow) => {
-    const partner = getLevel1Partner(row);
-    // Update this row → pending
-    const { error: e } = await supabase
-      .from("kindle_import_staging")
-      .update({ status: "pending" })
-      .eq("id", row.id)
-      .eq("user_id", user!.id);
-    if (e) { toast.error("Could not keep highlight"); return; }
-    // Level 1: flip partner (winner) → skipped so we don't double-import
-    if (partner) {
-      const { error: pe } = await supabase
+  // Applies a review action to the whole group at once. If any database update fails, the updates already made
+  // are rolled back, one toast is shown, and the screen is left as it was.
+  const applyReview = async (row: StagedRow, action: ReviewAction) => {
+    const group = getGroup(row);
+    const versions: ReviewVersion[] = group
+      ? group.versions.map((v) => ({ id: v.id, role: v.id === group.winner.id ? "winner" : "loser" }))
+      : [{ id: row.id, role: "loser" }];
+    const changes = planReviewChange(versions, action);
+    const before = new Map(stagedRows.map((r) => [r.id, r.status]));
+    const idsByStatus = (pairs: [string, string][]) => {
+      const grouped = new Map<string, string[]>();
+      for (const [id, status] of pairs) grouped.set(status, [...(grouped.get(status) ?? []), id]);
+      return grouped;
+    };
+    const applied: [string, string][] = []; // [id, status it had before], for rollback
+    for (const [status, ids] of idsByStatus(changes.map((c) => [c.id, c.status]))) {
+      const { error: e } = await supabase
         .from("kindle_import_staging")
-        .update({ status: "skipped" })
-        .eq("id", partner.id)
+        .update({ status })
+        .in("id", ids)
         .eq("user_id", user!.id);
-      if (pe) { toast.error("Could not update duplicate partner"); return; }
+      if (e) {
+        for (const [previous, previousIds] of idsByStatus(applied)) {
+          const { error: rollbackError } = await supabase
+            .from("kindle_import_staging")
+            .update({ status: previous })
+            .in("id", previousIds)
+            .eq("user_id", user!.id);
+          if (rollbackError) console.error("[Import] rollback failed", rollbackError);
+        }
+        toast.error("Could not update this highlight");
+        return;
+      }
+      for (const id of ids) applied.push([id, before.get(id) ?? "near_duplicate"]);
     }
-    setStagedRows((prev) => prev.map((r) => {
-      if (r.id === row.id) return { ...r, status: "pending" };
-      if (partner && r.id === partner.id) return { ...r, status: "skipped" };
-      return r;
-    }));
-  };
-
-  const skipRow = async (row: StagedRow) => {
-    const { error: e } = await supabase
-      .from("kindle_import_staging")
-      .update({ status: "skipped" })
-      .eq("id", row.id)
-      .eq("user_id", user!.id);
-    if (e) { toast.error("Could not skip highlight"); return; }
-    // Level 1: partner (winner) stays pending — it's the surviving copy.
-    // Level 2: library row is never touched.
-    setStagedRows((prev) => prev.map((r) => (r.id === row.id ? { ...r, status: "skipped" } : r)));
+    setStagedRows((prev) =>
+      prev.map((r) => {
+        const change = changes.find((c) => c.id === r.id);
+        return change ? { ...r, status: change.status } : r;
+      })
+    );
   };
 
   const setAuthorForBook = async (bookTitle: string, author: string) => {
@@ -555,32 +566,6 @@ const Import = () => {
     });
     toast.success(`Renamed to "${trimmed}"`);
   };
-
-  const undoRow = async (row: StagedRow) => {
-    const partner = getLevel1Partner(row);
-    const { error: e } = await supabase
-      .from("kindle_import_staging")
-      .update({ status: "near_duplicate" })
-      .eq("id", row.id)
-      .eq("user_id", user!.id);
-    if (e) { toast.error("Could not undo"); return; }
-    // Level 1: restore partner (winner) back to near_duplicate too if we previously skipped it
-    if (partner && partner.status === "skipped") {
-      const { error: pe } = await supabase
-        .from("kindle_import_staging")
-        .update({ status: "near_duplicate" })
-        .eq("id", partner.id)
-        .eq("user_id", user!.id);
-      if (pe) { toast.error("Could not restore duplicate partner"); return; }
-    }
-    setStagedRows((prev) => prev.map((r) => {
-      if (r.id === row.id) return { ...r, status: "near_duplicate" };
-      if (partner && r.id === partner.id && r.status === "skipped") return { ...r, status: "near_duplicate" };
-      return r;
-    }));
-  };
-
-
 
   // ============================================================================
   // Step 4 — Import execution
@@ -987,93 +972,102 @@ const Import = () => {
               </p>
               <div className="space-y-4">
                 {reviewSnapshotRows.map((row) => {
+                  const group = getGroup(row);
+                  const winner = group ? group.winner : null;
                   const match = row.duplicate_of ? matchLookup[row.duplicate_of] : null;
-                  const decided = row.status !== "near_duplicate";
-                  const willImport = row.status === "pending";
+                  const undecided = row.status === "near_duplicate";
+                  const leftImports = row.status === "pending";
+                  const rightImports = !!winner && winner.status === "pending";
                   const titlesDiffer = !!match && match.book_title.toLowerCase() !== row.book_title.toLowerCase();
-                  const rightLabel = match
-                    ? match.scope === "import"
-                      ? "Similar highlight in this import — the longer one will be kept by default"
-                      : match.scope === "shared"
-                        ? "Already in Glean's shared highlights — not yours, never modified"
-                        : "Already in your library — will not be deleted"
-                    : "Match reference unavailable";
+                  const lengthLabel = (mine: string, other: string) =>
+                    mine.length < other.length ? "Shorter version" : mine.length > other.length ? "Longer version" : "Same length";
+                  const statusText = (status: string, additionalCopy = false) =>
+                    status === "pending"
+                      ? additionalCopy ? "Will be imported as an additional copy" : "Will be imported"
+                      : "Will be skipped";
+                  const leftLabel = winner ? lengthLabel(row.quote, winner.quote) : "This highlight, from your file";
+                  const leftStatus = undecided ? "Not decided yet" : statusText(row.status, !winner);
+                  const rightLabel = winner
+                    ? lengthLabel(winner.quote, row.quote)
+                    : match
+                      ? match.scope === "shared" ? "Already in Glean's shared highlights" : "Already in your library"
+                      : "Match reference unavailable";
+                  const rightStatus = winner ? (undecided ? "Not decided yet" : statusText(winner.status)) : "Stays as is";
+                  const rightTitle = winner ? winner.book_title : match?.book_title;
+                  const rightQuote = winner ? winner.quote : match?.quote;
+                  const allSkipped = row.status === "skipped" && (!winner || winner.status === "skipped");
+                  const survivorCls = "rounded-md border-l-4 border-l-emerald-500 bg-emerald-500/5 pl-3 py-2 -ml-1";
+                  const skippedQuoteCls = "line-through text-muted-foreground/60";
+                  const statusCls = (imports: boolean) =>
+                    `mt-2 flex items-center gap-1.5 text-xs font-medium ${imports ? "text-primary" : "text-muted-foreground"}`;
                   return (
-                    <div
-                      key={row.id}
-                      className={`rounded-lg border border-border bg-muted/20 p-4 transition-opacity ${decided ? "opacity-70" : ""}`}
-                    >
-                      {(() => {
-                        // Survivor side: which panel will end up in the library
-                        // - decided + willImport → left (this row imports)
-                        // - decided + skip       → right (partner/library is the kept copy)
-                        const leftIsSurvivor = decided && willImport;
-                        const rightIsSurvivor = decided && !willImport;
-                        const survivorCls = "rounded-md border-l-4 border-l-emerald-500 bg-emerald-500/5 pl-3 py-2 -ml-1";
-                        const skippedQuoteCls = "line-through text-muted-foreground/60";
-                        return (
-                          <div className="grid gap-3 sm:grid-cols-2">
-                            <div className={leftIsSurvivor ? survivorCls : ""}>
-                              <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-1.5">
-                                This highlight
-                              </div>
-                              <div className="text-sm font-medium text-foreground mb-1 truncate">{row.book_title}</div>
-                              <div className={`text-sm whitespace-pre-wrap ${rightIsSurvivor ? skippedQuoteCls : "text-foreground"}`}>{row.quote}</div>
-                            </div>
-                            <div className={rightIsSurvivor ? survivorCls : ""}>
-                              <div className="text-xs font-medium uppercase tracking-wide text-primary mb-1.5">
-                                {rightLabel}
-                              </div>
-                              {match ? (
-                                <>
-                                  <div className="text-sm font-medium text-foreground mb-1 truncate">{match.book_title}</div>
-                                  {titlesDiffer && (
-                                    <div className="text-xs italic text-muted-foreground mb-1">Different book title</div>
-                                  )}
-                                  <div className={`text-sm whitespace-pre-wrap ${leftIsSurvivor && match.scope === "import" ? skippedQuoteCls : "text-foreground"}`}>{match.quote}</div>
-                                </>
-                              ) : (
-                                <div className="text-sm text-muted-foreground italic">
-                                  Could not load the matching highlight.
-                                </div>
-                              )}
-                            </div>
+                    <div key={row.id} className="rounded-lg border border-border bg-muted/20 p-4">
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <div className={`flex flex-col ${leftImports ? survivorCls : ""}`}>
+                          <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-1.5">
+                            {leftLabel}
                           </div>
-                        );
-                      })()}
-                      <div className="mt-4 flex items-center justify-between gap-2">
-                        {decided ? (
-                          <div className="flex items-center gap-1.5 text-xs font-medium text-primary">
-                            <CheckCircle2 className="h-4 w-4" />
-                            <span>{willImport ? "Will import" : "Will skip"}</span>
+                          <div className="text-sm font-medium text-foreground mb-1 truncate">{row.book_title}</div>
+                          <div className={`text-sm whitespace-pre-wrap ${!undecided && !leftImports ? skippedQuoteCls : "text-foreground"}`}>
+                            {row.quote}
                           </div>
-                        ) : (
-                          <span />
-                        )}
-                        <div className="flex gap-2">
-                          {decided ? (
-                            <>
-                              {!willImport && match?.scope === "shared" && (
-                                <Button size="sm" onClick={() => keepRow(row)}>
-                                  Import this one
-                                </Button>
-                              )}
-                              <Button variant="outline" size="sm" onClick={() => undoRow(row)}>
-                                <Undo2 className="mr-1.5 h-3.5 w-3.5" />
-                                Undo
-                              </Button>
-                            </>
-                          ) : (
-                            <>
-                              <Button variant="outline" size="sm" onClick={() => skipRow(row)}>
-                                Skip this one
-                              </Button>
-                              <Button size="sm" onClick={() => keepRow(row)}>
-                                Import this one
-                              </Button>
-                            </>
+                          <div className={statusCls(leftImports)}>
+                            {leftImports && <CheckCircle2 className="h-4 w-4" />}
+                            <span>{leftStatus}</span>
+                          </div>
+                          {!leftImports && (
+                            <Button size="sm" className="mt-3 self-start" onClick={() => applyReview(row, { kind: "import", id: row.id })}>
+                              Import this version
+                            </Button>
                           )}
                         </div>
+                        <div className={`flex flex-col ${rightImports ? survivorCls : ""}`}>
+                          <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-1.5">
+                            {rightLabel}
+                          </div>
+                          {rightQuote !== undefined ? (
+                            <>
+                              <div className="text-sm font-medium text-foreground mb-1 truncate">{rightTitle}</div>
+                              {titlesDiffer && (
+                                <div className="text-xs italic text-muted-foreground mb-1">Different book title</div>
+                              )}
+                              <div className={`text-sm whitespace-pre-wrap ${winner && !undecided && !rightImports ? skippedQuoteCls : "text-foreground"}`}>
+                                {rightQuote}
+                              </div>
+                              <div className={statusCls(rightImports)}>
+                                {rightImports && <CheckCircle2 className="h-4 w-4" />}
+                                <span>{rightStatus}</span>
+                              </div>
+                              {winner && !rightImports && (
+                                <Button size="sm" className="mt-3 self-start" onClick={() => applyReview(row, { kind: "import", id: winner.id })}>
+                                  Import this version
+                                </Button>
+                              )}
+                            </>
+                          ) : (
+                            <div className="text-sm text-muted-foreground italic">
+                              Could not load the matching highlight.
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      {group && group.versions.length > 2 && (
+                        <p className="mt-3 text-xs text-muted-foreground">
+                          This passage has {group.versions.length} versions in this import. Importing one skips the rest.
+                        </p>
+                      )}
+                      <div className="mt-4 flex flex-wrap items-center justify-end gap-2">
+                        {!allSkipped && (
+                          <Button variant="outline" size="sm" onClick={() => applyReview(row, { kind: "skipAll" })}>
+                            {group ? (group.versions.length > 2 ? "Skip all versions" : "Skip both") : "Skip this version"}
+                          </Button>
+                        )}
+                        {!undecided && (
+                          <Button variant="outline" size="sm" onClick={() => applyReview(row, { kind: "reset" })}>
+                            <Undo2 className="mr-1.5 h-3.5 w-3.5" />
+                            Undo
+                          </Button>
+                        )}
                       </div>
                     </div>
                   );
