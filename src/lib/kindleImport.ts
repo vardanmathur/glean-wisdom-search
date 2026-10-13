@@ -754,3 +754,54 @@ export function reviewVersionViews(versions: { id: string; status: string }[]): 
   }
   return views;
 }
+
+// ---------------------------------------------------------------------------
+// Review screen: what still needs attention
+// ---------------------------------------------------------------------------
+// Splits review cards by whether anything in them still needs a decision. Order is kept in both lists.
+export function splitReviewCards<T extends { members: { id: string; status: string }[] }>(cards: T[]) {
+  const needsDecision: T[] = [];
+  const decided: T[] = [];
+  for (const c of cards) {
+    (Object.values(reviewVersionViews(c.members)).includes("undecided") ? needsDecision : decided).push(c);
+  }
+  return { needsDecision, decided };
+}
+
+// Rows staged to import that sit in a card still waiting for a decision (not really "will be imported" yet).
+export function undecidedPendingIds(cards: { members: { id: string; status: string }[] }[]): Set<string> {
+  const ids = new Set<string>();
+  for (const c of cards) {
+    const views = reviewVersionViews(c.members);
+    for (const m of c.members) if (m.status === "pending" && views[m.id] === "undecided") ids.add(m.id);
+  }
+  return ids;
+}
+
+// Books that will actually be imported and still need an author or a cleaner title.
+export function booksNeedingAttention(
+  rows: { id: string; book_title: string; author: string | null; status: string }[],
+  undecidedIds: ReadonlySet<string>
+): string[] {
+  const books = new Set<string>();
+  for (const r of rows) {
+    if (r.status !== "pending" || undecidedIds.has(r.id)) continue;
+    if (!r.author?.trim() || looksGarbled(r.book_title)) books.add(r.book_title);
+  }
+  return [...books].sort();
+}
+
+// One short line saying why Import is disabled, or null when it is not.
+export function importBlockReason(i: {
+  cardsLeft: number;
+  rowsLeft: number;
+  booksNeedingAttention: number;
+  pendingCount: number;
+}): string | null {
+  if (i.cardsLeft > 0) return `${i.cardsLeft} ${i.cardsLeft === 1 ? "card still needs" : "cards still need"} a decision`;
+  if (i.rowsLeft > 0) return `${i.rowsLeft} ${i.rowsLeft === 1 ? "highlight still needs" : "highlights still need"} a decision`;
+  if (i.booksNeedingAttention > 0)
+    return `${i.booksNeedingAttention} ${i.booksNeedingAttention === 1 ? "book needs" : "books need"} author info`;
+  if (i.pendingCount === 0) return "Nothing is set to import";
+  return null;
+}

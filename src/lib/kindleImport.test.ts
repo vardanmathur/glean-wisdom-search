@@ -2,10 +2,12 @@ import { describe, it, expect } from "vitest";
 import {
   attachNotesAndFilter,
   autoResolveTruncated,
+  booksNeedingAttention,
   collapseNoteChains,
   defaultReviewStatus,
   detectDuplicatesLevel1,
   findRenamePairs,
+  importBlockReason,
   isTruncatedSave,
   levenshtein,
   levenshteinWithin,
@@ -16,6 +18,8 @@ import {
   planRenameSkip,
   planReviewChange,
   reviewVersionViews,
+  splitReviewCards,
+  undecidedPendingIds,
   toMatchPool,
   type LibraryHighlight,
   type ParsedHighlight,
@@ -989,5 +993,121 @@ describe("reviewVersionViews", () => {
         for (const v of versions) if (current[v.id] === "skipped") expect(views[v.id]).toBe("skip");
       }
     }
+  });
+});
+
+describe("splitReviewCards", () => {
+  const card = (key: string, ...statuses: string[]) => ({
+    key,
+    members: statuses.map((status, i) => ({ id: `${key}-${i}`, status })),
+  });
+  const keys = (cards: { key: string }[]) => cards.map((c) => c.key);
+
+  it("an open pair (longer staged to import, shorter waiting) needs a decision", () => {
+    expect(keys(splitReviewCards([card("a", "pending", "near_duplicate")]).needsDecision)).toEqual(["a"]);
+  });
+
+  it("a pair with the longer version staged and the shorter auto-skipped is decided", () => {
+    const split = splitReviewCards([card("a", "pending", "skipped")]);
+    expect(keys(split.decided)).toEqual(["a"]);
+    expect(split.needsDecision).toEqual([]);
+  });
+
+  it("a skipped library card is decided, a waiting one is not, and an imported-as-copy one is decided", () => {
+    const split = splitReviewCards([card("skipped", "skipped"), card("waiting", "near_duplicate"), card("copy", "pending")]);
+    expect(keys(split.decided)).toEqual(["skipped", "copy"]);
+    expect(keys(split.needsDecision)).toEqual(["waiting"]);
+  });
+
+  it("a group of 3 with one version still waiting needs a decision", () => {
+    expect(keys(splitReviewCards([card("g", "pending", "skipped", "near_duplicate")]).needsDecision)).toEqual(["g"]);
+  });
+
+  it("an undone card goes back to needing a decision", () => {
+    const before = card("a", "skipped", "pending");
+    expect(keys(splitReviewCards([before]).decided)).toEqual(["a"]);
+    const after = card("a", "pending", "near_duplicate"); // reset: longer pending, shorter waiting
+    expect(keys(splitReviewCards([after]).needsDecision)).toEqual(["a"]);
+  });
+
+  it("keeps the original order in both lists", () => {
+    const split = splitReviewCards([
+      card("1", "near_duplicate"), card("2", "skipped"), card("3", "near_duplicate"), card("4", "pending"), card("5", "skipped"),
+    ]);
+    expect(keys(split.needsDecision)).toEqual(["1", "3"]);
+    expect(keys(split.decided)).toEqual(["2", "4", "5"]);
+  });
+});
+
+describe("booksNeedingAttention", () => {
+  const row = (id: string, book_title: string, author: string | null, status: string) => ({ id, book_title, author, status });
+  const none = new Set<string>();
+
+  it("a book whose rows are all skipped is absent", () => {
+    expect(booksNeedingAttention([row("1", "Book A", null, "skipped"), row("2", "Book A", null, "skipped")], none)).toEqual([]);
+  });
+
+  it("a book whose only staged row sits in an undecided card is absent", () => {
+    expect(booksNeedingAttention([row("1", "Book A", null, "pending")], new Set(["1"]))).toEqual([]);
+  });
+
+  it("a book with a decided row to import and no author is present", () => {
+    expect(booksNeedingAttention([row("1", "Book A", null, "pending"), row("2", "Book A", null, "skipped")], none)).toEqual(["Book A"]);
+    expect(booksNeedingAttention([row("1", "Book A", "   ", "pending")], none)).toEqual(["Book A"]);
+  });
+
+  it("a garbled title is present even when it has an author, and a clean titled book with an author is not", () => {
+    expect(booksNeedingAttention([row("1", "some_garbled_title", "Author A", "pending"), row("2", "Book B", "Author B", "pending")], none)).toEqual([
+      "some_garbled_title",
+    ]);
+  });
+
+  it("is sorted and unique", () => {
+    const rows = [row("1", "Book B", null, "pending"), row("2", "Book A", null, "pending"), row("3", "Book B", null, "pending")];
+    expect(booksNeedingAttention(rows, none)).toEqual(["Book A", "Book B"]);
+  });
+
+  it("re-evaluates as decisions are made", () => {
+    const waiting = { members: [{ id: "1", status: "pending" }, { id: "2", status: "near_duplicate" }] };
+    const rows = [row("1", "Book A", null, "pending"), row("2", "Book A", null, "near_duplicate")];
+    expect(booksNeedingAttention(rows, undecidedPendingIds([waiting]))).toEqual([]); // still undecided: not listed
+    const imported = { members: [{ id: "1", status: "pending" }, { id: "2", status: "skipped" }] };
+    const rowsAfterImport = [row("1", "Book A", null, "pending"), row("2", "Book A", null, "skipped")];
+    expect(booksNeedingAttention(rowsAfterImport, undecidedPendingIds([imported]))).toEqual(["Book A"]); // now it will import
+    const skippedAll = { members: [{ id: "1", status: "skipped" }, { id: "2", status: "skipped" }] };
+    const rowsAfterSkip = [row("1", "Book A", null, "skipped"), row("2", "Book A", null, "skipped")];
+    expect(booksNeedingAttention(rowsAfterSkip, undecidedPendingIds([skippedAll]))).toEqual([]); // skipped everything: gone
+  });
+});
+
+describe("undecidedPendingIds", () => {
+  it("lists only staged rows in cards that still wait, not decided ones", () => {
+    const ids = undecidedPendingIds([
+      { members: [{ id: "w1", status: "pending" }, { id: "l1", status: "near_duplicate" }] },
+      { members: [{ id: "w2", status: "pending" }, { id: "l2", status: "skipped" }] },
+      { members: [{ id: "x", status: "near_duplicate" }] },
+    ]);
+    expect([...ids]).toEqual(["w1"]);
+  });
+});
+
+describe("importBlockReason", () => {
+  const base = { cardsLeft: 0, rowsLeft: 0, booksNeedingAttention: 0, pendingCount: 5 };
+
+  it("names cards first, with singular and plural", () => {
+    expect(importBlockReason({ ...base, cardsLeft: 18, rowsLeft: 20, booksNeedingAttention: 2 })).toBe("18 cards still need a decision");
+    expect(importBlockReason({ ...base, cardsLeft: 1 })).toBe("1 card still needs a decision");
+  });
+
+  it("falls back to rows, then books, then nothing to import", () => {
+    expect(importBlockReason({ ...base, rowsLeft: 2 })).toBe("2 highlights still need a decision");
+    expect(importBlockReason({ ...base, rowsLeft: 1 })).toBe("1 highlight still needs a decision");
+    expect(importBlockReason({ ...base, booksNeedingAttention: 2 })).toBe("2 books need author info");
+    expect(importBlockReason({ ...base, booksNeedingAttention: 1 })).toBe("1 book needs author info");
+    expect(importBlockReason({ ...base, pendingCount: 0 })).toBe("Nothing is set to import");
+  });
+
+  it("is null when nothing blocks the import", () => {
+    expect(importBlockReason(base)).toBeNull();
   });
 });
