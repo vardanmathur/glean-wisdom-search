@@ -629,11 +629,12 @@ describe("Synthetic library scenarios (placeholder data only)", () => {
     type Expect = { id: string | null; scope?: "library" | "shared"; sameTitle?: boolean; status?: "near_duplicate" | "skipped" };
     const cases: { name: string; quote: string; title: string; pool: LibraryHighlight[]; expect: Expect }[] = [
       { name: "renamed-title duplicate is caught", quote: p[1], title: "Own Book Before Rename", pool, expect: { id: "own-renamed", scope: "library", sameTitle: false, status: "near_duplicate" } },
-      { name: "own private highlight is matched", quote: p[0], title: "Own Book", pool, expect: { id: "own-private", scope: "library", sameTitle: true, status: "near_duplicate" } },
+      { name: "own identical copy under the same title defaults to Skip", quote: p[0], title: "Own Book", pool, expect: { id: "own-private", scope: "library", sameTitle: true, status: "skipped" } },
+      { name: "own similar (not identical) copy under the same title needs review", quote: p[0] + " plus a few extra trailing words", title: "Own Book", pool, expect: { id: "own-private", scope: "library", sameTitle: true, status: "near_duplicate" } },
       { name: "shared same-title match defaults to Skip", quote: p[3], title: "Shared Book", pool, expect: { id: "shared-same", scope: "shared", sameTitle: true, status: "skipped" } },
       { name: "shared different-title match needs review", quote: p[4], title: "Another Title", pool, expect: { id: "shared-elsewhere", scope: "shared", sameTitle: false, status: "near_duplicate" } },
-      { name: "own library is searched before shared", quote: p[2], title: "Copy Book", pool, expect: { id: "own-copy", scope: "library", sameTitle: true, status: "near_duplicate" } },
-      { name: "own library wins even when the shared copy is listed first", quote: p[2], title: "Copy Book", pool: reversed, expect: { id: "own-copy", scope: "library", sameTitle: true, status: "near_duplicate" } },
+      { name: "own library is searched before shared", quote: p[2], title: "Copy Book", pool, expect: { id: "own-copy", scope: "library", sameTitle: true, status: "skipped" } },
+      { name: "own library wins even when the shared copy is listed first", quote: p[2], title: "Copy Book", pool: reversed, expect: { id: "own-copy", scope: "library", sameTitle: true, status: "skipped" } },
       { name: "another user's private row is never matched", quote: p[5], title: "Private Book", pool, expect: { id: null } },
       { name: "another user's NULL-visibility row is never matched", quote: p[6], title: "Null Book", pool, expect: { id: null } },
       { name: "new text matches nothing", quote: p[7], title: "Brand New", pool, expect: { id: null } },

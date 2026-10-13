@@ -429,6 +429,7 @@ export type LibraryMatch = {
   quote: string;
   scope: LibraryScope;
   sameTitle: boolean;
+  exact: boolean; // the quote is identical to the library quote after normalising
 };
 export type RawLibraryRow = {
   id: string;
@@ -481,9 +482,38 @@ export async function loadMatchPool(fetchPage: PoolPageFetcher, myId: string): P
   return toMatchPool(rows, myId);
 }
 
-// A shared match under the same book title is skipped by default; anything else needs a decision.
-export function defaultReviewStatus(match: Pick<LibraryMatch, "scope" | "sameTitle">): "near_duplicate" | "skipped" {
-  return match.scope === "shared" && match.sameTitle ? "skipped" : "near_duplicate";
+// Skipped by default: a shared match under the same book title, and an identical copy (after normalising) of one of
+// your own highlights under the same title. Anything else needs a decision.
+export function defaultReviewStatus(
+  match: Pick<LibraryMatch, "scope" | "sameTitle"> & { exact?: boolean }
+): "near_duplicate" | "skipped" {
+  if (!match.sameTitle) return "near_duplicate";
+  return match.scope === "shared" || match.exact ? "skipped" : "near_duplicate";
+}
+
+// True when `shorter` is a truncated save of `longer`: after normalising, the longer text starts with all of the
+// shorter text. Text that only sits in the middle or at the end of the longer one is not a truncated save
+// (that can be a stray junk prefix on the longer text), so it is left for a decision.
+export function isTruncatedSave(shorter: string, longer: string): boolean {
+  const s = normaliseQuote(shorter);
+  const l = normaliseQuote(longer);
+  return s.length > 0 && s.length <= l.length && l.startsWith(s);
+}
+
+// Skips the shorter version of every within-file pair whose shorter text is a truncated save of the longer one,
+// so the longer version is the one imported. Returns the drafts it skipped.
+export function autoResolveTruncated(drafts: StagingRowDraft[]): StagingRowDraft[] {
+  const byClient = new Map(drafts.map((d) => [d.client_id, d]));
+  const resolved: StagingRowDraft[] = [];
+  for (const d of drafts) {
+    if (d.status !== "near_duplicate" || !d.duplicate_of_client_id) continue;
+    const winner = byClient.get(d.duplicate_of_client_id);
+    if (winner && isTruncatedSave(d.quote, winner.quote)) {
+      d.status = "skipped";
+      resolved.push(d);
+    }
+  }
+  return resolved;
 }
 
 export type ReviewStatus = "pending" | "skipped" | "near_duplicate";
@@ -634,7 +664,10 @@ export function matchAgainstLibrary(
     try {
       // Your library first, then shared. Same title uses the original rules; any title needs a longer contained text.
       for (const scope of ["library", "shared"] as const) {
-        const sameTitleHit = (byTitle[scope].get(titleKey) ?? []).find((p) => quotesMatch(a, p.norm, 0, p.grams));
+        const sameTitleBucket = byTitle[scope].get(titleKey) ?? [];
+        // An identical copy under the same title is preferred over a merely similar one.
+        const sameTitleHit =
+          sameTitleBucket.find((p) => p.norm === a) ?? sameTitleBucket.find((p) => quotesMatch(a, p.norm, 0, p.grams));
         const hit = sameTitleHit ?? pools[scope].find((p) => quotesMatch(a, p.norm, CROSS_TITLE_MIN_CONTAINED, p.grams));
         if (hit) {
           matches.set(draft.client_id, {
@@ -643,6 +676,7 @@ export function matchAgainstLibrary(
             quote: hit.lib.quote,
             scope,
             sameTitle: !!sameTitleHit,
+            exact: hit.norm === a,
           });
           break;
         }
@@ -705,4 +739,18 @@ export function planRenameSkip(
   return rows
     .filter((r) => r.status !== "skipped" && (inPair.has(r.id) || (!!r.duplicate_of && inPair.has(r.duplicate_of))))
     .map((r) => r.id);
+}
+
+// How each version of a review card should look. A group that still has any undecided version (a shorter version
+// waiting for a decision) shows every version as undecided unless it is already skipped, so the longer version is
+// never drawn as "will be imported" while the card is still open. Once nothing is undecided, the statuses are shown as they are.
+export type VersionView = "undecided" | "import" | "skip";
+export function reviewVersionViews(versions: { id: string; status: string }[]): Record<string, VersionView> {
+  const groupOpen = versions.some((v) => v.status === "near_duplicate");
+  const views: Record<string, VersionView> = {};
+  for (const v of versions) {
+    views[v.id] =
+      v.status === "skipped" ? "skip" : v.status === "pending" ? (groupOpen ? "undecided" : "import") : "undecided";
+  }
+  return views;
 }

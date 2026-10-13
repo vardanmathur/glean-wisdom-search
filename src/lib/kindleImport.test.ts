@@ -1,10 +1,12 @@
 import { describe, it, expect } from "vitest";
 import {
   attachNotesAndFilter,
+  autoResolveTruncated,
   collapseNoteChains,
   defaultReviewStatus,
   detectDuplicatesLevel1,
   findRenamePairs,
+  isTruncatedSave,
   levenshtein,
   levenshteinWithin,
   loadMatchPool,
@@ -13,6 +15,7 @@ import {
   NOTE_CHAIN_GAP_MS,
   planRenameSkip,
   planReviewChange,
+  reviewVersionViews,
   toMatchPool,
   type LibraryHighlight,
   type ParsedHighlight,
@@ -806,5 +809,185 @@ describe("planRenameSkip", () => {
       { id: "l1", status: "skipped", duplicate_of: "w1" },
     ];
     expect(planRenameSkip(["w1"], rows)).toEqual(["w1"]);
+  });
+});
+
+describe("exact own-library duplicates are skipped by default", () => {
+  const passage = "The quick brown fox jumps over the lazy dog near the riverbank today";
+  const mk = (quote: string, title: string) => ({
+    ...draft(quote, title),
+  });
+
+  it("flags an identical copy under the same title as exact and skips it by default", () => {
+    const m = matchOf(mk(passage, "Book A"), [lib("L1", passage, "Book A")]);
+    expect(m).toMatchObject({ scope: "library", sameTitle: true, exact: true });
+    expect(m && defaultReviewStatus(m)).toBe("skipped");
+  });
+
+  it("counts differences in case, spacing and quote style as identical", () => {
+    const messy = `  “The  QUICK brown fox jumps over the lazy dog near the riverbank today” `;
+    const m = matchOf(mk(messy, "book a"), [lib("L1", passage, "Book A")]);
+    expect(m?.exact).toBe(true);
+    expect(m && defaultReviewStatus(m)).toBe("skipped");
+  });
+
+  it("an identical copy under a different title still needs a decision", () => {
+    const m = matchOf(mk(passage, "Book B"), [lib("L1", passage, "Book A")]);
+    expect(m).toMatchObject({ sameTitle: false, exact: true });
+    expect(m && defaultReviewStatus(m)).toBe("near_duplicate");
+  });
+
+  it("a merely similar copy under the same title still needs a decision", () => {
+    const similar = passage + " and then some more words";
+    const m = matchOf(mk(similar, "Book A"), [lib("L1", passage, "Book A")]);
+    expect(m).toMatchObject({ sameTitle: true, exact: false });
+    expect(m && defaultReviewStatus(m)).toBe("near_duplicate");
+  });
+
+  it("prefers the identical copy when a similar one is listed first", () => {
+    const similar = passage + " and";
+    const m = matchOf(mk(passage, "Book A"), [lib("L1", similar, "Book A"), lib("L2", passage, "Book A")]);
+    expect(m?.highlight_id).toBe("L2");
+    expect(m?.exact).toBe(true);
+  });
+
+  it("defaultReviewStatus: only exact, same-title, own-library matches are newly skipped", () => {
+    expect(defaultReviewStatus({ scope: "library", sameTitle: true, exact: true })).toBe("skipped");
+    expect(defaultReviewStatus({ scope: "library", sameTitle: true, exact: false })).toBe("near_duplicate");
+    expect(defaultReviewStatus({ scope: "library", sameTitle: false, exact: true })).toBe("near_duplicate");
+    expect(defaultReviewStatus({ scope: "shared", sameTitle: true, exact: false })).toBe("skipped");
+    expect(defaultReviewStatus({ scope: "shared", sameTitle: false, exact: true })).toBe("near_duplicate");
+  });
+});
+
+describe("truncated saves", () => {
+  const full = "Lanterns are the slow ledger of evening harbours and they reward attention across seasons";
+  const draftOf = (client_id: string, quote: string, over: Partial<StagingRowDraft> = {}): StagingRowDraft => ({
+    ...draft(quote, "Book A"),
+    client_id,
+    ...over,
+  });
+
+  it("isTruncatedSave: the longer text starts with all of the shorter text", () => {
+    expect(isTruncatedSave("Lanterns are the slow ledger", full)).toBe(true);
+    expect(isTruncatedSave("lanterns are the slow ledger of evening harbours,", full)).toBe(true); // punctuation and case
+    expect(isTruncatedSave("Lanterns are the slow led", full)).toBe(true); // cut mid-word
+    expect(isTruncatedSave(full, full)).toBe(true);
+  });
+
+  it("isTruncatedSave: text in the middle or at the end does not count", () => {
+    expect(isTruncatedSave("slow ledger of evening harbours", full)).toBe(false); // middle
+    expect(isTruncatedSave("and they reward attention across seasons", full)).toBe(false); // end
+    expect(isTruncatedSave("Real sentence goes here and continues", "it. Real sentence goes here and continues")).toBe(false); // junk prefix
+    expect(isTruncatedSave("", full)).toBe(false);
+    expect(isTruncatedSave(full + " and more", full)).toBe(false); // longer-than-longer
+  });
+
+  it("autoResolveTruncated skips a prefix loser and leaves the winner alone", () => {
+    const winner = draftOf("w", full, { status: "pending" });
+    const loser = draftOf("l", "Lanterns are the slow ledger", { status: "near_duplicate", duplicate_of_client_id: "w" });
+    const resolved = autoResolveTruncated([winner, loser]);
+    expect(resolved).toEqual([loser]);
+    expect(loser.status).toBe("skipped");
+    expect(winner.status).toBe("pending");
+  });
+
+  it("autoResolveTruncated leaves end and middle losers for review", () => {
+    const winner = draftOf("w", full, { status: "pending" });
+    const end = draftOf("e", "and they reward attention across seasons", { status: "near_duplicate", duplicate_of_client_id: "w" });
+    const middle = draftOf("m", "slow ledger of evening harbours", { status: "near_duplicate", duplicate_of_client_id: "w" });
+    const prefix = draftOf("p", "Lanterns are the slow ledger", { status: "near_duplicate", duplicate_of_client_id: "w" });
+    expect(autoResolveTruncated([winner, end, middle, prefix]).map((d) => d.client_id)).toEqual(["p"]);
+    expect([end.status, middle.status, prefix.status]).toEqual(["near_duplicate", "near_duplicate", "skipped"]);
+  });
+
+  it("autoResolveTruncated ignores drafts that are not flagged losers", () => {
+    const a = draftOf("a", "Lanterns are the slow ledger", { status: "pending" });
+    const b = draftOf("b", full, { status: "pending" });
+    const orphan = draftOf("o", "Lanterns are", { status: "near_duplicate", duplicate_of_client_id: "missing" });
+    expect(autoResolveTruncated([a, b, orphan])).toEqual([]);
+  });
+
+  it("through detectDuplicatesLevel1: a real truncated save is resolved, a junk-prefixed one is not", () => {
+    const rows = [
+      highlight(full, 0),
+      highlight("Lanterns are the slow ledger of evening harbours", 10),
+      highlight("it. " + full, 20),
+    ];
+    const detected = detectDuplicatesLevel1(attachNotesAndFilter(rows));
+    const resolved = autoResolveTruncated(detected.rows);
+    // every resolved row is a prefix of its winner, and no row is skipped without being one
+    const byClient = new Map(detected.rows.map((r) => [r.client_id, r]));
+    for (const r of resolved) expect(isTruncatedSave(r.quote, byClient.get(r.duplicate_of_client_id!)!.quote)).toBe(true);
+    for (const r of detected.rows.filter((x) => x.status === "near_duplicate")) {
+      expect(isTruncatedSave(r.quote, byClient.get(r.duplicate_of_client_id!)!.quote)).toBe(false);
+    }
+  });
+});
+
+describe("reviewVersionViews", () => {
+  it("a pair with the longer version staged to import and the shorter one waiting shows both as undecided", () => {
+    expect(reviewVersionViews([{ id: "long", status: "pending" }, { id: "short", status: "near_duplicate" }])).toEqual({
+      long: "undecided",
+      short: "undecided",
+    });
+  });
+
+  it("a pair where both are waiting shows both as undecided (same as the one above)", () => {
+    expect(reviewVersionViews([{ id: "long", status: "near_duplicate" }, { id: "short", status: "near_duplicate" }])).toEqual({
+      long: "undecided",
+      short: "undecided",
+    });
+  });
+
+  it("once decided, the statuses are shown as they are", () => {
+    expect(reviewVersionViews([{ id: "long", status: "pending" }, { id: "short", status: "skipped" }])).toEqual({ long: "import", short: "skip" });
+    expect(reviewVersionViews([{ id: "long", status: "skipped" }, { id: "short", status: "pending" }])).toEqual({ long: "skip", short: "import" });
+    expect(reviewVersionViews([{ id: "long", status: "skipped" }, { id: "short", status: "skipped" }])).toEqual({ long: "skip", short: "skip" });
+  });
+
+  it("in a group with one version still waiting, skipped versions stay skipped and the rest are undecided", () => {
+    const views = reviewVersionViews([
+      { id: "a", status: "pending" },
+      { id: "b", status: "skipped" },
+      { id: "c", status: "near_duplicate" },
+    ]);
+    expect(views).toEqual({ a: "undecided", b: "skip", c: "undecided" });
+  });
+
+  it("a single row: waiting, importing, skipped", () => {
+    expect(reviewVersionViews([{ id: "x", status: "near_duplicate" }]).x).toBe("undecided");
+    expect(reviewVersionViews([{ id: "x", status: "pending" }]).x).toBe("import");
+    expect(reviewVersionViews([{ id: "x", status: "skipped" }]).x).toBe("skip");
+  });
+
+  it("property: every state reached through planReviewChange is drawn consistently", () => {
+    const rand = rng(8675);
+    const group = (losers: number): ReviewVersion[] => [
+      { id: "winner", role: "winner" },
+      ...Array.from({ length: losers }, (_, i) => ({ id: `short${i + 1}`, role: "loser" as const })),
+    ];
+    for (let round = 0; round < 300; round++) {
+      const versions = group(1 + Math.floor(rand() * 3));
+      const current: Record<string, ReviewStatus> = Object.fromEntries(
+        versions.map((v) => [v.id, v.role === "winner" ? "pending" : "near_duplicate"])
+      );
+      for (let step = 0; step < 6; step++) {
+        const roll = rand();
+        const action: ReviewAction =
+          roll < 0.5
+            ? { kind: "import", id: versions[Math.floor(rand() * versions.length)].id }
+            : roll < 0.75
+              ? { kind: "skipAll" }
+              : { kind: "reset" };
+        for (const c of planReviewChange(versions, action)) current[c.id] = c.status;
+        const views = reviewVersionViews(versions.map((v) => ({ id: v.id, status: current[v.id] })));
+        const anyWaiting = Object.values(current).includes("near_duplicate");
+        // a version is only drawn as "import" when nothing in the group is waiting, and at most one is
+        if (anyWaiting) expect(Object.values(views)).not.toContain("import");
+        expect(Object.values(views).filter((x) => x === "import").length).toBeLessThanOrEqual(1);
+        for (const v of versions) if (current[v.id] === "skipped") expect(views[v.id]).toBe("skip");
+      }
+    }
   });
 });

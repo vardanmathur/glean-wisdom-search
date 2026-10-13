@@ -13,6 +13,7 @@ import { Link, useNavigate } from "react-router-dom";
 import AddHighlightModal from "@/components/studio/AddHighlightModal";
 import { useAllTags } from "@/hooks/useAllTags";
 import {
+  autoResolveTruncated,
   parseClippings,
   attachNotesAndFilter,
   detectDuplicatesLevel1,
@@ -23,6 +24,7 @@ import {
   findRenamePairs,
   planRenameSkip,
   planReviewChange,
+  reviewVersionViews,
   type LibraryHighlight,
   type LibraryMatch,
   type RawLibraryRow,
@@ -30,6 +32,7 @@ import {
   type ReviewAction,
   type ReviewVersion,
   type StagingRowDraft,
+  type VersionView,
 } from "@/lib/kindleImport";
 
 // ============================================================================
@@ -47,6 +50,8 @@ type ParseSummary = {
   oversizedCount: number;
   malformedCount: number;
   sharedSkippedCount: number;
+  ownSkippedCount: number;
+  truncatedResolvedCount: number;
 };
 
 type StagedRow = {
@@ -139,10 +144,6 @@ const Import = () => {
     const byId = new Map(stagedRows.map((r) => [r.id, r]));
     return reviewSnapshot.map((id) => byId.get(id)).filter((r): r is StagedRow => !!r);
   }, [reviewSnapshot, stagedRows]);
-  const reviewDecidedCount = useMemo(
-    () => reviewSnapshotRows.filter((r) => r.status !== "near_duplicate").length,
-    [reviewSnapshotRows]
-  );
   // "No" on a rename line only hides it for this review; nothing is stored.
   const [dismissedPairs, setDismissedPairs] = useState<Set<string>>(new Set());
   const pairKey = (p: RenamePair) => JSON.stringify([p.fileTitle.toLowerCase(), p.libraryTitle.toLowerCase()]);
@@ -251,6 +252,8 @@ const Import = () => {
       const withNotes = attachNotesAndFilter(parsed.highlights);
 
       const detected = detectDuplicatesLevel1(withNotes);
+      // A shorter version that is a truncated save of the longer one is skipped by default (longer one imports).
+      const truncatedResolved = autoResolveTruncated(detected.rows).length;
 
       if (detected.rows.length === 0) {
         setSummary({
@@ -259,6 +262,8 @@ const Import = () => {
           exactDuplicatesRemoved: detected.exactDuplicatesRemoved,
           flaggedCount: 0,
           sharedSkippedCount: 0,
+          ownSkippedCount: 0,
+          truncatedResolvedCount: 0,
           unknownAuthorBooks: 0,
           oversizedCount: parsed.oversizedCount,
           malformedCount: parsed.malformedCount,
@@ -281,15 +286,20 @@ const Import = () => {
       }
       let level2Review = 0;
       let sharedSkipped = 0;
+      let ownSkipped = 0;
       for (const draft of detected.rows) {
         const m = libMatches.get(draft.client_id);
         if (m) {
-          // Shared match under the same book title => "skipped"; everything else => "near_duplicate"
+          // Shared same-title match, or an identical copy of your own highlight under the same title => "skipped";
+          // everything else => "near_duplicate"
           draft.status = defaultReviewStatus(m);
           // We'll set duplicate_of to the library highlight UUID after staging insert
           // Store it temporarily by overwriting client_id reference with the library id, marked
           (draft as StagingRowDraft & { _library_match_id?: string })._library_match_id = m.highlight_id;
-          if (draft.status === "skipped") sharedSkipped++;
+          if (draft.status === "skipped") {
+            if (m.scope === "shared") sharedSkipped++;
+            else ownSkipped++;
+          }
           else level2Review++;
         }
       }
@@ -392,8 +402,10 @@ const Import = () => {
         totalReady: detected.rows.length,
         uniqueBooks,
         exactDuplicatesRemoved: detected.exactDuplicatesRemoved,
-        flaggedCount: detected.flaggedCount + level2Review,
+        flaggedCount: detected.flaggedCount - truncatedResolved + level2Review,
         sharedSkippedCount: sharedSkipped,
+        ownSkippedCount: ownSkipped,
+        truncatedResolvedCount: truncatedResolved,
         unknownAuthorBooks,
         oversizedCount: parsed.oversizedCount,
         malformedCount: parsed.malformedCount,
@@ -481,15 +493,40 @@ const Import = () => {
   // Step 3 actions
   // ============================================================================
   // The versions of one passage within this import: the longest (staged to import by default) and every shorter
-  // one flagged against it. Null for a library or shared match, which has no other version in this import.
+  // one flagged against it. The longest may itself be flagged against your library. Null for a library or shared
+  // match, which has no other version in this import.
   const getGroup = (row: StagedRow): { winner: StagedRow; versions: StagedRow[] } | null => {
-    if (!row.duplicate_of) return null;
-    const match = matchLookup[row.duplicate_of];
-    if (!match || match.scope !== "import") return null;
-    const winner = stagedRows.find((r) => r.id === row.duplicate_of);
-    if (!winner) return null;
-    return { winner, versions: [winner, ...stagedRows.filter((r) => r.duplicate_of === winner.id)] };
+    const match = row.duplicate_of ? matchLookup[row.duplicate_of] : null;
+    if (match && match.scope === "import") {
+      const winner = stagedRows.find((r) => r.id === row.duplicate_of);
+      if (!winner) return null;
+      return { winner, versions: groupVersions(winner) };
+    }
+    const shorter = stagedRows.filter((r) => r.duplicate_of === row.id);
+    return shorter.length > 0 ? { winner: row, versions: groupVersions(row) } : null;
   };
+  const groupVersions = (winner: StagedRow): StagedRow[] => [
+    winner,
+    ...stagedRows.filter((r) => r.duplicate_of === winner.id).sort((x, y) => y.quote.length - x.quote.length),
+  ];
+
+  // One card per passage: every version of a group shares a card, however many of its rows were flagged.
+  const reviewCards = (() => {
+    const seen = new Set<string>();
+    const cards: { key: string; row: StagedRow; group: ReturnType<typeof getGroup> }[] = [];
+    for (const row of reviewSnapshotRows) {
+      const group = getGroup(row);
+      const key = group ? group.winner.id : row.id;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      cards.push({ key, row, group });
+    }
+    return cards;
+  })();
+  const reviewCardsDecided = reviewCards.filter(({ row, group }) => {
+    const views = reviewVersionViews(group ? group.versions : [row]);
+    return !Object.values(views).includes("undecided");
+  }).length;
 
   // "Treat as the same book": skips every row of the pair, and every shorter version flagged against any of them.
   // Updates go in chunks; if one fails the earlier chunks are rolled back, one toast is shown and the screen is unchanged.
@@ -934,6 +971,12 @@ const Import = () => {
                     {summary.sharedSkippedCount > 0 && (
                       <SummaryRow label={`${summary.sharedSkippedCount} highlights already in Glean's shared highlights, skipped by default (you can still import them)`} />
                     )}
+                    {summary.ownSkippedCount > 0 && (
+                      <SummaryRow label={`${summary.ownSkippedCount} highlights identical to ones already in your library, skipped by default (you can still import them)`} />
+                    )}
+                    {summary.truncatedResolvedCount > 0 && (
+                      <SummaryRow label={`${summary.truncatedResolvedCount} shorter saved versions skipped in favour of the longer one (you can switch any of them)`} />
+                    )}
                     {summary.unknownAuthorBooks > 0 && (
                       <SummaryRow label={`${summary.unknownAuthorBooks} books need author information`} />
                     )}
@@ -1001,7 +1044,7 @@ const Import = () => {
                   Needs your review
                 </h2>
                 <span className="text-sm text-muted-foreground">
-                  {reviewDecidedCount} of {reviewSnapshotRows.length} reviewed
+                  {reviewCardsDecided} of {reviewCards.length} reviewed
                 </span>
               </div>
               <p className="text-sm text-muted-foreground mb-2">
@@ -1042,99 +1085,99 @@ const Import = () => {
                 </div>
               )}
               <div className="space-y-4">
-                {reviewSnapshotRows.map((row) => {
-                  const group = getGroup(row);
-                  const winner = group ? group.winner : null;
-                  const match = row.duplicate_of ? matchLookup[row.duplicate_of] : null;
-                  const undecided = row.status === "near_duplicate";
-                  const leftImports = row.status === "pending";
-                  const rightImports = !!winner && winner.status === "pending";
-                  const titlesDiffer = !!match && match.book_title.toLowerCase() !== row.book_title.toLowerCase();
-                  const lengthLabel = (mine: string, other: string) =>
-                    mine.length < other.length ? "Shorter version" : mine.length > other.length ? "Longer version" : "Same length";
-                  const statusText = (status: string, additionalCopy = false) =>
-                    status === "pending"
-                      ? additionalCopy ? "Will be imported as an additional copy" : "Will be imported"
-                      : "Will be skipped";
-                  const leftLabel = winner ? lengthLabel(row.quote, winner.quote) : "This highlight, from your file";
-                  const leftStatus = undecided ? "Not decided yet" : statusText(row.status, !winner);
-                  const rightLabel = winner
-                    ? lengthLabel(winner.quote, row.quote)
-                    : match
-                      ? match.scope === "shared" ? "Already in Glean's shared highlights" : "Already in your library"
-                      : "Match reference unavailable";
-                  const rightStatus = winner ? (undecided ? "Not decided yet" : statusText(winner.status)) : "Stays as is";
-                  const rightTitle = winner ? winner.book_title : match?.book_title;
-                  const rightQuote = winner ? winner.quote : match?.quote;
-                  const allSkipped = row.status === "skipped" && (!winner || winner.status === "skipped");
-                  const survivorCls = "rounded-md border-l-4 border-l-emerald-500 bg-emerald-500/5 pl-3 py-2 -ml-1";
-                  const skippedQuoteCls = "line-through text-muted-foreground/60";
-                  const statusCls = (imports: boolean) =>
-                    `mt-2 flex items-center gap-1.5 text-xs font-medium ${imports ? "text-primary" : "text-muted-foreground"}`;
+                {reviewCards.map(({ key, row, group }) => {
+                  const members = group ? group.versions : [row];
+                  const views = reviewVersionViews(members);
+                  const allSkipped = members.every((m) => views[m.id] === "skip");
+                  const allUndecided = members.every((m) => views[m.id] === "undecided");
+                  const target = group ? group.winner : row;
+                  const statusText = (view: VersionView, additionalCopy = false) =>
+                    view === "undecided"
+                      ? "Not decided yet"
+                      : view === "import"
+                        ? additionalCopy ? "Will be imported as an additional copy" : "Will be imported"
+                        : "Will be skipped";
+                  const importThis = (id: string) => () => applyReview(target, { kind: "import", id });
+                  const maxLen = Math.max(...members.map((m) => m.quote.length));
+                  const labelFor = (v: StagedRow) => {
+                    if (members.length === 2) {
+                      const other = members.find((m) => m.id !== v.id)!;
+                      return v.quote.length < other.quote.length ? "Shorter version" : v.quote.length > other.quote.length ? "Longer version" : "Same length";
+                    }
+                    if (v.quote.length === maxLen) return group && v.id === group.winner.id ? "Longest version" : "Same length";
+                    return "Shorter version";
+                  };
+                  const winnerMatch = group && group.winner.duplicate_of ? matchLookup[group.winner.duplicate_of] : null;
+                  const winnerNote =
+                    winnerMatch && winnerMatch.scope !== "import"
+                      ? winnerMatch.scope === "shared"
+                        ? "Also matches a highlight in Glean's shared highlights"
+                        : "Also matches a highlight already in your library"
+                      : undefined;
+                  const block = (v: StagedRow) => (
+                    <VersionBlock
+                      key={v.id}
+                      label={labelFor(v)}
+                      title={v.book_title}
+                      quote={v.quote}
+                      view={views[v.id]}
+                      statusText={statusText(views[v.id])}
+                      note={group && v.id === group.winner.id ? winnerNote : undefined}
+                      onImport={views[v.id] === "import" ? undefined : importThis(v.id)}
+                    />
+                  );
+                  const match = !group && row.duplicate_of ? matchLookup[row.duplicate_of] : null;
                   return (
-                    <div key={row.id} className="rounded-lg border border-border bg-muted/20 p-4">
-                      <div className="grid gap-4 sm:grid-cols-2">
-                        <div className={`flex flex-col ${leftImports ? survivorCls : ""}`}>
-                          <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-1.5">
-                            {leftLabel}
-                          </div>
-                          <div className="text-sm font-medium text-foreground mb-1 truncate">{row.book_title}</div>
-                          <div className={`text-sm whitespace-pre-wrap ${!undecided && !leftImports ? skippedQuoteCls : "text-foreground"}`}>
-                            {row.quote}
-                          </div>
-                          <div className={statusCls(leftImports)}>
-                            {leftImports && <CheckCircle2 className="h-4 w-4" />}
-                            <span>{leftStatus}</span>
-                          </div>
-                          {!leftImports && (
-                            <Button size="sm" className="mt-3 self-start" onClick={() => applyReview(row, { kind: "import", id: row.id })}>
-                              Import this version
-                            </Button>
-                          )}
+                    <div key={key} className="rounded-lg border border-border bg-muted/20 p-4">
+                      {group && members.length > 2 ? (
+                        <div className="space-y-4">{members.map(block)}</div>
+                      ) : group ? (
+                        <div className="grid gap-4 sm:grid-cols-2">
+                          {block(members.find((m) => m.id !== group.winner.id)!)}
+                          {block(group.winner)}
                         </div>
-                        <div className={`flex flex-col ${rightImports ? survivorCls : ""}`}>
-                          <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-1.5">
-                            {rightLabel}
-                          </div>
-                          {rightQuote !== undefined ? (
-                            <>
-                              <div className="text-sm font-medium text-foreground mb-1 truncate">{rightTitle}</div>
-                              {titlesDiffer && (
-                                <div className="text-xs italic text-muted-foreground mb-1">Different book title</div>
-                              )}
-                              <div className={`text-sm whitespace-pre-wrap ${winner && !undecided && !rightImports ? skippedQuoteCls : "text-foreground"}`}>
-                                {rightQuote}
-                              </div>
-                              <div className={statusCls(rightImports)}>
-                                {rightImports && <CheckCircle2 className="h-4 w-4" />}
-                                <span>{rightStatus}</span>
-                              </div>
-                              {winner && !rightImports && (
-                                <Button size="sm" className="mt-3 self-start" onClick={() => applyReview(row, { kind: "import", id: winner.id })}>
-                                  Import this version
-                                </Button>
-                              )}
-                            </>
+                      ) : (
+                        <div className="grid gap-4 sm:grid-cols-2">
+                          <VersionBlock
+                            label="This highlight, from your file"
+                            title={row.book_title}
+                            quote={row.quote}
+                            view={views[row.id]}
+                            statusText={statusText(views[row.id], true)}
+                            onImport={views[row.id] === "import" ? undefined : importThis(row.id)}
+                          />
+                          {match ? (
+                            <VersionBlock
+                              label={match.scope === "shared" ? "Already in Glean's shared highlights" : "Already in your library"}
+                              title={match.book_title}
+                              quote={match.quote}
+                              view="undecided"
+                              statusText="Stays as is"
+                              differentTitle={match.book_title.toLowerCase() !== row.book_title.toLowerCase()}
+                            />
                           ) : (
-                            <div className="text-sm text-muted-foreground italic">
-                              Could not load the matching highlight.
+                            <div className="flex flex-col">
+                              <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-1.5">
+                                Match reference unavailable
+                              </div>
+                              <div className="text-sm text-muted-foreground italic">Could not load the matching highlight.</div>
                             </div>
                           )}
                         </div>
-                      </div>
-                      {group && group.versions.length > 2 && (
+                      )}
+                      {group && members.length > 2 && (
                         <p className="mt-3 text-xs text-muted-foreground">
-                          This passage has {group.versions.length} versions in this import. Importing one skips the rest.
+                          This passage has {members.length} versions in this import. Importing one skips the rest.
                         </p>
                       )}
                       <div className="mt-4 flex flex-wrap items-center justify-end gap-2">
                         {!allSkipped && (
-                          <Button variant="outline" size="sm" onClick={() => applyReview(row, { kind: "skipAll" })}>
-                            {group ? (group.versions.length > 2 ? "Skip all versions" : "Skip both") : "Skip this version"}
+                          <Button variant="outline" size="sm" onClick={() => applyReview(target, { kind: "skipAll" })}>
+                            {group ? (members.length > 2 ? "Skip all versions" : "Skip both") : "Skip this version"}
                           </Button>
                         )}
-                        {!undecided && (
-                          <Button variant="outline" size="sm" onClick={() => applyReview(row, { kind: "reset" })}>
+                        {!allUndecided && (
+                          <Button variant="outline" size="sm" onClick={() => applyReview(target, { kind: "reset" })}>
                             <Undo2 className="mr-1.5 h-3.5 w-3.5" />
                             Undo
                           </Button>
@@ -1329,6 +1372,53 @@ const Import = () => {
         onCreated={() => {}}
         allTags={allTags}
       />
+    </div>
+  );
+};
+
+// One version of a passage on a review card. The tick, the green highlight, the strike-through and the status line
+// all come from `view`, so they can never disagree. "Import this version" shows whenever the version is not
+// already the one being imported.
+const VersionBlock = ({
+  label,
+  title,
+  quote,
+  view,
+  statusText,
+  note,
+  differentTitle,
+  onImport,
+}: {
+  label: string;
+  title: string;
+  quote: string;
+  view: VersionView;
+  statusText: string;
+  note?: string;
+  differentTitle?: boolean;
+  onImport?: () => void;
+}) => {
+  const imports = view === "import";
+  return (
+    <div
+      className={`flex min-w-0 flex-col ${imports ? "rounded-md border-l-4 border-l-emerald-500 bg-emerald-500/5 pl-3 py-2 -ml-1" : ""}`}
+    >
+      <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-1.5">{label}</div>
+      <div className="text-sm font-medium text-foreground mb-1 break-words">{title}</div>
+      {differentTitle && <div className="text-xs italic text-muted-foreground mb-1">Different book title</div>}
+      {note && <div className="text-xs italic text-muted-foreground mb-1">{note}</div>}
+      <div className={`text-sm whitespace-pre-wrap break-words ${view === "skip" ? "line-through text-muted-foreground/60" : "text-foreground"}`}>
+        {quote}
+      </div>
+      <div className={`mt-2 flex items-center gap-1.5 text-xs font-medium ${imports ? "text-primary" : "text-muted-foreground"}`}>
+        {imports && <CheckCircle2 className="h-4 w-4" />}
+        <span>{statusText}</span>
+      </div>
+      {onImport && (
+        <Button size="sm" className="mt-3 self-start" onClick={onImport}>
+          Import this version
+        </Button>
+      )}
     </div>
   );
 };
