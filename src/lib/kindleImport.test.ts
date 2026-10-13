@@ -6,6 +6,7 @@ import {
   collapseNoteChains,
   defaultReviewStatus,
   detectDuplicatesLevel1,
+  escapeLikePattern,
   findRenamePairs,
   importBlockReason,
   isTruncatedSave,
@@ -1109,5 +1110,21 @@ describe("importBlockReason", () => {
 
   it("is null when nothing blocks the import", () => {
     expect(importBlockReason(base)).toBeNull();
+  });
+});
+
+describe("escapeLikePattern", () => {
+  it("escapes % and _ so they are matched literally", () => {
+    expect(escapeLikePattern("some_garbled_title")).toBe("some\\_garbled\\_title");
+    expect(escapeLikePattern("100% Book")).toBe("100\\% Book");
+  });
+
+  it("escapes backslashes, and does so before the other characters", () => {
+    expect(escapeLikePattern("a\\b")).toBe("a\\\\b");
+    expect(escapeLikePattern("a\\_b")).toBe("a\\\\\\_b");
+  });
+
+  it("leaves a plain title unchanged", () => {
+    expect(escapeLikePattern("Plain Book Title: A Subtitle")).toBe("Plain Book Title: A Subtitle");
   });
 });

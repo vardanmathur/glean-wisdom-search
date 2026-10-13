@@ -22,6 +22,7 @@ import {
   looksGarbled,
   loadMatchPool,
   defaultReviewStatus,
+  escapeLikePattern,
   findRenamePairs,
   importBlockReason,
   planRenameSkip,
@@ -795,7 +796,8 @@ const Import = () => {
         const { data: existing } = await supabase
           .from("books")
           .select("id, author")
-          .ilike("title", b.title)
+          .ilike("title", escapeLikePattern(b.title.trim()))
+          .order("created_at", { ascending: true })
           .limit(5);
         let foundId: string | null = null;
         if (existing && existing.length > 0) {

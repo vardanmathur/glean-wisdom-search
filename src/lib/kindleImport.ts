@@ -805,3 +805,6 @@ export function importBlockReason(i: {
   if (i.pendingCount === 0) return "Nothing is set to import";
   return null;
 }
+
+// Escapes % _ and \ so a book title is matched literally by ilike.
+export const escapeLikePattern = (s: string): string => s.replace(/[\\%_]/g, "\\$&");
