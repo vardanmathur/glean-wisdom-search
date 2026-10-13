@@ -3,6 +3,7 @@ import {
   attachNotesAndFilter,
   collapseNoteChains,
   defaultReviewStatus,
+  detectDuplicatesLevel1,
   levenshtein,
   levenshteinWithin,
   loadMatchPool,
@@ -506,5 +507,115 @@ describe("matchAgainstLibrary: trigram pre-filter keeps every decision", () => {
     expect(atThreshold).toBeGreaterThan(40);
     expect(tooShortForFilter).toBeGreaterThan(40);
     expect(matched).toBeGreaterThan(100);
+  });
+});
+
+describe("detectDuplicatesLevel1: banded distance and trigram filter keep every decision", () => {
+  // The within-file step exactly as it was before the speedup: full edit distance, no pre-filter.
+  function referenceLevel1(highlights: ParsedHighlight[]) {
+    const exactMap = new Map<string, ParsedHighlight>();
+    for (const h of highlights) {
+      const key = JSON.stringify([h.book_title, h.quote]);
+      const existing = exactMap.get(key);
+      if (!existing || (h.kindle_timestamp?.getTime() ?? 0) > (existing.kindle_timestamp?.getTime() ?? 0)) exactMap.set(key, h);
+    }
+    const rows = Array.from(exactMap.values()).map((h, i) => ({
+      id: i,
+      quote: h.quote,
+      title: h.book_title,
+      status: "pending" as "pending" | "near_duplicate",
+      winner: -1,
+    }));
+    const buckets = new Map<string, typeof rows>();
+    for (const r of rows) {
+      const key = r.title.toLowerCase();
+      buckets.set(key, [...(buckets.get(key) ?? []), r]);
+    }
+    for (const list of buckets.values()) {
+      if (list.length < 2) continue;
+      list.sort((a, b) => b.quote.length - a.quote.length);
+      for (let i = 0; i < list.length; i++) {
+        if (list[i].status !== "pending") continue;
+        for (let j = i + 1; j < list.length; j++) {
+          if (list[j].status !== "pending") continue;
+          const a = list[i].quote;
+          const b = list[j].quote;
+          let flag = a.includes(b);
+          if (!flag) {
+            const maxLen = Math.max(a.length, b.length);
+            const minLen = Math.min(a.length, b.length);
+            if (maxLen !== 0 && (maxLen - minLen) / maxLen <= 0.15) flag = 1 - levenshtein(a, b) / maxLen > 0.85;
+          }
+          if (flag) {
+            list[j].status = "near_duplicate";
+            list[j].winner = list[i].id;
+          }
+        }
+      }
+    }
+    return rows;
+  }
+
+  const highlightAt = (title: string, quote: string, seconds: number): ParsedHighlight =>
+    entry({ entry_type: "Highlight", book_title: title, quote, kindle_location: "Location 1-2", kindle_timestamp: at(seconds) });
+
+  function randomBook(rand: () => number, title: string): ParsedHighlight[] {
+    const items: ParsedHighlight[] = [];
+    const stamp = () => Math.floor(rand() * 100000);
+    const bases = Array.from({ length: 3 + Math.floor(rand() * 3) }, () => randomLetters(rand, 20 + Math.floor(rand() * 280)));
+    bases.push(randomLetters(rand, 3 + Math.floor(rand() * 7))); // short: the filter's requirement is zero or negative
+    for (const base of bases) {
+      const len = base.length;
+      const onThreshold = Math.round(0.15 * len);
+      items.push(highlightAt(title, base, stamp()));
+      items.push(highlightAt(title, base, stamp())); // exact repeat, different time
+      for (const edits of [onThreshold - 1, onThreshold, onThreshold + 1, 1, 2]) {
+        items.push(highlightAt(title, mutate(rand, base, Math.max(0, edits)), stamp()));
+      }
+      items.push(highlightAt(title, base.slice(0, Math.max(1, Math.floor(len * (0.5 + rand() * 0.5)))), stamp())); // truncation
+    }
+    items.push(highlightAt(title, randomLetters(rand, 40 + Math.floor(rand() * 200)), stamp())); // unrelated
+    return items;
+  }
+
+  it("matches the pre-speedup step row for row on random books", () => {
+    const rand = rng(8675309);
+    let flagged = 0;
+    let atThreshold = 0;
+    let shortPairs = 0;
+    for (let round = 0; round < 3; round++) {
+      const all: ParsedHighlight[] = [];
+      for (let b = 0; b < 4; b++) all.push(...randomBook(rand, `Book ${b}`));
+      all.sort(() => rand() - 0.5);
+
+      const expected = referenceLevel1(all);
+      const actual = detectDuplicatesLevel1(all).rows;
+      expect(actual).toHaveLength(expected.length);
+      const indexOf = new Map(actual.map((r, i) => [r.client_id, i]));
+      expected.forEach((e, i) => {
+        const a = actual[i];
+        expect(a.quote).toBe(e.quote);
+        expect(a.status).toBe(e.status);
+        expect(a.duplicate_of_client_id ? indexOf.get(a.duplicate_of_client_id) : -1).toBe(e.winner);
+        if (e.status === "near_duplicate") flagged++;
+      });
+
+      // guard counts: how many same-book pairs sit on the 15% threshold, and how many are tiny
+      const byBook = new Map<string, string[]>();
+      for (const e of expected) byBook.set(e.title, [...(byBook.get(e.title) ?? []), e.quote]);
+      for (const quotes of byBook.values()) {
+        for (let x = 0; x < quotes.length; x++) {
+          for (let y = x + 1; y < quotes.length; y++) {
+            const longest = Math.max(quotes[x].length, quotes[y].length);
+            if (longest <= 8) shortPairs++;
+            const d = levenshteinWithin(quotes[x], quotes[y], Math.ceil(0.15 * longest) + 1);
+            if (Math.abs(d - 0.15 * longest) < 1) atThreshold++;
+          }
+        }
+      }
+    }
+    expect(flagged).toBeGreaterThan(100);
+    expect(atThreshold).toBeGreaterThan(40);
+    expect(shortPairs).toBeGreaterThan(20);
   });
 });

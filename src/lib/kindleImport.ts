@@ -97,7 +97,7 @@ export function parseTitleAndAuthor(rawTitle: string): { title: string; author: 
 
   // Pattern 2: "Title by Author"
   // Greedy left + lazy right ensures we split on the LAST " by " — so titles
-  // ending in "By" (e.g. "Algorithms to Live By by Christian, Brian") parse correctly.
+  // ending in "By" (e.g. "Title Ending In By by Surname, First") parse correctly.
   const p2 = t.match(/^(.+)\s+by\s+(.+?)$/i);
   if (p2) {
     return { title: p2[1].trim(), author: normalizeAuthor(p2[2].trim()), unknown: false };
@@ -351,6 +351,17 @@ export function detectDuplicatesLevel1(highlights: ParsedHighlight[]): Detected 
     buckets.set(key, arr);
   }
 
+  // Trigram buckets per row, computed lazily (see the trigram check further down).
+  const grams = new Map<StagingRowDraft, Uint16Array>();
+  const gramsOf = (d: StagingRowDraft) => {
+    let g = grams.get(d);
+    if (!g) {
+      g = trigramBuckets(d.quote);
+      grams.set(d, g);
+    }
+    return g;
+  };
+
   let flagged = 0;
   for (const list of buckets.values()) {
     if (list.length < 2) continue;
@@ -360,34 +371,45 @@ export function detectDuplicatesLevel1(highlights: ParsedHighlight[]): Detected 
     for (let i = 0; i < list.length; i++) {
       const winner = list[i];
       if (winner.status !== "pending") continue;
-      for (let j = i + 1; j < list.length; j++) {
-        const candidate = list[j];
-        if (candidate.status !== "pending") continue;
+      const winnerGrams = gramsOf(winner);
+      loadGramTable(winnerGrams);
+      try {
+        for (let j = i + 1; j < list.length; j++) {
+          const candidate = list[j];
+          if (candidate.status !== "pending") continue;
 
-        const a = winner.quote;
-        const b = candidate.quote;
+          const a = winner.quote;
+          const b = candidate.quote;
 
-        // Substring match
-        if (a.includes(b)) {
-          candidate.status = "near_duplicate";
-          candidate.duplicate_of_client_id = winner.client_id;
-          flagged++;
-          continue;
+          // Substring match
+          if (a.includes(b)) {
+            candidate.status = "near_duplicate";
+            candidate.duplicate_of_client_id = winner.client_id;
+            flagged++;
+            continue;
+          }
+
+          // Length pre-filter for Levenshtein
+          const maxLen = Math.max(a.length, b.length);
+          const minLen = Math.min(a.length, b.length);
+          if (maxLen === 0) continue;
+          if ((maxLen - minLen) / maxLen > 0.15) continue;
+
+          // Exact pre-filter and banded distance: same decisions as the full edit distance, far less work.
+          const maxDist = Math.ceil(0.15 * maxLen);
+          const needed = maxLen - 2 - 3 * maxDist;
+          if (needed > 0 && sharedGramCount(gramsOf(candidate), needed) < needed) continue;
+
+          const dist = levenshteinWithin(a, b, maxDist);
+          const sim = 1 - dist / maxLen;
+          if (sim > 0.85) {
+            candidate.status = "near_duplicate";
+            candidate.duplicate_of_client_id = winner.client_id;
+            flagged++;
+          }
         }
-
-        // Length pre-filter for Levenshtein
-        const maxLen = Math.max(a.length, b.length);
-        const minLen = Math.min(a.length, b.length);
-        if (maxLen === 0) continue;
-        if ((maxLen - minLen) / maxLen > 0.15) continue;
-
-        const dist = levenshtein(a, b);
-        const sim = 1 - dist / maxLen;
-        if (sim > 0.85) {
-          candidate.status = "near_duplicate";
-          candidate.duplicate_of_client_id = winner.client_id;
-          flagged++;
-        }
+      } finally {
+        clearGramTable(winnerGrams);
       }
     }
   }
