@@ -20,10 +20,13 @@ import {
   looksGarbled,
   loadMatchPool,
   defaultReviewStatus,
+  findRenamePairs,
+  planRenameSkip,
   planReviewChange,
   type LibraryHighlight,
   type LibraryMatch,
   type RawLibraryRow,
+  type RenamePair,
   type ReviewAction,
   type ReviewVersion,
   type StagingRowDraft,
@@ -139,6 +142,13 @@ const Import = () => {
   const reviewDecidedCount = useMemo(
     () => reviewSnapshotRows.filter((r) => r.status !== "near_duplicate").length,
     [reviewSnapshotRows]
+  );
+  // "No" on a rename line only hides it for this review; nothing is stored.
+  const [dismissedPairs, setDismissedPairs] = useState<Set<string>>(new Set());
+  const pairKey = (p: RenamePair) => JSON.stringify([p.fileTitle.toLowerCase(), p.libraryTitle.toLowerCase()]);
+  const renamePairs = useMemo(
+    () => findRenamePairs(reviewSnapshotRows, matchLookup).filter((p) => !dismissedPairs.has(pairKey(p))),
+    [reviewSnapshotRows, matchLookup, dismissedPairs]
   );
   const sharedMatchCount = useMemo(
     () => reviewSnapshotRows.filter((r) => r.duplicate_of && matchLookup[r.duplicate_of]?.scope === "shared").length,
@@ -481,6 +491,40 @@ const Import = () => {
     return { winner, versions: [winner, ...stagedRows.filter((r) => r.duplicate_of === winner.id)] };
   };
 
+  // "Treat as the same book": skips every row of the pair, and every shorter version flagged against any of them.
+  // Updates go in chunks; if one fails the earlier chunks are rolled back, one toast is shown and the screen is unchanged.
+  const skipRenamePair = async (pair: RenamePair) => {
+    const ids = planRenameSkip(pair.rowIds, stagedRows);
+    if (ids.length === 0) return;
+    const before = new Map(stagedRows.map((r) => [r.id, r.status]));
+    const applied: string[] = [];
+    for (let i = 0; i < ids.length; i += 100) {
+      const chunk = ids.slice(i, i + 100);
+      const { error: e } = await supabase
+        .from("kindle_import_staging")
+        .update({ status: "skipped" })
+        .in("id", chunk)
+        .eq("user_id", user!.id);
+      if (e) {
+        const byStatus = new Map<string, string[]>();
+        for (const id of applied) byStatus.set(before.get(id) ?? "near_duplicate", [...(byStatus.get(before.get(id) ?? "near_duplicate") ?? []), id]);
+        for (const [status, rollbackIds] of byStatus) {
+          const { error: rollbackError } = await supabase
+            .from("kindle_import_staging")
+            .update({ status })
+            .in("id", rollbackIds)
+            .eq("user_id", user!.id);
+          if (rollbackError) console.error("[Import] rollback failed", rollbackError);
+        }
+        toast.error("Could not skip these highlights");
+        return;
+      }
+      applied.push(...chunk);
+    }
+    const skipped = new Set(ids);
+    setStagedRows((prev) => prev.map((r) => (skipped.has(r.id) ? { ...r, status: "skipped" } : r)));
+  };
+
   // Applies a review action to the whole group at once. If any database update fails, the updates already made
   // are rolled back, one toast is shown, and the screen is left as it was.
   const applyReview = async (row: StagedRow, action: ReviewAction) => {
@@ -731,6 +775,7 @@ const Import = () => {
     setAuthorEdits({});
     setTitleEdits({});
     setReviewSnapshot(null);
+    setDismissedPairs(new Set());
     setImportResult(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
@@ -970,6 +1015,32 @@ const Import = () => {
               <p className="text-xs text-muted-foreground mb-4 italic">
                 Your existing library is never modified — you are only deciding which new highlights to add.
               </p>
+              {renamePairs.length > 0 && (
+                <div className="mb-4 space-y-2">
+                  {renamePairs.map((pair) => (
+                    <div
+                      key={pairKey(pair)}
+                      className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-muted/30 p-3"
+                    >
+                      <p className="min-w-0 break-words text-sm text-foreground">
+                        Looks like you renamed &lsquo;{pair.fileTitle}&rsquo; to &lsquo;{pair.libraryTitle}&rsquo; ({pair.rowIds.length} highlights). Treat as the same book?
+                      </p>
+                      <div className="flex gap-2">
+                        <Button size="sm" onClick={() => skipRenamePair(pair)}>
+                          Yes
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setDismissedPairs((prev) => new Set(prev).add(pairKey(pair)))}
+                        >
+                          No
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
               <div className="space-y-4">
                 {reviewSnapshotRows.map((row) => {
                   const group = getGroup(row);

@@ -4,17 +4,20 @@ import {
   collapseNoteChains,
   defaultReviewStatus,
   detectDuplicatesLevel1,
+  findRenamePairs,
   levenshtein,
   levenshteinWithin,
   loadMatchPool,
   matchAgainstLibrary,
   normaliseQuote,
   NOTE_CHAIN_GAP_MS,
+  planRenameSkip,
   planReviewChange,
   toMatchPool,
   type LibraryHighlight,
   type ParsedHighlight,
   type RawLibraryRow,
+  type RenameCheckRow,
   type ReviewAction,
   type ReviewStatus,
   type ReviewVersion,
@@ -699,5 +702,109 @@ describe("planReviewChange", () => {
         }
       }
     }
+  });
+});
+
+describe("findRenamePairs", () => {
+  type Scope = "library" | "shared" | "import";
+  const lookup = (entries: Record<string, [Scope, string]>) =>
+    Object.fromEntries(Object.entries(entries).map(([id, [scope, book_title]]) => [id, { scope, book_title }]));
+  const row = (id: string, book: string, ref: string | null, status = "near_duplicate"): RenameCheckRow => ({
+    id,
+    book_title: book,
+    status,
+    duplicate_of: ref,
+  });
+  const three = (book = "Old Name") => [row("1", book, "a"), row("2", book, "b"), row("3", book, "c")];
+  const toNew = (scope: Scope = "library", title = "New Name") =>
+    lookup({ a: [scope, title], b: [scope, title], c: [scope, title] });
+
+  it("two matches give no pair", () => {
+    expect(findRenamePairs([row("1", "Old Name", "a"), row("2", "Old Name", "b")], toNew())).toEqual([]);
+  });
+
+  it("three matches give a pair", () => {
+    expect(findRenamePairs(three(), toNew())).toEqual([
+      { fileTitle: "Old Name", libraryTitle: "New Name", rowIds: ["1", "2", "3"] },
+    ]);
+  });
+
+  it("shared and import-scope matches are ignored", () => {
+    expect(findRenamePairs(three(), toNew("shared"))).toEqual([]);
+    expect(findRenamePairs(three(), toNew("import"))).toEqual([]);
+  });
+
+  it("one file book matching two library books gives two separate pairs", () => {
+    const rows = ["a", "b", "c", "d", "e", "f"].map((ref, i) => row(String(i), "Old Name", ref));
+    const table = lookup({
+      a: ["library", "First Book"], b: ["library", "First Book"], c: ["library", "First Book"],
+      d: ["library", "Second Book"], e: ["library", "Second Book"], f: ["library", "Second Book"],
+    });
+    expect(findRenamePairs(rows, table).map((p) => [p.libraryTitle, p.rowIds.length])).toEqual([
+      ["First Book", 3],
+      ["Second Book", 3],
+    ]);
+  });
+
+  it("a case-only title difference is not a pair", () => {
+    const table = lookup({ a: ["library", "OLD NAME"], b: ["library", "old name"], c: ["library", "Old name"] });
+    expect(findRenamePairs(three(), table)).toEqual([]);
+  });
+
+  it("50% rule: 3 matches in a book with many flagged rows give no pair", () => {
+    const others = (n: number) => Array.from({ length: n }, (_, i) => row(`o${i}`, "Old Name", "elsewhere"));
+    expect(findRenamePairs([...three(), ...others(4)], toNew())).toEqual([]); // 3 of 7
+    expect(findRenamePairs([...three(), ...others(3)], toNew()).length).toBe(1); // 3 of 6 is exactly half
+  });
+
+  it("the share is per file book, and decided rows still count in the denominator", () => {
+    const decided = Array.from({ length: 4 }, (_, i) => row(`d${i}`, "Old Name", "elsewhere", "skipped"));
+    expect(findRenamePairs([...three(), ...decided], toNew())).toEqual([]);
+    const otherBook = Array.from({ length: 10 }, (_, i) => row(`x${i}`, "Another Book", "elsewhere"));
+    expect(findRenamePairs([...three(), ...otherBook], toNew()).length).toBe(1);
+  });
+
+  it("a pair whose rows are already decided disappears", () => {
+    const decided = three().map((r) => ({ ...r, status: "skipped" }));
+    expect(findRenamePairs(decided, toNew())).toEqual([]);
+  });
+
+  it("ignores rows with no usable match reference or an empty library title", () => {
+    const rows = [row("1", "Old Name", null), row("2", "Old Name", "missing"), row("3", "Old Name", "blank")];
+    expect(findRenamePairs(rows, lookup({ blank: ["library", ""] }))).toEqual([]);
+  });
+
+  it("sorts bigger pairs first", () => {
+    const rows = [
+      row("s1", "Small Book", "a"), row("s2", "Small Book", "b"), row("s3", "Small Book", "c"),
+      row("b1", "Big Book", "d"), row("b2", "Big Book", "e"), row("b3", "Big Book", "f"), row("b4", "Big Book", "g"),
+    ];
+    const table = lookup({
+      a: ["library", "X"], b: ["library", "X"], c: ["library", "X"],
+      d: ["library", "Y"], e: ["library", "Y"], f: ["library", "Y"], g: ["library", "Y"],
+    });
+    expect(findRenamePairs(rows, table).map((p) => p.fileTitle)).toEqual(["Big Book", "Small Book"]);
+  });
+});
+
+describe("planRenameSkip", () => {
+  it("skips the pair rows plus every shorter version flagged against a longest version", () => {
+    const rows = [
+      { id: "w1", status: "near_duplicate", duplicate_of: "lib-a" }, // longest version, matches the library
+      { id: "l1", status: "near_duplicate", duplicate_of: "w1" },
+      { id: "l2", status: "near_duplicate", duplicate_of: "w1" },
+      { id: "p2", status: "near_duplicate", duplicate_of: "lib-b" }, // standalone pair row
+      { id: "other", status: "pending", duplicate_of: null },
+      { id: "elsewhere", status: "near_duplicate", duplicate_of: "w9" },
+    ];
+    expect(planRenameSkip(["w1", "p2"], rows).sort()).toEqual(["l1", "l2", "p2", "w1"]);
+  });
+
+  it("leaves rows that are already skipped out of the update", () => {
+    const rows = [
+      { id: "w1", status: "near_duplicate", duplicate_of: "lib-a" },
+      { id: "l1", status: "skipped", duplicate_of: "w1" },
+    ];
+    expect(planRenameSkip(["w1"], rows)).toEqual(["w1"]);
   });
 });

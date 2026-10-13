@@ -653,3 +653,56 @@ export function matchAgainstLibrary(
   }
   return matches;
 }
+
+// ---------------------------------------------------------------------------
+// Per-book rename check
+// ---------------------------------------------------------------------------
+export const RENAME_PAIR_MIN = 3;
+export const RENAME_PAIR_MIN_SHARE = 0.5;
+
+export type RenameCheckRow = { id: string; book_title: string; status: string; duplicate_of: string | null };
+export type RenamePair = { fileTitle: string; libraryTitle: string; rowIds: string[] };
+
+// Finds file books whose flagged highlights match the same book in your own library under a different title.
+// A pair needs at least RENAME_PAIR_MIN undecided matches, and those must cover at least RENAME_PAIR_MIN_SHARE of
+// all the flagged rows the file book has (rows in any state, so deciding one pair does not shift another's share).
+export function findRenamePairs(
+  rows: RenameCheckRow[],
+  lookup: Record<string, { scope: LibraryScope | "import"; book_title: string }>
+): RenamePair[] {
+  const flaggedPerBook = new Map<string, number>();
+  for (const r of rows) {
+    const key = r.book_title.toLowerCase();
+    flaggedPerBook.set(key, (flaggedPerBook.get(key) ?? 0) + 1);
+  }
+  const pairs = new Map<string, RenamePair>();
+  for (const r of rows) {
+    if (r.status !== "near_duplicate") continue;
+    const m = r.duplicate_of ? lookup[r.duplicate_of] : undefined;
+    if (!m || m.scope !== "library") continue; // your own library only
+    if (!m.book_title || m.book_title.toLowerCase() === r.book_title.toLowerCase()) continue;
+    const key = JSON.stringify([r.book_title.toLowerCase(), m.book_title.toLowerCase()]);
+    const pair = pairs.get(key) ?? { fileTitle: r.book_title, libraryTitle: m.book_title, rowIds: [] };
+    pair.rowIds.push(r.id);
+    pairs.set(key, pair);
+  }
+  return [...pairs.values()]
+    .filter(
+      (p) =>
+        p.rowIds.length >= RENAME_PAIR_MIN &&
+        p.rowIds.length >= RENAME_PAIR_MIN_SHARE * (flaggedPerBook.get(p.fileTitle.toLowerCase()) ?? 0)
+    )
+    .sort((a, b) => b.rowIds.length - a.rowIds.length);
+}
+
+// Ids to skip when a rename pair is accepted: the pair's rows plus every shorter version flagged against them,
+// so a longest version that is skipped never leaves its shorter versions behind. Rows already skipped are left out.
+export function planRenameSkip(
+  pairRowIds: string[],
+  rows: { id: string; status: string; duplicate_of: string | null }[]
+): string[] {
+  const inPair = new Set(pairRowIds);
+  return rows
+    .filter((r) => r.status !== "skipped" && (inPair.has(r.id) || (!!r.duplicate_of && inPair.has(r.duplicate_of))))
+    .map((r) => r.id);
+}
