@@ -1,5 +1,30 @@
 ---
 
+## [2026-10-13] Glean — Kindle import: no date cutoff, smarter dedupe, clearer review screen
+
+**Mode**: Claude Code  
+**Mem0**: not connected
+
+### What happened
+Rebuilt the Kindle import into a tested pure lib (`src/lib/kindleImport.ts`): removed the date cutoff, collapsed keystroke note chains, added title-independent duplicate matching against own library and shared highlights (about 2-5 s for 3,000 x 2,000), and a group-aware review card. Later added a rename check, default-skip of identical own copies and truncated saves, a decided/undecided split, an Import-button reason line, and a literal book-title lookup. All pushed; last commit 1905f74.
+
+### Key decisions
+- Match pool = own rows + others' exactly `public` rows; any library-load error aborts the import so nothing is half-checked.
+- Importing one version of a passage always skips the others; Undo resets the whole group.
+- Rename pair needs 3+ matches covering 50%+ of the file book's flagged rows, because 1-2 matches are often shared quotes.
+- Nothing from the clippings files goes into committed code; counts only on private data.
+
+### Open threads
+- [ ] Click through the review screen in a browser (pair, group of 3+, library match, rename line, Decided section, Undo).
+- [ ] Carry a note from a removed exact duplicate over to the kept copy (one note lost today).
+- [ ] Optional: "will be added to existing book" line and author-mismatch warning on renamed books.
+
+### Artifacts
+- src/lib/kindleImport.ts, kindleImport.test.ts (114 tests repo-wide), src/pages/Import.tsx, src/test/kindleImport.dryrun.test.ts
+
+---
+---
+
 ## [2026-10-02] Glean — Mobile tag entry fixed, admin taxonomy prompt extended, modal overflow fixed
 
 **Mode**: Claude Code  
