@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, Navigate } from "react-router-dom";
-import { Loader2, Pencil, Trash2, Search, Copy, Image as ImageIcon, Check, X, Sparkles, ArrowLeft, Table as TableIcon, LayoutGrid, LayoutList, BookOpen } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { Loader2, Pencil, Trash2, Search, Copy, Image as ImageIcon, Check, X, Sparkles, ArrowLeft, Table as TableIcon, LayoutGrid, LayoutList, BookOpen, GitMerge } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
@@ -18,6 +19,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import FetchCoversDialog from "@/components/admin/FetchCoversDialog";
+import MergeBookDialog, { type MergeResult } from "@/components/admin/MergeBookDialog";
 
 interface BookRow {
   id: string;
@@ -45,6 +47,7 @@ const chunk = <T,>(arr: T[], size: number): T[][] => {
 const AdminBooks = () => {
   const { user, authLoading } = useAuth();
   const { isAdmin, loading: adminLoading } = useIsAdmin();
+  const queryClient = useQueryClient();
 
   const [books, setBooks] = useState<BookRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -65,6 +68,9 @@ const AdminBooks = () => {
   const [keepIds, setKeepIds] = useState<Record<string, string>>({});
   const [showCoversDialog, setShowCoversDialog] = useState(false);
   const [viewMode, setViewMode] = useState<"list" | "thumbnail" | "detail">("list");
+  const [mergePair, setMergePair] = useState<{ source: BookRow; target: BookRow } | null>(null);
+  const [mergePicking, setMergePicking] = useState(false);
+  const [pickSearch, setPickSearch] = useState("");
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -128,8 +134,19 @@ const AdminBooks = () => {
 
   const orphanCount = useMemo(() => books.filter((b) => b.highlight_count === 0).length, [books]);
 
+  // Books offered as a merge target for the book being edited (needs 2+ characters to search).
+  const pickResults = useMemo(() => {
+    const q = pickSearch.trim().toLowerCase();
+    if (q.length < 2 || !editing) return [];
+    return books
+      .filter((b) => b.id !== editing.id && (b.title.toLowerCase().includes(q) || b.author.toLowerCase().includes(q)))
+      .slice(0, 20);
+  }, [books, pickSearch, editing]);
+
   const openEdit = (b: BookRow) => {
     setEditing(b);
+    setMergePicking(false);
+    setPickSearch("");
     setEditForm({
       title: b.title,
       author: b.author,
@@ -192,6 +209,33 @@ const AdminBooks = () => {
       setFetchingCovers(false);
       setCoversSearched(true);
     }
+  };
+
+  // After merge_books succeeds: the source is gone and its highlights now count under the kept book.
+  const handleMerged = (result: MergeResult) => {
+    if (!mergePair) return;
+    const { source, target } = mergePair;
+    const moved = result.moved_highlights ?? 0;
+    const filled = new Set(result.filled_fields ?? []);
+    const grow = (b: BookRow): BookRow => ({
+      ...b,
+      highlight_count: b.highlight_count + moved,
+      isbn: filled.has("isbn") ? source.isbn : b.isbn,
+      cover_image_url: filled.has("cover_image_url") ? source.cover_image_url : b.cover_image_url,
+    });
+    setBooks((prev) => prev.filter((b) => b.id !== source.id).map((b) => (b.id === target.id ? grow(b) : b)));
+    setDuplicateGroups((prev) =>
+      prev
+        .map((g) => ({ ...g, rows: g.rows.filter((r) => r.id !== source.id).map((r) => (r.id === target.id ? grow(r) : r)) }))
+        .filter((g) => g.rows.length >= 2),
+    );
+    for (const key of ["all-books", "studio-books", "book", "book-highlights", "admin-books"]) {
+      queryClient.invalidateQueries({ queryKey: [key] });
+    }
+    toast.success(`Moved ${moved} highlight${moved === 1 ? "" : "s"} into ${target.title}`);
+    setMergePair(null);
+    setMergePicking(false);
+    setEditing(null);
   };
 
   const handleDeleteBook = async () => {
@@ -392,6 +436,20 @@ const AdminBooks = () => {
                                 {b.isbn ? ` · ISBN ${b.isbn}` : ""}
                               </span>
                             </span>
+                            {!isKeep && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                disabled={!keepIds[g.key]}
+                                onClick={() => {
+                                  const keeper = g.rows.find((r) => r.id === keepIds[g.key]);
+                                  if (keeper) setMergePair({ source: b, target: keeper });
+                                }}
+                                className="gap-1.5"
+                              >
+                                <GitMerge className="h-3.5 w-3.5" /> Merge into kept book
+                              </Button>
+                            )}
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <span>
@@ -419,7 +477,7 @@ const AdminBooks = () => {
                   </div>
                 ))}
                 <p className="text-xs text-muted-foreground">
-                  Note: merge (reassigning highlights) is not supported here — delete only orphan duplicates.
+                  Merge moves a book's highlights into the kept book and deletes the other one. Delete is for duplicates with no highlights.
                 </p>
               </div>
             )}
@@ -796,6 +854,61 @@ const AdminBooks = () => {
                 )}
               </div>
             </div>
+            <div className="mt-6 space-y-3 border-t pt-4">
+              {!mergePicking ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5"
+                  disabled={savingEdit}
+                  onClick={() => {
+                    setPickSearch("");
+                    setMergePicking(true);
+                  }}
+                >
+                  <GitMerge className="h-4 w-4" /> Merge into another book…
+                </Button>
+              ) : (
+                <div className="space-y-2">
+                  <Label htmlFor="merge-pick" className="break-words">
+                    Merge &lsquo;{editing?.title}&rsquo; into…
+                  </Label>
+                  <Input
+                    id="merge-pick"
+                    autoFocus
+                    value={pickSearch}
+                    onChange={(e) => setPickSearch(e.target.value)}
+                    placeholder="Search by title or author…"
+                  />
+                  <ul className="max-h-56 divide-y overflow-y-auto rounded-md border">
+                    {pickSearch.trim().length < 2 ? (
+                      <li className="px-3 py-2 text-sm text-muted-foreground">Type at least 2 characters.</li>
+                    ) : pickResults.length === 0 ? (
+                      <li className="px-3 py-2 text-sm text-muted-foreground">No matching books.</li>
+                    ) : (
+                      pickResults.map((b) => (
+                        <li key={b.id}>
+                          <button
+                            type="button"
+                            className="w-full px-3 py-2 text-left text-sm hover:bg-muted"
+                            onClick={() => editing && setMergePair({ source: editing, target: b })}
+                          >
+                            <span className="block break-words font-medium">{b.title}</span>
+                            <span className="block break-words text-xs text-muted-foreground">
+                              {b.author} · {b.highlight_count} highlight{b.highlight_count === 1 ? "" : "s"}
+                            </span>
+                          </button>
+                        </li>
+                      ))
+                    )}
+                  </ul>
+                  <Button type="button" variant="ghost" size="sm" onClick={() => setMergePicking(false)}>
+                    Cancel merge
+                  </Button>
+                </div>
+              )}
+            </div>
             <SheetFooter className="mt-6 gap-2">
               <Button variant="outline" onClick={() => setEditing(null)} disabled={savingEdit}>
                 Cancel
@@ -807,6 +920,14 @@ const AdminBooks = () => {
             </SheetFooter>
           </SheetContent>
         </Sheet>
+
+        <MergeBookDialog
+          open={!!mergePair}
+          onOpenChange={(o) => !o && setMergePair(null)}
+          sourceBook={mergePair?.source ?? null}
+          targetBook={mergePair?.target ?? null}
+          onMerged={handleMerged}
+        />
 
         <AlertDialog open={!!confirmDelete} onOpenChange={(o) => !o && setConfirmDelete(null)}>
           <AlertDialogContent className="max-h-[90vh] overflow-y-auto">
