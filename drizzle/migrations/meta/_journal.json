@@ -15,6 +15,13 @@
       "when": 1791981543525,
       "tag": "0001_create_admin_book_merge_functions",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791981639191,
+      "tag": "0002_fix_admin_book_merge_array_appends",
+      "breakpoints": true
     }
   ]
 }
