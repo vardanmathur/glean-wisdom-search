@@ -1,5 +1,32 @@
 ---
 
+## [2026-10-14] Glean — Book merge, ISBN search, Inbox, BACKLOG.md
+
+**Mode**: Claude Code
+**Mem0**: not connected
+
+### What happened
+Shipped the admin book merge (preview and merge functions, tested on throwaway books, then the dialog), single-book Find ISBN in the edit Sheet (tested on phone, works), and turned the in-app backlog into a quick-capture Inbox. Created BACKLOG.md as the master list. Removed Lovable's leftover test rows from production (123 books, 1,485 highlights).
+
+### Key decisions
+- ISBN search: single book first, in the edit Sheet only, as a bottom drawer on mobile. Bulk is a someday item.
+- Search Open Library and Google Books from the browser. Neither existing edge function returned what was needed. A server function is only worth building if Google lookups fail often or bulk is needed.
+- GitHub BACKLOG.md is the single master list. The in-app page is an Inbox for jotting things down.
+- Security items stay out of the public repo's BACKLOG.md until the repo is private.
+
+### Open threads
+- [ ] Delete the 34 migrated rows from the Inbox table, keeping the 2 Security rows (needs go-ahead)
+- [ ] Alias table for merged books
+- [ ] Hyperlinks from the admin page to each book page
+- [ ] Fix "Find duplicate books" (missed Covey 7 Habits and Sagan Demon-Haunted World)
+- [ ] Do a first real merge on a small duplicate pair
+
+### Artifacts
+- BACKLOG.md, MergeBookDialog.tsx, FindIsbnDialog.tsx, findIsbns.ts, AdminBacklog.tsx (Inbox)
+
+---
+---
+
 ## [2026-10-13] Glean — Kindle import: no date cutoff, smarter dedupe, clearer review screen
 
 **Mode**: Claude Code  
