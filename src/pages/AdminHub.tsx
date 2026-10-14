@@ -1,5 +1,5 @@
 import { Navigate, Link } from "react-router-dom";
-import { Wrench, BookOpen, Shield, FileText, Brain, Tag, ArrowRight, Loader2, Search } from "lucide-react";
+import { Wrench, BookOpen, Shield, FileText, Brain, Tag, ListTodo, ArrowRight, Loader2, Search } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { Badge } from "@/components/ui/badge";
@@ -20,6 +20,7 @@ const tools: ToolCard[] = [
   { title: "Search Logs", description: "See what people are searching for and identify library gaps", icon: Search, to: "/admin/search-logs" },
   { title: "Think! Usage", description: "Monitor Think! usage across users", icon: Brain, comingSoon: true },
   { title: "Tag Management", description: "Analyse tag taxonomy, find overlaps and rename tags", icon: Tag, to: "/admin/tag-management" },
+  { title: "Backlog", description: "Things to build, fix and try next", icon: ListTodo, to: "/admin/backlog" },
 ];
 
 const AdminHub = () => {
