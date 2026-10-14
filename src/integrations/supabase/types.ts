@@ -14,6 +14,45 @@ export type Database = {
   }
   public: {
     Tables: {
+      backlog_items: {
+        Row: {
+          area: string
+          created_at: string
+          done_at: string | null
+          id: string
+          notes: string | null
+          priority: string
+          sort_order: number
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          area?: string
+          created_at?: string
+          done_at?: string | null
+          id?: string
+          notes?: string | null
+          priority?: string
+          sort_order?: number
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          area?: string
+          created_at?: string
+          done_at?: string | null
+          id?: string
+          notes?: string | null
+          priority?: string
+          sort_order?: number
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       book_summaries: {
         Row: {
           book_id: string
