@@ -563,8 +563,16 @@ export type Database = {
           vector_score: number
         }[]
       }
+      merge_books: {
+        Args: { source_book_id: string; target_book_id: string }
+        Returns: Json
+      }
       merge_tags: {
         Args: { source_tag: string; target_tag: string }
+        Returns: Json
+      }
+      preview_book_merge: {
+        Args: { source_book_id: string; target_book_id: string }
         Returns: Json
       }
       preview_tag_merge: {
