@@ -184,6 +184,33 @@ and topic URLs.
 
 ## Backlog
 
+### Next dev session
+
+- Admin bulk-move of highlights from one book to another, for
+  when duplicate books get created (needs a database function,
+  so it goes through Lovable)
+- Hyperlinks from the admin page to each book's page
+- An in-app link to a backlog kept inside the admin page
+- ISBN search for newly added books, working the same way as
+  Find Covers
+
+### Kindle import follow-ups
+
+- Carry a note from a skipped duplicate to the kept copy (one
+  note is lost today)
+- Settings "From Kindle" counter reads source = "kindle", but
+  import writes "user", so it shows 0
+- Try the cleaned master clippings file after one or two more
+  small imports
+- Optional review-screen extras: a "will be added to existing
+  book" line, and an author-mismatch warning
+- Smaller known quirks: the malformed counter counts empty
+  bookmarks; "--" in a title is wrongly marked garbled; a
+  ", The - Author" title can come out with title and author
+  swapped
+
+### Other
+
 - Consolidate the four addTag() implementations and the four
   copies of the "Add to taxonomy?" prompt (HighlightEditPanel,
   AdminStudioHighlights, UserStudio, AddHighlightModal) into

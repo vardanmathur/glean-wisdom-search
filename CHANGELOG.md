@@ -2,6 +2,38 @@
 
 Notable changes to Glean, newest first. One entry per work session; group by what changed, not by file.
 
+## 2026-10-13 — Kindle Import Rebuilt
+
+### Shipped
+- Removed: the last-import-date filter. Duplicates are now caught
+  by comparing text, not dates, so older highlights that were
+  never imported are no longer dropped
+- Fixed: keystroke-note chains from Kindle (one note typed out
+  as dozens of saves) are collapsed into one note
+- Changed: duplicate matching ignores book titles and checks your
+  own library first, then other users' public highlights (never
+  private ones), so renamed books are still caught
+- Changed: a trigram pre-filter keeps the matching exact and fast
+- Added: new review screen
+  - one card per group of versions, with one import button per
+    version (importing one skips the others)
+  - identical copies of your own highlights and truncated saves
+    are resolved automatically
+  - a per-book "you renamed X to Y" prompt when 3 or more
+    highlights match the same library book under a different title
+  - "N left to decide" at the top, with decided cards in a
+    collapsed "Decided" section (each keeps Undo)
+  - "Books needing attention" lists only books that will actually
+    be imported
+  - a short reason shown beside a disabled Import button
+- Fixed: the book lookup at import now matches titles literally
+  (underscores and percent signs no longer act as wildcards),
+  trims spaces, and picks the oldest match when titles repeat
+- Note: test files live in the gitignored test data/ folder and
+  are never committed
+
+---
+
 ## 2026-10-02 — Mobile Tag Entry, Admin Taxonomy Prompt, Modal Overflow
 
 ### Shipped
