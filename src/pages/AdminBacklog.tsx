@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Link, Navigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Loader2, Plus, Search, Trash2 } from "lucide-react";
@@ -55,6 +55,8 @@ const AdminBacklog = () => {
   const [editing, setEditing] = useState<BacklogItem | null>(null);
   const [form, setForm] = useState<Form>(EMPTY_FORM);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [quickTitle, setQuickTitle] = useState("");
+  const quickInputRef = useRef<HTMLInputElement>(null);
 
   const { data: items = [], isLoading, error } = useQuery({
     queryKey: QUERY_KEY,
@@ -113,6 +115,29 @@ const AdminBacklog = () => {
     },
   });
 
+  // Quick capture: title only. Everything else takes the defaults and can be filled in later via the Sheet.
+  const quickAddMutation = useMutation({
+    mutationFn: async (title: string) => {
+      const { error: iErr } = await supabase.from("backlog_items").insert({
+        title,
+        priority: "later",
+        status: "open",
+        area: "General",
+        sort_order: nextSortOrder("later"),
+      });
+      if (iErr) throw iErr;
+    },
+    onSuccess: () => {
+      setQuickTitle("");
+      refresh();
+      quickInputRef.current?.focus();
+    },
+    onError: (e) => {
+      console.error("[Backlog] quick add failed", e);
+      toast.error("Could not add this item");
+    },
+  });
+
   const toggleDoneMutation = useMutation({
     mutationFn: async ({ item, done }: { item: BacklogItem; done: boolean }) => {
       const now = new Date().toISOString();
@@ -149,12 +174,18 @@ const AdminBacklog = () => {
 
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return items.filter((i) => {
+    const matches = items.filter((i) => {
       if (!showDone && i.status === "done") return false;
       if (areaFilter !== ALL_AREAS && i.area !== areaFilter) return false;
       if (q && !`${i.title} ${i.notes ?? ""} ${i.area}`.toLowerCase().includes(q)) return false;
       return true;
     });
+    // One flat list: open and in-progress items first, newest first within each.
+    return matches.sort(
+      (a, b) =>
+        Number(a.status === "done") - Number(b.status === "done") ||
+        Date.parse(b.created_at) - Date.parse(a.created_at),
+    );
   }, [items, search, areaFilter, showDone]);
 
   const openAdd = () => {
@@ -196,13 +227,37 @@ const AdminBacklog = () => {
       </Link>
       <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <h1 className="font-display text-3xl font-semibold text-foreground">Backlog</h1>
-          <p className="mt-2 text-muted-foreground">Things to build, fix and try next</p>
+          <h1 className="font-display text-3xl font-semibold text-foreground">Inbox</h1>
+          <p className="mt-2 text-muted-foreground">
+            Jot things down here as you use the app. Move them to BACKLOG.md on GitHub when we plan.
+          </p>
         </div>
         <Button onClick={openAdd}>
-          <Plus className="mr-1.5 h-4 w-4" /> Add item
+          <Plus className="mr-1.5 h-4 w-4" /> Add with details
         </Button>
       </div>
+
+      <form
+        className="mb-6 flex gap-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          const title = quickTitle.trim();
+          if (title && !quickAddMutation.isPending) quickAddMutation.mutate(title);
+        }}
+      >
+        <Input
+          ref={quickInputRef}
+          value={quickTitle}
+          onChange={(e) => setQuickTitle(e.target.value)}
+          placeholder="Jot something down…"
+          aria-label="Quick add"
+          enterKeyHint="done"
+          className="min-w-0 flex-1"
+        />
+        <Button type="submit" disabled={!quickTitle.trim() || quickAddMutation.isPending} className="shrink-0">
+          {quickAddMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Add"}
+        </Button>
+      </form>
 
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center">
         <div className="relative flex-1 sm:max-w-sm">
@@ -242,61 +297,48 @@ const AdminBacklog = () => {
         </div>
       ) : error ? (
         <p className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
-          Could not load the backlog. Please refresh and try again.
+          Could not load the inbox. Please refresh and try again.
         </p>
       ) : visible.length === 0 ? (
         <p className="py-16 text-center text-muted-foreground">Nothing matches.</p>
       ) : (
-        <div className="space-y-8">
-          {PRIORITIES.map(({ key, label }) => {
-            const group = visible.filter((i) => i.priority === key);
-            if (group.length === 0) return null;
+        <ul className="divide-y rounded-lg border bg-card">
+          {visible.map((item) => {
+            const done = item.status === "done";
             return (
-              <section key={key}>
-                <h2 className="mb-3 font-display text-lg font-semibold text-foreground">
-                  {label} <span className="text-sm font-normal text-muted-foreground">· {group.length}</span>
-                </h2>
-                <ul className="divide-y rounded-lg border bg-card">
-                  {group.map((item) => {
-                    const done = item.status === "done";
-                    return (
-                      <li key={item.id} className="flex items-start gap-3 p-3">
-                        <Checkbox
-                          className="mt-1"
-                          checked={done}
-                          disabled={toggleDoneMutation.isPending}
-                          onCheckedChange={(c) => toggleDoneMutation.mutate({ item, done: c === true })}
-                          aria-label={done ? "Mark as not done" : "Mark as done"}
-                        />
-                        <button type="button" onClick={() => openEdit(item)} className="min-w-0 flex-1 text-left">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className={`break-words font-medium ${done ? "text-muted-foreground line-through" : "text-foreground"}`}>
-                              {item.title}
-                            </span>
-                            <Badge variant="outline" className="font-normal">
-                              {item.area}
-                            </Badge>
-                            <Badge variant={item.status === "in_progress" ? "default" : "secondary"} className="font-normal">
-                              {STATUS_LABEL[item.status as Status] ?? item.status}
-                            </Badge>
-                          </div>
-                          {item.notes && <p className="mt-1 line-clamp-1 text-sm text-muted-foreground">{item.notes}</p>}
-                        </button>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </section>
+              <li key={item.id} className="flex items-start gap-3 p-3">
+                <Checkbox
+                  className="mt-1"
+                  checked={done}
+                  disabled={toggleDoneMutation.isPending}
+                  onCheckedChange={(c) => toggleDoneMutation.mutate({ item, done: c === true })}
+                  aria-label={done ? "Mark as not done" : "Mark as done"}
+                />
+                <button type="button" onClick={() => openEdit(item)} className="min-w-0 flex-1 text-left">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className={`break-words font-medium ${done ? "text-muted-foreground line-through" : "text-foreground"}`}>
+                      {item.title}
+                    </span>
+                    <Badge variant="outline" className="font-normal">
+                      {item.area}
+                    </Badge>
+                    <Badge variant={item.status === "in_progress" ? "default" : "secondary"} className="font-normal">
+                      {STATUS_LABEL[item.status as Status] ?? item.status}
+                    </Badge>
+                  </div>
+                  {item.notes && <p className="mt-1 line-clamp-1 text-sm text-muted-foreground">{item.notes}</p>}
+                </button>
+              </li>
             );
           })}
-        </div>
+        </ul>
       )}
 
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
         <SheetContent side="right" className="w-full sm:max-w-md overflow-y-auto">
           <SheetHeader>
             <SheetTitle>{editing ? "Edit item" : "Add item"}</SheetTitle>
-            <SheetDescription>{editing ? "Update this backlog item." : "Add something to the backlog."}</SheetDescription>
+            <SheetDescription>{editing ? "Update this item." : "Add an item with notes, area and priority."}</SheetDescription>
           </SheetHeader>
           <div className="mt-6 space-y-4">
             <div className="space-y-1.5">
