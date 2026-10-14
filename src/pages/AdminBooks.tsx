@@ -20,6 +20,8 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import FetchCoversDialog from "@/components/admin/FetchCoversDialog";
 import MergeBookDialog, { type MergeResult } from "@/components/admin/MergeBookDialog";
+import FindIsbnDialog from "@/components/admin/FindIsbnDialog";
+import { normalizeIsbn } from "@/lib/findIsbns";
 
 interface BookRow {
   id: string;
@@ -71,6 +73,7 @@ const AdminBooks = () => {
   const [mergePair, setMergePair] = useState<{ source: BookRow; target: BookRow } | null>(null);
   const [mergePicking, setMergePicking] = useState(false);
   const [pickSearch, setPickSearch] = useState("");
+  const [findIsbnOpen, setFindIsbnOpen] = useState(false);
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -143,8 +146,20 @@ const AdminBooks = () => {
       .slice(0, 20);
   }, [books, pickSearch, editing]);
 
+  // ISBN-13s already on other books, so the edition picker can grey them out.
+  const usedIsbns = useMemo(() => {
+    const used = new Map<string, string>();
+    for (const b of books) {
+      if (editing && b.id === editing.id) continue;
+      const isbn13 = normalizeIsbn(b.isbn);
+      if (isbn13 && !used.has(isbn13)) used.set(isbn13, b.title);
+    }
+    return used;
+  }, [books, editing]);
+
   const openEdit = (b: BookRow) => {
     setEditing(b);
+    setFindIsbnOpen(false);
     setMergePicking(false);
     setPickSearch("");
     setEditForm({
@@ -744,7 +759,12 @@ const AdminBooks = () => {
         )}
 
         <Sheet open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
-          <SheetContent side="right" className="w-full sm:max-w-md overflow-y-auto">
+          <SheetContent
+            side="right"
+            className="w-full sm:max-w-md overflow-y-auto"
+            onInteractOutside={(e) => findIsbnOpen && e.preventDefault()}
+            onEscapeKeyDown={(e) => findIsbnOpen && e.preventDefault()}
+          >
             <SheetHeader>
               <SheetTitle>Edit book</SheetTitle>
               <SheetDescription>Update book metadata and cover.</SheetDescription>
@@ -767,7 +787,20 @@ const AdminBooks = () => {
                 />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="edit-isbn">ISBN</Label>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="edit-isbn">ISBN</Label>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setFindIsbnOpen(true)}
+                    disabled={!editForm.title.trim()}
+                    className="gap-1.5"
+                  >
+                    <Search className="h-3.5 w-3.5" />
+                    Find ISBN
+                  </Button>
+                </div>
                 <Input
                   id="edit-isbn"
                   value={editForm.isbn}
@@ -920,6 +953,15 @@ const AdminBooks = () => {
             </SheetFooter>
           </SheetContent>
         </Sheet>
+
+        <FindIsbnDialog
+          open={findIsbnOpen && !!editing}
+          onOpenChange={setFindIsbnOpen}
+          title={editForm.title}
+          author={editForm.author}
+          usedIsbns={usedIsbns}
+          onPick={(isbn13) => setEditForm((f) => ({ ...f, isbn: isbn13 }))}
+        />
 
         <MergeBookDialog
           open={!!mergePair}
