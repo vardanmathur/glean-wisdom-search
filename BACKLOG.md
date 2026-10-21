@@ -1,14 +1,13 @@
 # Glean backlog
 
-This is the master backlog. The in-app Inbox (Admin → Inbox) is only a place to jot things down while using the app. Items move from the Inbox into this file when we plan a dev session.
+This is the master dev backlog. The in-app Inbox (Admin → Inbox) is a separate mini to-do list that is managed by hand. It is not kept in sync with this file, and nothing needs to move from it into this file.
 
-Last updated: 2026-10-14
+Last updated: 2026-10-21
 
 ## Next
 - [ ] Hyperlinks from the admin page to each book page
 - [ ] Alias table for merged books, so a Kindle import with an old title does not recreate a merged-away book
 - [ ] Find duplicate books is buggy: it did not catch two versions of Stephen Covey's The 7 Habits or Carl Sagan's The Demon-Haunted World
-- [ ] ISBN search for a single book (built, being tested on 2026-10-14)
 
 ## Later
 ### Books
@@ -16,6 +15,7 @@ Last updated: 2026-10-14
 - [ ] Fuzzy title + author conflict detection
 - [ ] BookLookup conflict UI resets on window switch
 - [ ] Find Covers improvements
+- [ ] Merging books copies across quotes that already exist in the target book, leaving duplicates. Add an option to skip or remove them (the merge preview already warns about them)
 ### Kindle import
 - [ ] Carry a note from a skipped duplicate to the kept copy
 - [ ] Settings "From Kindle" counter reads source = kindle, but import writes user
@@ -24,11 +24,20 @@ Last updated: 2026-10-14
 - [ ] Phase 3 tag merge UI (merge_tags / preview_tag_merge already deployed)
 - [ ] Tag Management UX
 - [ ] Shared addTag() hook to replace the four copies
+- [ ] Fix the AI tag analysis: it only sees tag names and counts, and its failures show as "No significant overlaps found". Check the logs for a wrong model name, return real errors, and check whether the tag counts stop at 1,000 highlights
+- [ ] Tag overlap report: combine name similarity, average highlight embeddings per tag, and shared-highlight counts in both directions (a small tag inside a big one is parent-child, not a merge). Needs one read-only database function via Lovable. Wire results to the existing preview_tag_merge / merge_tags buttons
+- [ ] Per-highlight tag cleanup queue: for pairs like investing/money or family/marriage, show the quote and both tags with Keep A / Keep B / Keep both / Skip. Re-embed on save. Browser-only
+- [ ] Fix preview_tag_merge: it counts only public highlights, but merge_tags changes all of them
+- [ ] After a tag merge, re-embed the affected highlights (their embeddings still contain the old tag names)
+- [ ] Optional: re-embed everything from the quote alone, so tag comparisons aren't circular
+- [ ] Migrate src/lib/normaliseTags.ts to read from the public.tags table instead of a hardcoded list (TODO at line 2)
 ### Bugs
 - [ ] Books with 0 visible highlights show when logged out
 - [ ] "Access requested ✓" stays after a revoke
 ### Housekeeping
 - [ ] Update GLEAN_DEV_HANDOFF
+- [ ] Add CHANGELOG and README entries for the 2026-10-13 Kindle import rebuild and the 2026-10-14 work (book merge, Find ISBN, Inbox, BACKLOG.md)
+- [ ] Decide whether to keep or remove the drizzle files Lovable added (drizzle.config.ts, drizzle/, three dev dependencies). Nothing in src/ imports them
 
 ## Someday
 ### Books
@@ -58,5 +67,7 @@ Last updated: 2026-10-14
 
 ## Done
 - [x] Kindle "My Clippings" import rebuilt (2026-10-13)
-- [x] In-app backlog page in admin (2026-10-14)
+- [x] In-app backlog page in admin, now the Inbox (2026-10-14)
 - [x] Admin bulk-move of highlights between books, i.e. merge duplicate books (2026-10-14)
+- [x] Single-book Find ISBN in the admin edit Sheet (2026-10-14)
+- [x] BACKLOG.md created as the master list (2026-10-14)
