@@ -229,7 +229,7 @@ const AdminBacklog = () => {
         <div className="min-w-0">
           <h1 className="font-display text-3xl font-semibold text-foreground">Inbox</h1>
           <p className="mt-2 text-muted-foreground">
-            Jot things down here as you use the app. Move them to BACKLOG.md on GitHub when we plan.
+            Jot things down here as you use the app. This is your own mini to-do list; it isn't synced with the GitHub backlog.
           </p>
         </div>
         <Button onClick={openAdd}>
