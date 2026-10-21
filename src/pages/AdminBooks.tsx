@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, Navigate } from "react-router-dom";
+import { findDuplicateGroups } from "@/lib/findDuplicateBooks";
 import { useQueryClient } from "@tanstack/react-query";
 import { Loader2, Pencil, Trash2, Search, Copy, Image as ImageIcon, Check, X, Sparkles, ArrowLeft, Table as TableIcon, LayoutGrid, LayoutList, BookOpen, GitMerge } from "lucide-react";
 import { toast } from "sonner";
@@ -293,19 +294,9 @@ const AdminBooks = () => {
   };
 
   const findDuplicates = () => {
-    const groupMap = new Map<string, BookRow[]>();
-    for (const b of books) {
-      const key = b.title.trim().toLowerCase();
-      if (!key) continue;
-      const arr = groupMap.get(key) ?? [];
-      arr.push(b);
-      groupMap.set(key, arr);
-    }
-    const groups: DuplicateGroup[] = [];
+    const groups: DuplicateGroup[] = findDuplicateGroups(books);
     const initialKeep: Record<string, string> = {};
-    for (const [key, rows] of groupMap) {
-      if (rows.length < 2) continue;
-      groups.push({ key, rows });
+    for (const { key, rows } of groups) {
       const keeper = [...rows].sort((a, b) => {
         if (b.highlight_count !== a.highlight_count) return b.highlight_count - a.highlight_count;
         return (b.cover_image_url ? 1 : 0) - (a.cover_image_url ? 1 : 0);
@@ -316,7 +307,7 @@ const AdminBooks = () => {
     setDuplicateGroups(groups);
     setKeepIds(initialKeep);
     setShowDuplicates(true);
-    if (groups.length === 0) toast.info("No duplicate titles found");
+    if (groups.length === 0) toast.info("No likely duplicates found");
   };
 
   const handleDeleteDuplicate = async (book: BookRow) => {
@@ -445,9 +436,14 @@ const AdminBooks = () => {
                               className="h-4 w-4 accent-primary"
                             />
                             <span className="flex-1 truncate">
-                              <span className="font-medium">{b.author}</span>
+                              <Link
+                                to={`/book/${encodeURIComponent(b.title)}`}
+                                className="font-medium hover:underline hover:text-primary"
+                              >
+                                {b.title}
+                              </Link>
                               <span className="ml-2 text-muted-foreground">
-                                · {b.highlight_count} highlight{b.highlight_count === 1 ? "" : "s"}
+                                · {b.author} · {b.highlight_count} highlight{b.highlight_count === 1 ? "" : "s"}
                                 {b.isbn ? ` · ISBN ${b.isbn}` : ""}
                               </span>
                             </span>
