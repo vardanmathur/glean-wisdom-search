@@ -525,7 +525,14 @@ const AdminBooks = () => {
                       ) : null}
                     </div>
                     <div className="flex-1 min-w-0 space-y-1">
-                      <div className="font-medium text-foreground truncate">{b.title}</div>
+                      <div className="font-medium text-foreground truncate">
+                        <Link
+                          to={`/book/${encodeURIComponent(b.title)}`}
+                          className="hover:underline hover:text-primary"
+                        >
+                          {b.title}
+                        </Link>
+                      </div>
                       <div className="text-xs text-muted-foreground truncate">{b.author}</div>
                       {b.isbn && (
                         <div className="text-xs text-muted-foreground">ISBN {b.isbn}</div>
@@ -591,7 +598,14 @@ const AdminBooks = () => {
                           </div>
                         </td>
                         <td className="px-3 py-2">
-                          <div className="font-medium text-foreground">{b.title}</div>
+                          <div className="font-medium text-foreground">
+                            <Link
+                              to={`/book/${encodeURIComponent(b.title)}`}
+                              className="hover:underline hover:text-primary"
+                            >
+                              {b.title}
+                            </Link>
+                          </div>
                           <div className="text-xs text-muted-foreground">{b.author}</div>
                         </td>
                         <td className="px-3 py-2 text-xs text-muted-foreground">{b.isbn ?? "—"}</td>
@@ -717,7 +731,14 @@ const AdminBooks = () => {
                         )}
                       </div>
                       <div className="flex-1 min-w-0 space-y-1.5">
-                        <div className="font-medium text-foreground truncate">{b.title}</div>
+                        <div className="font-medium text-foreground truncate">
+                          <Link
+                            to={`/book/${encodeURIComponent(b.title)}`}
+                            className="hover:underline hover:text-primary"
+                          >
+                            {b.title}
+                          </Link>
+                        </div>
                         <div className="text-sm text-muted-foreground truncate">{b.author}</div>
                         {b.isbn && (
                           <div className="text-xs text-muted-foreground">ISBN {b.isbn}</div>
@@ -777,6 +798,14 @@ const AdminBooks = () => {
                   value={editForm.title}
                   onChange={(e) => setEditForm((f) => ({ ...f, title: e.target.value }))}
                 />
+                {editing && (
+                  <Link
+                    to={`/book/${encodeURIComponent(editing.title)}`}
+                    className="inline-block text-xs text-primary hover:underline"
+                  >
+                    View book page →
+                  </Link>
+                )}
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="edit-author">Author</Label>
