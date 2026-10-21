@@ -1,5 +1,30 @@
 ---
 
+## [2026-10-21] Glean — Admin book links, smarter Find Duplicates, repo cleanup
+
+**Mode**: Claude Code
+**Mem0**: not connected
+
+### What happened
+Admin Books titles now link to their book pages (plus "View book page" in the edit Sheet). Find Duplicates was rewritten as a tested pure function that matches across subtitles, articles, number words and non-Latin scripts. Fixed the Lovable/GitHub split by taking Lovable's previewAuthStorage.ts, deleted the stale branches, and synced BACKLOG.md. Everything is pushed to main (last commit b0307eb).
+
+### Key decisions
+- Title prefix match needs a whole-word boundary and an 8-character minimum, so "Dune" never groups with "Dune Messiah".
+- Normalisation keeps Unicode letters and marks (\p{L}\p{M}\p{N}), so Hindi titles don't collapse to empty strings.
+- Take Lovable's auto-generated file rather than hand-edit it; branches deleted only after checking nothing unique was on them.
+- glean-inbox-reference.md stays out of git via .git/info/exclude, not .gitignore.
+
+### Open threads
+- [ ] Look through the first real Find Duplicates results for false positives (shared titles by different authors)
+- [ ] Delete the 34 migrated Inbox rows, keeping the 2 Security rows (needs go-ahead)
+- [ ] Alias table for merged books; first real merge on a small pair
+- [ ] Tag work: fix AI tag analysis, tag overlap report (see BACKLOG.md)
+
+### Artifacts
+- findDuplicateBooks.ts + tests, AdminBooks.tsx, BACKLOG.md
+
+---
+
 ## [2026-10-14] Glean — Book merge, ISBN search, Inbox, BACKLOG.md
 
 **Mode**: Claude Code
