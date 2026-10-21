@@ -5,9 +5,7 @@ This is the master dev backlog. The in-app Inbox (Admin → Inbox) is a separate
 Last updated: 2026-10-21
 
 ## Next
-- [ ] Hyperlinks from the admin page to each book page
 - [ ] Alias table for merged books, so a Kindle import with an old title does not recreate a merged-away book
-- [ ] Find duplicate books is buggy: it did not catch two versions of Stephen Covey's The 7 Habits or Carl Sagan's The Demon-Haunted World
 
 ## Later
 ### Books
@@ -71,3 +69,6 @@ Last updated: 2026-10-21
 - [x] Admin bulk-move of highlights between books, i.e. merge duplicate books (2026-10-14)
 - [x] Single-book Find ISBN in the admin edit Sheet (2026-10-14)
 - [x] BACKLOG.md created as the master list (2026-10-14)
+- [x] Admin Books: titles link to their book pages, plus "View book page" in the edit Sheet (2026-10-21)
+- [x] Find Duplicates matches near-identical titles across subtitles, articles and number words; unit-tested (real Covey/Sagan pairs were already merged by hand) (2026-10-21)
+- [x] Fixed Lovable/GitHub sync split by committing Lovable's current previewAuthStorage.ts (2026-10-21)
