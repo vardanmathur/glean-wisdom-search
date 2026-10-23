@@ -126,7 +126,7 @@ const AdminTagManagement = () => {
   const newTagTrimmed = newTagValue.trim();
   const newTagIsDuplicate =
     newTagTrimmed.length > 0 &&
-    tagCounts.some((t) => t.tag.toLowerCase() === newTagTrimmed.toLowerCase());
+    tagCounts.some((t) => t.inTaxonomy && t.tag.toLowerCase() === newTagTrimmed.toLowerCase());
   const newTagValid = newTagTrimmed.length > 0 && !newTagIsDuplicate;
 
   const handleAddTag = async () => {
