@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { refreshFingerprint, shouldRefreshFingerprint } from "@/lib/refreshFingerprint";
 import { useAuth } from "@/context/AuthContext";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -401,7 +402,9 @@ const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags, initi
           void fetchAndAttachCover(bookId, book.title, book.author);
         }
       }
+      const newId = crypto.randomUUID();
       const { error } = await supabase.from("highlights").insert({
+        id: newId,
         quote: quote.trim(),
         book_id: bookId,
         my_notes: notes.trim() || null,
@@ -413,6 +416,9 @@ const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags, initi
         reported: false,
       });
       if (error) throw error;
+      if (shouldRefreshFingerprint({ quote: quote.trim(), tags, my_notes: notes.trim() || null })) {
+        refreshFingerprint([newId]);
+      }
       toast.success("Highlight added");
       onCreated();
       onOpenChange(false);

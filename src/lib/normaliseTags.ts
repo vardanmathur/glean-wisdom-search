@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { refreshFingerprint } from "@/lib/refreshFingerprint";
 // TODO: migrate to read from public.tags DB table
 // when tags.ts is removed as source of truth.
 // Currently in sync with DB (66 tags seeded Sep 2026).
@@ -60,6 +61,7 @@ export async function normaliseAllTags(): Promise<{
   let processed = 0;
   let updated = 0;
   let errors = 0;
+  const updatedIds: string[] = [];
 
   const { data: highlights, error: fetchError } = await supabase
     .from("highlights")
@@ -92,10 +94,13 @@ export async function normaliseAllTags(): Promise<{
         errors++;
       } else {
         updated++;
+        updatedIds.push(highlight.id);
         console.log(`Updated highlight ${highlight.id}:`, highlight.tags, "→", uniqueTags);
       }
     }
   }
+
+  refreshFingerprint(updatedIds);
 
   console.log(`Tag normalisation complete. Processed: ${processed}, Updated: ${updated}, Errors: ${errors}`);
   return { processed, updated, errors };

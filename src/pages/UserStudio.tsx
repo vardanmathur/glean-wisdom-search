@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { supabase } from "@/integrations/supabase/client";
+import { refreshFingerprintAfterEdit, type FingerprintFields } from "@/lib/refreshFingerprint";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Check, AlertCircle, ChevronLeft, ChevronRight, Pencil, X,
@@ -181,7 +182,7 @@ const UserStudio = () => {
   };
 
   const updateMutation = useMutation({
-    mutationFn: async ({ id, updates }: { id: string; updates: Record<string, unknown> }) => {
+    mutationFn: async ({ id, updates }: { id: string; updates: Record<string, unknown>; before?: FingerprintFields }) => {
       const { error } = await supabase
         .from("highlights")
         .update(updates)
@@ -189,9 +190,10 @@ const UserStudio = () => {
         .eq("user_id", user!.id);
       if (error) throw error;
     },
-    onSuccess: (_, { id }) => {
+    onSuccess: (_, { id, updates, before }) => {
       showFeedback(id, "success");
       queryClient.invalidateQueries({ queryKey: ["user-studio-highlights"] });
+      if (before) refreshFingerprintAfterEdit(id, before, updates);
     },
     onError: (_, { id }) => showFeedback(id, "error"),
   });
@@ -395,7 +397,13 @@ const UserStudio = () => {
         allTags={allTags}
         onClose={() => setEditingHighlight(null)}
         onSave={(id, updates) => {
-          updateMutation.mutate({ id, updates }, {
+          updateMutation.mutate({
+            id,
+            updates,
+            before: editingHighlight
+              ? { quote: editingHighlight.quote, tags: editingHighlight.tags, my_notes: editingHighlight.my_notes }
+              : undefined,
+          }, {
             onSuccess: () => setEditingHighlight(null),
           });
         }}

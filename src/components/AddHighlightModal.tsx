@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { refreshFingerprint, shouldRefreshFingerprint } from "@/lib/refreshFingerprint";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -121,7 +122,9 @@ const AddHighlightModal = ({ open, onOpenChange }: AddHighlightModalProps) => {
         bookId = newBook.id;
       }
 
+      const newId = crypto.randomUUID();
       const { error: hlErr } = await supabase.from("highlights").insert({
+        id: newId,
         book_id: bookId,
         quote: highlightText.trim(),
         tags: selectedTags.length > 0 ? selectedTags : [],
@@ -132,6 +135,10 @@ const AddHighlightModal = ({ open, onOpenChange }: AddHighlightModalProps) => {
       });
 
       if (hlErr) throw new Error(hlErr.message);
+
+      if (shouldRefreshFingerprint({ quote: highlightText.trim(), tags: selectedTags, my_notes: personalNote.trim() || null })) {
+        refreshFingerprint([newId]);
+      }
 
       toast({ title: "Highlight added successfully" });
       resetForm();

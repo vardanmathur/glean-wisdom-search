@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { supabase } from "@/integrations/supabase/client";
+import { refreshFingerprint } from "@/lib/refreshFingerprint";
 import { toTitleCase } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -148,10 +149,7 @@ const AdminTagManagement = () => {
         const failed = results.find((r) => r.error);
         if (failed?.error) throw failed.error;
 
-        const affectedIds = affected.map((r) => r.id);
-        supabase.functions
-          .invoke("generate-embeddings", { body: { ids: affectedIds, force: true } })
-          .catch(() => { /* silent — refreshed lazily elsewhere if needed */ });
+        refreshFingerprint(affected.map((r) => r.id));
       }
 
       queryClient.setQueryData<TagCount[]>(["tag-counts"], (prev) =>

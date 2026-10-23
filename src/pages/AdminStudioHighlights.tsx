@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { refreshFingerprintAfterEdit, type FingerprintFields } from "@/lib/refreshFingerprint";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Check, AlertCircle, ChevronLeft, ChevronRight, Pencil, X, ChevronDown, Search, ArrowUpDown, ArrowUp, ArrowDown, Trash2, Copy, Loader2, Sparkles, Download, Image as ImageIcon, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
@@ -449,17 +450,14 @@ const AdminStudioHighlights = () => {
   };
 
   const updateMutation = useMutation({
-    mutationFn: async ({ id, updates }: { id: string; updates: Record<string, unknown> }) => {
+    mutationFn: async ({ id, updates }: { id: string; updates: Record<string, unknown>; before?: FingerprintFields }) => {
       const { error } = await supabase.from("highlights").update(updates).eq("id", id);
       if (error) throw error;
     },
-    onSuccess: (_, { id }) => {
+    onSuccess: (_, { id, updates, before }) => {
       showFeedback(id, "success");
       queryClient.invalidateQueries({ queryKey: ["studio-highlights"] });
-      // Fire-and-forget embedding refresh — never await, never block UI
-      supabase.functions
-        .invoke("generate-embeddings", { body: { ids: [id], force: true } })
-        .catch(() => { /* silent — surfaced in admin studio if needed */ });
+      if (before) refreshFingerprintAfterEdit(id, before, updates);
     },
     onError: (_, { id }) => {
       showFeedback(id, "error");
@@ -1155,7 +1153,13 @@ const AdminStudioHighlights = () => {
         allTags={allTags}
         onClose={() => setEditingHighlight(null)}
         onSave={(id, updates) => {
-          updateMutation.mutate({ id, updates }, {
+          updateMutation.mutate({
+            id,
+            updates,
+            before: editingHighlight
+              ? { quote: editingHighlight.quote, tags: editingHighlight.tags, my_notes: editingHighlight.my_notes }
+              : undefined,
+          }, {
             onSuccess: () => setEditingHighlight(null),
           });
         }}

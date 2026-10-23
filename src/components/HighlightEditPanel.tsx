@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { refreshFingerprintAfterEdit, type FingerprintFields } from "@/lib/refreshFingerprint";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useSessionStorageState } from "@/hooks/useSessionStorageState";
@@ -38,8 +39,8 @@ interface HighlightEditPanelProps {
  * - side="bottom" on mobile, side="right" on desktop.
  * - Drafts persisted to sessionStorage so window switches / PWA backgrounding
  *   don't lose work.
- * - On save, fires a non-awaited generate-embeddings call to refresh the
- *   vector for the edited row.
+ * - On save, refreshes the row's fingerprint (non-awaited) when its quote,
+ *   tags or notes changed and it still has a tag.
  */
 const HighlightEditPanel = ({ highlight, allTags, open, onOpenChange }: HighlightEditPanelProps) => {
   const isMobile = useIsMobile();
@@ -164,16 +165,13 @@ const HighlightEditPanel = ({ highlight, allTags, open, onOpenChange }: Highligh
     .slice(0, 20);
 
   const updateMutation = useMutation({
-    mutationFn: async ({ id, updates }: { id: string; updates: Record<string, unknown> }) => {
+    mutationFn: async ({ id, updates }: { id: string; updates: Record<string, unknown>; before?: FingerprintFields }) => {
       const { error } = await supabase.from("highlights").update(updates).eq("id", id);
       if (error) throw error;
     },
-    onSuccess: (_, { id }) => {
+    onSuccess: (_, { id, updates, before }) => {
       toast({ title: "Highlight updated" });
-      // Fire-and-forget embedding refresh — don't block the UI.
-      supabase.functions
-        .invoke("generate-embeddings", { body: { ids: [id], force: true } })
-        .catch(() => { /* silent — surfaced in admin studio if needed */ });
+      if (before) refreshFingerprintAfterEdit(id, before, updates);
       // Invalidate any cached highlight lists so the card reflects new content.
       queryClient.invalidateQueries();
       clearDraft();
@@ -192,6 +190,7 @@ const HighlightEditPanel = ({ highlight, allTags, open, onOpenChange }: Highligh
     if (!highlight) return;
     updateMutation.mutate({
       id: highlight.id,
+      before: { quote: highlight.text, tags: highlight.tags, my_notes: highlight.myNotes ?? null },
       updates: {
         quote: quote.trim(),
         tags,
