@@ -19,20 +19,20 @@ Last updated: 2026-10-23
 - [ ] Settings "From Kindle" counter reads source = kindle, but import writes user
 - [ ] Try the cleaned master clippings file after a few more small imports
 ### Tags
-- [ ] Phase 3 tag merge UI (merge_tags / preview_tag_merge already deployed)
 - [ ] Tag Management UX
 - [ ] Shared addTag() hook to replace the four copies
-- [ ] Fix the AI tag analysis: it only sees tag names and counts, and its failures show as "No significant overlaps found". Model (gemini-3.8-flash) is valid, but it still thinks by default inside a 1,500-token limit, so the answer may be getting cut off. Set reasoning_effort "low", raise max_tokens to ~4,000, add finish_reason/usage logging and return real errors (Lovable). Also check whether the tag counts stop at 1,000 highlights
-- [ ] Tag overlap report: combine name similarity, average highlight embeddings per tag, and shared-highlight counts in both directions (a small tag inside a big one is parent-child, not a merge). Needs one read-only database function via Lovable. Wire results to the existing preview_tag_merge / merge_tags buttons
 - [ ] Per-highlight tag cleanup queue: for pairs like investing/money or family/marriage, show the quote and both tags with Keep A / Keep B / Keep both / Skip. Re-embed on save. Browser-only
-- [ ] Fix preview_tag_merge: it counts only public highlights, but merge_tags changes all of them
 - [ ] After a tag merge, re-embed the affected highlights (their embeddings still contain the old tag names)
 - [ ] Optional: re-embed everything from the quote alone, so tag comparisons aren't circular
 - [ ] Migrate src/lib/normaliseTags.ts to read from the public.tags table instead of a hardcoded list (TODO at line 2)
+- [ ] Work through the Overlap review pairs (Tag Management) one highlight at a time
+- [ ] Remove the unused merge_tags and preview_tag_merge database functions (whole-tag merge was replaced by per-highlight overlap review)
+- [ ] Switch src/lib/tagOverlap.ts wrappers to the generated types now in types.ts (Lovable regenerated them)
 ### Bugs
 - [ ] Books with 0 visible highlights show when logged out
 - [ ] "Access requested ✓" stays after a revoke
 - [ ] Search page hides "Glean's take" silently when the AI answer is empty or fails. Show "Couldn't generate Glean's take — try again" with a retry instead (frontend only, Cursor; edge function now returns error: "credits" / "rate_limit")
+- [ ] A highlight whose last tag is removed keeps its old fingerprint (with the old tag names); clear or handle it
 ### Housekeeping
 - [ ] Update GLEAN_DEV_HANDOFF
 - [ ] Add CHANGELOG and README entries for the 2026-10-13 Kindle import rebuild and the 2026-10-14 work (book merge, Find ISBN, Inbox, BACKLOG.md), the 2026-10-21 work (admin book links, duplicate finder, sync fix) and the 2026-10-23 AI model switch
@@ -64,6 +64,9 @@ Last updated: 2026-10-23
 - [ ] Migrate to own Supabase
 - [ ] Duplicate Lovable project
 - [ ] If search feels slow, move only rerank-highlights to gemini-3.1-flash-lite (faster, cheaper; output is just a list of scores)
+- [ ] Admin settings screen for tunable numbers (overlap decision expiry, min shared highlights, AI token limits, timeouts) so they can change without code edits
+- [ ] Fingerprint "Refresh now" runs in the browser and pauses if the tab is hidden; move it server-side if it becomes a nuisance
+- [ ] Fingerprint refresh only runs for admins; revisit if Glean gets other users
 
 ## Done
 - [x] Kindle "My Clippings" import rebuilt (2026-10-13)
@@ -75,3 +78,6 @@ Last updated: 2026-10-23
 - [x] Find Duplicates matches near-identical titles across subtitles, articles and number words; unit-tested (real Covey/Sagan pairs were already merged by hand) (2026-10-21)
 - [x] Fixed Lovable/GitHub sync split by committing Lovable's current previewAuthStorage.ts (2026-10-21)
 - [x] Fixed truncated/missing search answers: gemini-2.5-flash's default thinking used ~765 of 800 tokens. Moved synthesise-wisdom, suggest-tags, rerank-highlights, generate-book-summary, generate-topic-summary and generate-reflection-questions to gemini-3.8-flash with reasoning_effort "none", resized token limits, added 30s timeouts and finish_reason/usage logging (2026-10-23)
+- [x] Tag overlap review in Tag Management: ranked tag pairs by shared highlights and meaning, one-highlight-at-a-time Keep both / Remove / Skip / Undo, decisions expire after 12 months; correct tag counts (no 1,000-row cap) and an Unused & unlisted tags card; retired analyse-tags and the old overlap picker (2026-10-23)
+- [x] Fingerprints now = quote + tags + notes; untagged highlights are never fingerprinted; a shared helper refreshes in the background whenever a tagged highlight's quote, tags or notes change; admin "Refresh now" panel; 408 rebuilt, 0 failed (2026-10-23)
+- [x] Add tag: only taxonomy tags count as duplicates (2026-10-23)
