@@ -59,15 +59,20 @@ who needs this wisdom right now.
 Sample highlights:
 ${sampleHighlights}`;
 
+    const aiController = new AbortController();
+    const aiTimer = setTimeout(() => aiController.abort(), 30000);
+    const aiStart = Date.now();
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      signal: aiController.signal,
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${Deno.env.get("LOVABLE_API_KEY")}`,
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        max_tokens: 400,
+        model: "google/gemini-3.8-flash",
+        reasoning_effort: "none",
+        max_tokens: 800,
         messages: [{ role: "user", content: prompt }],
       }),
     });
@@ -80,6 +85,10 @@ ${sampleHighlights}`;
     }
 
     const data = await response.json();
+    clearTimeout(aiTimer);
+    const finishReason = data.choices?.[0]?.finish_reason;
+    console.log("generate-topic-summary", { finish_reason: finishReason, usage: data.usage, ms: Date.now() - aiStart });
+    if (finishReason === "length") console.warn("generate-topic-summary: finish_reason length", { usage: data.usage });
     const summary = data.choices?.[0]?.message?.content || "";
 
     // --- Write to cache (fire and forget — don't let a cache write failure break the response) ---
@@ -96,6 +105,7 @@ ${sampleHighlights}`;
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {
+    if ((error as any)?.name === "AbortError") console.error("generate-topic-summary: gateway timeout after 30s");
     console.error("Error in generate-topic-summary:", error);
     return new Response(JSON.stringify({ summary: "" }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

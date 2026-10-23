@@ -44,14 +44,19 @@ ${bookTitle ? `From the book: "${bookTitle}"\n\n` : ""}Passage:
 ${quote.trim().slice(0, 2000)}
 """`;
 
+    const aiController = new AbortController();
+    const aiTimer = setTimeout(() => aiController.abort(), 30000);
+    const aiStart = Date.now();
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      signal: aiController.signal,
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${Deno.env.get("LOVABLE_API_KEY")}`,
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: "google/gemini-3.8-flash",
+        reasoning_effort: "none",
         max_tokens: 150,
         temperature: 0.1,
         messages: [{ role: "user", content: prompt }],
@@ -66,6 +71,10 @@ ${quote.trim().slice(0, 2000)}
     }
 
     const data = await response.json();
+    clearTimeout(aiTimer);
+    const finishReason = data.choices?.[0]?.finish_reason;
+    console.log("suggest-tags", { finish_reason: finishReason, usage: data.usage, ms: Date.now() - aiStart });
+    if (finishReason === "length") console.warn("suggest-tags: finish_reason length", { usage: data.usage });
     const content = data.choices?.[0]?.message?.content || "";
 
     const match = content.match(/\[[\s\S]*?\]/);
@@ -108,6 +117,7 @@ ${quote.trim().slice(0, 2000)}
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {
+    if ((error as any)?.name === "AbortError") console.error("suggest-tags: gateway timeout after 30s");
     console.error("Error in suggest-tags:", error);
     return new Response(JSON.stringify({ tags: [] }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

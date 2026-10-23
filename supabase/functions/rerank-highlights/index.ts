@@ -30,14 +30,19 @@ serve(async (req) => {
 Highlights:
 ${highlightList}`;
 
+    const aiController = new AbortController();
+    const aiTimer = setTimeout(() => aiController.abort(), 30000);
+    const aiStart = Date.now();
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      signal: aiController.signal,
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${Deno.env.get("LOVABLE_API_KEY")}`,
       },
       body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
+        model: "google/gemini-3.8-flash",
+        reasoning_effort: "none",
         max_tokens: 200,
         messages: [{ role: "user", content: prompt }],
       }),
@@ -51,6 +56,10 @@ ${highlightList}`;
     }
 
     const data = await response.json();
+    clearTimeout(aiTimer);
+    const finishReason = data.choices?.[0]?.finish_reason;
+    console.log("rerank-highlights", { finish_reason: finishReason, usage: data.usage, ms: Date.now() - aiStart });
+    if (finishReason === "length") console.warn("rerank-highlights: finish_reason length", { usage: data.usage });
     const content = data.choices?.[0]?.message?.content || "";
 
     // Extract the JSON array from the response
@@ -74,6 +83,7 @@ ${highlightList}`;
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {
+    if ((error as any)?.name === "AbortError") console.error("rerank-highlights: gateway timeout after 30s");
     console.error("Error in rerank-highlights:", error);
     return new Response(JSON.stringify({ scores: [] }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
