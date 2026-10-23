@@ -332,6 +332,41 @@ export type Database = {
         }
         Relationships: []
       }
+      tag_overlap_decisions: {
+        Row: {
+          decided_at: string
+          highlight_id: string
+          id: string
+          removed_tag: string | null
+          tag_a: string
+          tag_b: string
+        }
+        Insert: {
+          decided_at?: string
+          highlight_id: string
+          id?: string
+          removed_tag?: string | null
+          tag_a: string
+          tag_b: string
+        }
+        Update: {
+          decided_at?: string
+          highlight_id?: string
+          id?: string
+          removed_tag?: string | null
+          tag_a?: string
+          tag_b?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tag_overlap_decisions_highlight_id_fkey"
+            columns: ["highlight_id"]
+            isOneToOne: false
+            referencedRelation: "highlights"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tags: {
         Row: {
           created_at: string
@@ -579,6 +614,15 @@ export type Database = {
         Args: { source_tag: string; target_tag: string }
         Returns: Json
       }
+      resolve_tag_overlap: {
+        Args: {
+          p_highlight_id: string
+          p_remove_tag?: string
+          p_tag_a: string
+          p_tag_b: string
+        }
+        Returns: Json
+      }
       search_books_fuzzy: {
         Args: { search_term: string }
         Returns: {
@@ -590,6 +634,44 @@ export type Database = {
       suggest_tags_for_quote: {
         Args: { quote_text: string }
         Returns: string[]
+      }
+      tag_overlap_highlights: {
+        Args: { expiry_months?: number; p_tag_a: string; p_tag_b: string }
+        Returns: {
+          book_author: string
+          book_title: string
+          fit_a: number
+          fit_b: number
+          highlight_id: string
+          my_notes: string
+          quote: string
+          tags: string[]
+        }[]
+      }
+      tag_overlap_pairs: {
+        Args: { expiry_months?: number; min_shared?: number }
+        Returns: {
+          count_a: number
+          count_b: number
+          meaning_similarity: number
+          share_of_smaller: number
+          shared: number
+          tag_a: string
+          tag_b: string
+          to_review: number
+        }[]
+      }
+      tag_usage_counts: {
+        Args: never
+        Returns: {
+          highlight_count: number
+          in_taxonomy: boolean
+          tag: string
+        }[]
+      }
+      undo_tag_overlap: {
+        Args: { p_highlight_id: string; p_tag_a: string; p_tag_b: string }
+        Returns: Json
       }
     }
     Enums: {
