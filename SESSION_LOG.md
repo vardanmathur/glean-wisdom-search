@@ -1,5 +1,30 @@
 ---
 
+## [2026-10-23] Glean — Tag overlap review, fingerprints with notes, backlog sync
+
+**Mode**: Claude Code
+**Mem0**: not connected
+
+### What happened
+Shipped the Tag Management overlap review (ranked pairs, one highlight at a time: Keep both / Remove / Skip / Undo), correct tag counts with an Unused & unlisted card, and an admin fingerprint panel. Fingerprints are now quote + tags + notes, untagged highlights are skipped, and a shared helper refreshes them in the background when a tagged highlight's quote, tags or notes change. Retired analyse-tags and the old overlap picker; BACKLOG.md updated and pushed (last commit 7bc86cf).
+
+### Key decisions
+- Whole-tag merge replaced by per-highlight decisions, every action on exactly one highlight, so a wrong call is always one undo.
+- Never fingerprint untagged highlights; a tag reorder is not a change, so it does not trigger a refresh.
+- Vardan runs the SQL by hand; the record lives in docs/sql, not supabase/migrations.
+- Refresh loop stops when a call rebuilds 0 with rows remaining, so a failing row cannot spin it forever.
+
+### Open threads
+- [ ] Work through the Overlap review pairs on the live data
+- [ ] A highlight whose last tag is removed keeps its stale fingerprint
+- [ ] Drop merge_tags / preview_tag_merge; switch tagOverlap.ts to the generated types
+- [ ] CHANGELOG, README and SESSION entries for the 10-21 and 10-23 work
+
+### Artifacts
+- tagOverlap.ts, refreshFingerprint.ts, TagOverlapReview.tsx, FingerprintPanel.tsx, docs/sql/2026-10-23_tag_overlap_review.sql
+
+---
+
 ## [2026-10-21] Glean — Admin book links, smarter Find Duplicates, repo cleanup
 
 **Mode**: Claude Code
