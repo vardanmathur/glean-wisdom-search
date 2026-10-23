@@ -1,12 +1,13 @@
 import { useMemo, useRef, useState } from "react";
 import { Link, Navigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Loader2, Pencil, Trash2, Plus, Sparkles } from "lucide-react";
+import { ArrowLeft, Loader2, Pencil, Trash2, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { supabase } from "@/integrations/supabase/client";
 import { refreshFingerprint } from "@/lib/refreshFingerprint";
+import { fetchTagUsage, splitUnusedUnlisted } from "@/lib/tagOverlap";
 import { toTitleCase } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -16,32 +17,13 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import TagOverlapReview from "@/components/admin/TagOverlapReview";
 
 interface TagCount {
   tag: string;
   count: number;
+  inTaxonomy: boolean;
 }
-
-interface OverlapHighlight {
-  id: string;
-  quote: string;
-  bookTitle: string;
-  author: string;
-}
-
-interface TagSuggestion {
-  tag1: string;
-  tag2: string;
-  reason: string;
-  keep: string;
-  confidence: "high" | "medium" | "low";
-}
-
-const CONFIDENCE_STYLES: Record<TagSuggestion["confidence"], string> = {
-  high: "bg-primary/10 text-primary",
-  medium: "bg-amber-100 text-amber-700",
-  low: "bg-muted text-muted-foreground",
-};
 
 const AdminTagManagement = () => {
   const { authLoading } = useAuth();
@@ -51,32 +33,12 @@ const AdminTagManagement = () => {
   // --- Tag inventory ---
   const { data: tagCounts = [], isLoading } = useQuery({
     queryKey: ["tag-counts"],
-    queryFn: async () => {
-      const [{ data: tagRows, error: tagsError }, { data: highlightRows, error: highlightsError }] =
-        await Promise.all([
-          supabase.from("tags").select("name"),
-          supabase.from("highlights").select("tags"),
-        ]);
-      if (tagsError) throw tagsError;
-      if (highlightsError) throw highlightsError;
-
-      const countMap = new Map<string, number>();
-      (highlightRows ?? []).forEach((row) => {
-        (row.tags ?? []).forEach((t: string) => {
-          if (t) countMap.set(t, (countMap.get(t) ?? 0) + 1);
-        });
-      });
-
-      // Every tag registered in public.tags appears here, even with
-      // 0 highlights — otherwise unused tags would never show up in
-      // the inventory and the "delete unused tag" flow below would
-      // have nothing to act on.
-      (tagRows ?? []).forEach((row) => {
-        if (!countMap.has(row.name)) countMap.set(row.name, 0);
-      });
-
-      return Array.from(countMap.entries())
-        .map(([tag, count]) => ({ tag, count }))
+    // tag_usage_counts() counts every highlight (no 1,000-row cap) and also lists
+    // taxonomy tags that have 0 highlights, so a tag is only deletable when it truly has none.
+    queryFn: async (): Promise<TagCount[]> => {
+      const rows = await fetchTagUsage();
+      return rows
+        .map((r) => ({ tag: r.tag, count: r.highlight_count, inTaxonomy: r.in_taxonomy }))
         .sort((a, b) => b.count - a.count);
     },
     enabled: isAdmin,
@@ -95,14 +57,6 @@ const AdminTagManagement = () => {
 
   const [confirmDeleteTag, setConfirmDeleteTag] = useState<TagCount | null>(null);
 
-  const [overlapTagA, setOverlapTagA] = useState("");
-  const [overlapTagB, setOverlapTagB] = useState("");
-  const [overlapResults, setOverlapResults] = useState<OverlapHighlight[] | null>(null);
-  const [overlapLoading, setOverlapLoading] = useState(false);
-
-  const [analysing, setAnalysing] = useState(false);
-  const [suggestions, setSuggestions] = useState<TagSuggestion[]>([]);
-  const [analysed, setAnalysed] = useState(false);
   const [activeTab, setActiveTab] = useState("inventory");
   const [justAddedTag, setJustAddedTag] = useState<string | null>(null);
   const scrolledForTagRef = useRef<string | null>(null);
@@ -114,6 +68,8 @@ const AdminTagManagement = () => {
       sortBy === "count" ? b.count - a.count : a.tag.localeCompare(b.tag)
     );
   }, [tagCounts, tagFilter, sortBy]);
+
+  const { unused: unusedTags, unlisted: unlistedTags } = useMemo(() => splitUnusedUnlisted(tagCounts), [tagCounts]);
 
   // --- Rename ---
   const renameTrimmed = renameValue.trim();
@@ -152,9 +108,8 @@ const AdminTagManagement = () => {
         refreshFingerprint(affected.map((r) => r.id));
       }
 
-      queryClient.setQueryData<TagCount[]>(["tag-counts"], (prev) =>
-        (prev ?? []).map((t) => (t.tag === oldTag ? { tag: newTag, count: t.count } : t))
-      );
+      queryClient.invalidateQueries({ queryKey: ["tag-counts"] });
+      queryClient.invalidateQueries({ queryKey: ["tag-overlap-pairs"] });
 
       toast.success(`Renamed '${oldTag}' → '${newTag}'. Embeddings are being refreshed in the background.`);
       setRenamingTag(null);
@@ -220,53 +175,6 @@ const AdminTagManagement = () => {
     }
   };
 
-  // --- Find overlapping tags ---
-  const handleFindOverlaps = async () => {
-    if (!overlapTagA || !overlapTagB || overlapTagA === overlapTagB) return;
-    setOverlapLoading(true);
-    setOverlapResults(null);
-    try {
-      const { data, error } = await supabase
-        .from("highlights")
-        .select("id, quote, books!highlights_book_id_fkey(title, author)")
-        .contains("tags", [overlapTagA, overlapTagB])
-        .limit(50);
-      if (error) throw error;
-      const mapped = ((data as any[]) ?? []).map((row) => ({
-        id: row.id,
-        quote: row.quote,
-        bookTitle: row.books?.title || "Unknown",
-        author: row.books?.author || "Unknown",
-      }));
-      setOverlapResults(mapped);
-    } catch (err) {
-      console.error(err);
-      toast.error("Couldn't fetch overlapping highlights");
-      setOverlapResults([]);
-    } finally {
-      setOverlapLoading(false);
-    }
-  };
-
-  // --- AI redundancy analysis ---
-  const handleAnalyse = async () => {
-    setAnalysing(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("analyse-tags", {
-        body: { tags: tagCounts.map((t) => ({ name: t.tag, count: t.count })) },
-      });
-      if (error) throw error;
-      const result = Array.isArray(data?.suggestions) ? (data.suggestions as TagSuggestion[]) : [];
-      setSuggestions(result);
-      setAnalysed(true);
-    } catch (err) {
-      console.error(err);
-      toast.error("Analysis failed — please try again");
-    } finally {
-      setAnalysing(false);
-    }
-  };
-
   if (authLoading || adminLoading) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
@@ -289,15 +197,14 @@ const AdminTagManagement = () => {
           <ArrowLeft className="h-4 w-4" /> Admin
         </Link>
         <h1 className="font-display text-3xl font-semibold text-foreground">Tag Management</h1>
-        <p className="mt-2 text-muted-foreground">Analyse tag taxonomy, find overlaps and rename tags</p>
+        <p className="mt-2 text-muted-foreground">Review tag overlaps, rename tags and clean up unused ones</p>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
           <TabsList>
             <TabsTrigger value="inventory">Tag Inventory</TabsTrigger>
-            <TabsTrigger value="overlaps">Find Overlaps</TabsTrigger>
-            <TabsTrigger value="ai">AI Analysis</TabsTrigger>
+            <TabsTrigger value="overlaps">Overlap review</TabsTrigger>
           </TabsList>
           <Button type="button" size="sm" variant="outline" onClick={() => setAddingTag(true)} className="w-full sm:w-auto">
             <Plus className="h-4 w-4 sm:mr-1" />
@@ -333,6 +240,36 @@ const AdminTagManagement = () => {
               className="h-9 w-full max-w-xs rounded-md border border-input bg-background px-3 text-sm text-foreground"
             />
           </div>
+
+          {(unusedTags.length > 0 || unlistedTags.length > 0) && (
+            <div className="mb-4 rounded-lg border bg-card p-4 text-sm">
+              <p className="font-medium text-foreground">Unused &amp; unlisted tags</p>
+              {unusedTags.length > 0 && (
+                <div className="mt-2">
+                  <p className="text-xs text-muted-foreground">In the taxonomy, on 0 highlights ({unusedTags.length})</p>
+                  <div className="mt-1 flex flex-wrap gap-1.5">
+                    {unusedTags.map((t) => (
+                      <span key={t.tag} className="rounded-full bg-secondary px-2.5 py-1 text-xs text-secondary-foreground">
+                        {t.tag}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {unlistedTags.length > 0 && (
+                <div className="mt-3">
+                  <p className="text-xs text-muted-foreground">Used on highlights, not in the taxonomy ({unlistedTags.length})</p>
+                  <div className="mt-1 flex flex-wrap gap-1.5">
+                    {unlistedTags.map((t) => (
+                      <span key={t.tag} className="rounded-full bg-amber-100 px-2.5 py-1 text-xs text-amber-700">
+                        {t.tag} · {t.count}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {isLoading ? (
             <div className="flex items-center justify-center py-16">
@@ -393,7 +330,7 @@ const AdminTagManagement = () => {
                                       size="icon"
                                       variant="ghost"
                                       className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                                      disabled={t.count > 0}
+                                      disabled={t.count > 0 || !t.inTaxonomy}
                                       onClick={() => setConfirmDeleteTag(t)}
                                       aria-label={`Delete ${t.tag}`}
                                     >
@@ -447,7 +384,7 @@ const AdminTagManagement = () => {
                         size="icon"
                         variant="ghost"
                         className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                        disabled={t.count > 0}
+                        disabled={t.count > 0 || !t.inTaxonomy}
                         onClick={() => setConfirmDeleteTag(t)}
                         aria-label={`Delete ${t.tag}`}
                         title={t.count > 0 ? "Has highlights" : undefined}
@@ -463,120 +400,7 @@ const AdminTagManagement = () => {
         </TabsContent>
 
         <TabsContent value="overlaps">
-          <p className="text-sm text-muted-foreground mb-4">
-            See which highlights share both tags before deciding to merge or rename.
-          </p>
-          <div className="flex flex-wrap items-center gap-3 mb-4">
-            <select
-              value={overlapTagA}
-              onChange={(e) => setOverlapTagA(e.target.value)}
-              className="h-9 rounded-md border border-input bg-background px-3 text-sm text-foreground"
-            >
-              <option value="">Tag A…</option>
-              {[...tagCounts].sort((a, b) => a.tag.localeCompare(b.tag)).map((t) => (
-                <option key={t.tag} value={t.tag}>{toTitleCase(t.tag)}</option>
-              ))}
-            </select>
-            <select
-              value={overlapTagB}
-              onChange={(e) => setOverlapTagB(e.target.value)}
-              className="h-9 rounded-md border border-input bg-background px-3 text-sm text-foreground"
-            >
-              <option value="">Tag B…</option>
-              {[...tagCounts].sort((a, b) => a.tag.localeCompare(b.tag)).map((t) => (
-                <option key={t.tag} value={t.tag}>{toTitleCase(t.tag)}</option>
-              ))}
-            </select>
-            <Button
-              type="button"
-              size="sm"
-              onClick={handleFindOverlaps}
-              disabled={!overlapTagA || !overlapTagB || overlapTagA === overlapTagB || overlapLoading}
-            >
-              {overlapLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
-              Find overlaps
-            </Button>
-          </div>
-
-          {overlapResults !== null && (
-            <>
-              {overlapResults.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No highlights share both tags.</p>
-              ) : (
-                <>
-                  <p className="text-sm font-medium text-foreground mb-3">
-                    {overlapResults.length} highlight{overlapResults.length !== 1 ? "s" : ""} have both "{toTitleCase(overlapTagA)}" and "{toTitleCase(overlapTagB)}"
-                    {overlapResults.length === 50 && (
-                      <span className="text-muted-foreground font-normal"> (preview — up to 50)</span>
-                    )}
-                  </p>
-                  <div className="space-y-2">
-                    {overlapResults.map((h) => (
-                      <div key={h.id} className="rounded-lg border bg-card p-3 text-sm">
-                        <p className="text-foreground">
-                          "{h.quote.length > 100 ? `${h.quote.slice(0, 100)}…` : h.quote}"
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-1">— {h.bookTitle}, {h.author}</p>
-                      </div>
-                    ))}
-                  </div>
-                </>
-              )}
-            </>
-          )}
-        </TabsContent>
-
-        <TabsContent value="ai">
-          <p className="text-sm text-muted-foreground mb-4">
-            Identify tags that may be duplicates or could be merged
-          </p>
-          <Button
-            type="button"
-            onClick={handleAnalyse}
-            disabled={analysing}
-            className="gap-1.5 bg-teal-600 hover:bg-teal-700 text-white mb-4"
-          >
-            {analysing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-            {analysing ? "Analysing…" : "Analyse tags"}
-          </Button>
-
-          {analysing && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
-              <Loader2 className="h-4 w-4 animate-spin" /> Analysing your tag taxonomy...
-            </div>
-          )}
-
-          {!analysing && analysed && suggestions.length === 0 && (
-            <div className="rounded-lg border bg-card p-6 text-center text-muted-foreground text-sm">
-              No significant overlaps found — your taxonomy looks clean!
-            </div>
-          )}
-
-          {!analysing && suggestions.length > 0 && (
-            <div className="space-y-3">
-              {suggestions.map((s, i) => (
-                <div key={`${s.tag1}-${s.tag2}-${i}`} className="rounded-lg border bg-card p-4">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="bg-primary/10 text-primary rounded-full px-2 py-0.5 text-xs font-medium">
-                      {s.tag1}
-                    </span>
-                    <span className="text-muted-foreground">↔</span>
-                    <span className="bg-primary/10 text-primary rounded-full px-2 py-0.5 text-xs font-medium">
-                      {s.tag2}
-                    </span>
-                    <span className={`ml-auto rounded-full px-2 py-0.5 text-xs font-medium ${CONFIDENCE_STYLES[s.confidence]}`}>
-                      {s.confidence}
-                    </span>
-                  </div>
-                  <p className="text-sm text-muted-foreground mt-2">Reason: {s.reason}</p>
-                  <p className="text-xs text-muted-foreground mt-1">Recommended: keep {s.keep}</p>
-                  <p className="text-xs text-muted-foreground/70 mt-2 pt-2 border-t">
-                    Use Find Overlapping Tags above to investigate, then merge in Phase 3 (coming soon)
-                  </p>
-                </div>
-              ))}
-            </div>
-          )}
+          <TagOverlapReview />
         </TabsContent>
       </Tabs>
 
@@ -648,8 +472,7 @@ const AdminTagManagement = () => {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete "{confirmDeleteTag ? toTitleCase(confirmDeleteTag.tag) : ""}"?</AlertDialogTitle>
             <AlertDialogDescription>
-              This tag isn't on any highlight, so there's nothing to update in the database.
-              You'll still need to remove it from src/lib/tags.ts yourself.
+              This tag isn't on any highlight, so only the taxonomy entry is removed.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

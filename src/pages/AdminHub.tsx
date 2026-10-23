@@ -3,6 +3,7 @@ import { Wrench, BookOpen, Shield, FileText, Brain, Tag, ListTodo, ArrowRight, L
 import { useAuth } from "@/context/AuthContext";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { Badge } from "@/components/ui/badge";
+import FingerprintPanel from "@/components/admin/FingerprintPanel";
 
 interface ToolCard {
   title: string;
@@ -19,7 +20,7 @@ const tools: ToolCard[] = [
   { title: "Worksheets", description: "View and download user worksheet downloads", icon: FileText, to: "/admin/worksheets" },
   { title: "Search Logs", description: "See what people are searching for and identify library gaps", icon: Search, to: "/admin/search-logs" },
   { title: "Think! Usage", description: "Monitor Think! usage across users", icon: Brain, comingSoon: true },
-  { title: "Tag Management", description: "Analyse tag taxonomy, find overlaps and rename tags", icon: Tag, to: "/admin/tag-management" },
+  { title: "Tag Management", description: "Review tag overlaps, rename tags and clean up unused ones", icon: Tag, to: "/admin/tag-management" },
   { title: "Inbox", description: "Jot things down while using the app", icon: ListTodo, to: "/admin/backlog" },
 ];
 
@@ -42,6 +43,8 @@ const AdminHub = () => {
         <h1 className="font-display text-4xl font-semibold tracking-tight text-foreground">Admin</h1>
         <p className="mt-1 text-muted-foreground">Glean management tools</p>
       </header>
+
+      <FingerprintPanel />
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {tools.map((tool) => {
