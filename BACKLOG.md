@@ -2,7 +2,7 @@
 
 This is the master dev backlog. The in-app Inbox (Admin → Inbox) is a separate mini to-do list that is managed by hand. It is not kept in sync with this file, and nothing needs to move from it into this file.
 
-Last updated: 2026-10-21
+Last updated: 2026-10-23
 
 ## Next
 - [ ] Alias table for merged books, so a Kindle import with an old title does not recreate a merged-away book
@@ -22,7 +22,7 @@ Last updated: 2026-10-21
 - [ ] Phase 3 tag merge UI (merge_tags / preview_tag_merge already deployed)
 - [ ] Tag Management UX
 - [ ] Shared addTag() hook to replace the four copies
-- [ ] Fix the AI tag analysis: it only sees tag names and counts, and its failures show as "No significant overlaps found". Check the logs for a wrong model name, return real errors, and check whether the tag counts stop at 1,000 highlights
+- [ ] Fix the AI tag analysis: it only sees tag names and counts, and its failures show as "No significant overlaps found". Model (gemini-3.8-flash) is valid, but it still thinks by default inside a 1,500-token limit, so the answer may be getting cut off. Set reasoning_effort "low", raise max_tokens to ~4,000, add finish_reason/usage logging and return real errors (Lovable). Also check whether the tag counts stop at 1,000 highlights
 - [ ] Tag overlap report: combine name similarity, average highlight embeddings per tag, and shared-highlight counts in both directions (a small tag inside a big one is parent-child, not a merge). Needs one read-only database function via Lovable. Wire results to the existing preview_tag_merge / merge_tags buttons
 - [ ] Per-highlight tag cleanup queue: for pairs like investing/money or family/marriage, show the quote and both tags with Keep A / Keep B / Keep both / Skip. Re-embed on save. Browser-only
 - [ ] Fix preview_tag_merge: it counts only public highlights, but merge_tags changes all of them
@@ -32,9 +32,10 @@ Last updated: 2026-10-21
 ### Bugs
 - [ ] Books with 0 visible highlights show when logged out
 - [ ] "Access requested ✓" stays after a revoke
+- [ ] Search page hides "Glean's take" silently when the AI answer is empty or fails. Show "Couldn't generate Glean's take — try again" with a retry instead (frontend only, Cursor; edge function now returns error: "credits" / "rate_limit")
 ### Housekeeping
 - [ ] Update GLEAN_DEV_HANDOFF
-- [ ] Add CHANGELOG and README entries for the 2026-10-13 Kindle import rebuild and the 2026-10-14 work (book merge, Find ISBN, Inbox, BACKLOG.md)
+- [ ] Add CHANGELOG and README entries for the 2026-10-13 Kindle import rebuild and the 2026-10-14 work (book merge, Find ISBN, Inbox, BACKLOG.md), the 2026-10-21 work (admin book links, duplicate finder, sync fix) and the 2026-10-23 AI model switch
 - [ ] Decide whether to keep or remove the drizzle files Lovable added (drizzle.config.ts, drizzle/, three dev dependencies). Nothing in src/ imports them
 
 ## Someday
@@ -62,6 +63,7 @@ Last updated: 2026-10-21
 - [ ] Local OAuth
 - [ ] Migrate to own Supabase
 - [ ] Duplicate Lovable project
+- [ ] If search feels slow, move only rerank-highlights to gemini-3.1-flash-lite (faster, cheaper; output is just a list of scores)
 
 ## Done
 - [x] Kindle "My Clippings" import rebuilt (2026-10-13)
@@ -72,3 +74,4 @@ Last updated: 2026-10-21
 - [x] Admin Books: titles link to their book pages, plus "View book page" in the edit Sheet (2026-10-21)
 - [x] Find Duplicates matches near-identical titles across subtitles, articles and number words; unit-tested (real Covey/Sagan pairs were already merged by hand) (2026-10-21)
 - [x] Fixed Lovable/GitHub sync split by committing Lovable's current previewAuthStorage.ts (2026-10-21)
+- [x] Fixed truncated/missing search answers: gemini-2.5-flash's default thinking used ~765 of 800 tokens. Moved synthesise-wisdom, suggest-tags, rerank-highlights, generate-book-summary, generate-topic-summary and generate-reflection-questions to gemini-3.8-flash with reasoning_effort "none", resized token limits, added 30s timeouts and finish_reason/usage logging (2026-10-23)
