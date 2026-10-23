@@ -115,7 +115,6 @@ scripts/
 | generate-reflection-questions | Worksheet coaching questions | public |
 | suggest-tags | LLM-based tag suggestion (Gemini) | public |
 | find-book-covers | Multi-source book cover search (OL + Google Books) | public |
-| analyse-tags | AI redundancy analysis for tag taxonomy | public |
 | search-books | External book search via Google Books + OL | public |
 | rerank-highlights | Reranks semantic search results | public |
 | seed-highlights | Batch highlight seeding utility | admin |

@@ -7,6 +7,18 @@ const corsHeaders = {
 };
 
 const BATCH_SIZE = 50;
+const MAX_TEXT_CHARS = 8000;
+
+// Fingerprint = quote + tags + notes. Only the notes are shortened to fit.
+function buildFingerprintText(h: { quote: string; tags: string[] | null; my_notes: string | null }): string {
+  const base = `${h.quote}\n\nTopics: ${(h.tags ?? []).join(", ")}`;
+  const notes = (h.my_notes ?? "").trim();
+  if (!notes) return base;
+  const prefix = "\n\nNotes: ";
+  const room = MAX_TEXT_CHARS - base.length - prefix.length;
+  if (room <= 0) return base;
+  return base + prefix + notes.slice(0, room);
+}
 
 // L2-normalize a vector to unit length. Gemini's outputDimensionality=768
 // returns truncated, non-unit vectors — normalizing makes cosine scores span
@@ -72,9 +84,10 @@ serve(async (req) => {
   }
 
   // Optional body:
-  //   { ids: string[] }            — target specific highlights (still skips rows that already have embeddings)
-  //   { ids: string[], force: true } — regenerate embeddings for those IDs even if non-null
-  // When omitted, falls back to scanning all rows with NULL embedding.
+  //   { ids: string[] }              — those highlights, only if embedding is NULL
+  //   { ids: string[], force: true } — those highlights, regenerated even if non-null
+  // No ids: scan tagged highlights where embedding IS NULL OR embedding_refreshed_at IS NULL.
+  // Highlights with no tags are never fingerprinted in any mode; they are counted in skipped_untagged.
   let targetIds: string[] | null = null;
   let force = false;
   if (req.method === "POST") {
@@ -92,24 +105,38 @@ serve(async (req) => {
   }
 
   try {
+    const needsRefresh = "embedding.is.null,embedding_refreshed_at.is.null";
+    const untaggedFilter = "tags.is.null,tags.eq.{}";
     let remaining: number | null = null;
     let totalCount: number | null = null;
+    let skippedUntagged = 0;
 
     if (targetIds) {
       let countQuery = supabase
         .from("highlights")
         .select("id", { count: "exact", head: true })
-        .in("id", targetIds);
+        .in("id", targetIds)
+        .not("tags", "is", null)
+        .neq("tags", "{}");
       if (!force) countQuery = countQuery.is("embedding", null);
       const { count, error: countError } = await countQuery;
       if (countError) throw countError;
       remaining = count ?? 0;
       totalCount = targetIds.length;
+
+      const { count: uc } = await supabase
+        .from("highlights")
+        .select("id", { count: "exact", head: true })
+        .in("id", targetIds)
+        .or(untaggedFilter);
+      skippedUntagged = uc ?? 0;
     } else {
       const { count, error: countError } = await supabase
         .from("highlights")
         .select("id", { count: "exact", head: true })
-        .is("embedding", null);
+        .not("tags", "is", null)
+        .neq("tags", "{}")
+        .or(needsRefresh);
       if (countError) throw countError;
       remaining = count ?? 0;
 
@@ -117,6 +144,12 @@ serve(async (req) => {
         .from("highlights")
         .select("id", { count: "exact", head: true });
       totalCount = tc ?? 0;
+
+      const { count: uc } = await supabase
+        .from("highlights")
+        .select("id", { count: "exact", head: true })
+        .or(untaggedFilter);
+      skippedUntagged = uc ?? 0;
     }
 
     if (remaining === 0) {
@@ -124,7 +157,8 @@ serve(async (req) => {
         processed: 0,
         remaining: 0,
         total: totalCount ?? 0,
-        message: "All highlights already have embeddings.",
+        skipped_untagged: skippedUntagged,
+        message: "Nothing to refresh.",
       }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -132,14 +166,15 @@ serve(async (req) => {
 
     let fetchQuery = supabase
       .from("highlights")
-      .select("id, quote, tags");
-
-    if (!force) {
-      fetchQuery = fetchQuery.is("embedding", null);
-    }
+      .select("id, quote, tags, my_notes")
+      .not("tags", "is", null)
+      .neq("tags", "{}");
 
     if (targetIds) {
       fetchQuery = fetchQuery.in("id", targetIds);
+      if (!force) fetchQuery = fetchQuery.is("embedding", null);
+    } else {
+      fetchQuery = fetchQuery.or(needsRefresh);
     }
 
     const { data: batch, error: fetchError } = await fetchQuery.limit(BATCH_SIZE);
@@ -151,12 +186,7 @@ serve(async (req) => {
 
     for (const highlight of batch!) {
       try {
-        // Enrich the embedding input with topic tags so semantic search
-        // weighs both the quote text and its categorisation. Existing rows
-        // continue to use quote-only embeddings until manually regenerated.
-        const textToEmbed = highlight.tags && highlight.tags.length > 0
-          ? `${highlight.quote}\n\nTopics: ${highlight.tags.join(", ")}`
-          : highlight.quote;
+        const textToEmbed = buildFingerprintText(highlight);
 
         const embResponse = await fetch(
           `https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=${GEMINI_API_KEY}`,
@@ -236,11 +266,12 @@ serve(async (req) => {
       processed,
       remaining: newRemaining,
       total: totalCount ?? 0,
+      skipped_untagged: skippedUntagged,
       errors: errorDetails.length > 0 ? errorDetails.map(d => d.highlight_id) : undefined,
       error_details: errorDetails.length > 0 ? errorDetails : undefined,
       message: newRemaining > 0
         ? "Batch complete. Call again to process next batch."
-        : "All highlights now have embeddings!",
+        : "All tagged highlights are fingerprinted.",
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
