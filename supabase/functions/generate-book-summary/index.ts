@@ -61,15 +61,20 @@ serve(async (req) => {
 
     const userContent = `Book: ${bookTitle}\nAuthor: ${author || "Unknown"}\n\nHighlights:\n${sample}`;
 
+    const aiController = new AbortController();
+    const aiTimer = setTimeout(() => aiController.abort(), 30000);
+    const aiStart = Date.now();
     const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      signal: aiController.signal,
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${Deno.env.get("LOVABLE_API_KEY")}`,
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        max_tokens: 400,
+        model: "google/gemini-3.8-flash",
+        reasoning_effort: "none",
+        max_tokens: 800,
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userContent },
@@ -86,6 +91,10 @@ serve(async (req) => {
     }
 
     const data = await aiResponse.json();
+    clearTimeout(aiTimer);
+    const finishReason = data.choices?.[0]?.finish_reason;
+    console.log("generate-book-summary", { finish_reason: finishReason, usage: data.usage, ms: Date.now() - aiStart });
+    if (finishReason === "length") console.warn("generate-book-summary: finish_reason length", { usage: data.usage });
     const summary = data.choices?.[0]?.message?.content?.trim() || "";
 
     if (!summary) {
@@ -114,6 +123,7 @@ serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {
+    if ((error as any)?.name === "AbortError") console.error("generate-book-summary: gateway timeout after 30s");
     console.error("Error in generate-book-summary:", error);
     return new Response(JSON.stringify({ error: "Internal error" }), {
       status: 500,

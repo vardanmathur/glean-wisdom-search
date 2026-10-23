@@ -38,15 +38,20 @@ serve(async (req) => {
         ...messages,
       ];
 
+      const aiController = new AbortController();
+      const aiTimer = setTimeout(() => aiController.abort(), 30000);
+      const aiStart = Date.now();
       const aiResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        signal: aiController.signal,
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${Deno.env.get("LOVABLE_API_KEY")}`,
         },
         body: JSON.stringify({
-          model: "google/gemini-2.5-flash",
-          max_tokens: 350,
+          model: "google/gemini-3.8-flash",
+          reasoning_effort: "none",
+          max_tokens: 600,
           messages: chatMessages,
         }),
       });
@@ -70,6 +75,10 @@ serve(async (req) => {
       }
 
       const data = await aiResp.json();
+      clearTimeout(aiTimer);
+      const finishReason = data.choices?.[0]?.finish_reason;
+      console.log("synthesise-wisdom", { finish_reason: finishReason, usage: data.usage, ms: Date.now() - aiStart });
+      if (finishReason === "length") console.warn("synthesise-wisdom: finish_reason length", { usage: data.usage });
       const response = data.choices?.[0]?.message?.content || "";
 
       // Server-side atomic usage increment (bypasses RLS via service role).
@@ -160,33 +169,45 @@ Tone rules:
 - Keep the entire response under 350 words
 - Use plain, conversational English — no jargon, no corporate language`;
 
+    const aiController = new AbortController();
+    const aiTimer = setTimeout(() => aiController.abort(), 30000);
+    const aiStart = Date.now();
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      signal: aiController.signal,
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${Deno.env.get("LOVABLE_API_KEY")}`,
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        max_tokens: 800,
+        model: "google/gemini-3.8-flash",
+        reasoning_effort: "none",
+        max_tokens: 1000,
         messages: [{ role: "user", content: prompt }],
       }),
     });
 
     if (!response.ok) {
-      console.error("AI gateway error:", await response.text());
-      return new Response(JSON.stringify({ synthesis: "" }), {
+      const errBody = await response.text();
+      console.error("AI gateway error:", response.status, errBody);
+      const errCode = response.status === 402 ? "credits" : response.status === 429 ? "rate_limit" : undefined;
+      return new Response(JSON.stringify(errCode ? { synthesis: "", error: errCode } : { synthesis: "" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     const data = await response.json();
+    clearTimeout(aiTimer);
+    const finishReason = data.choices?.[0]?.finish_reason;
+    console.log("synthesise-wisdom", { finish_reason: finishReason, usage: data.usage, ms: Date.now() - aiStart });
+    if (finishReason === "length") console.warn("synthesise-wisdom: finish_reason length", { usage: data.usage });
     const synthesis = data.choices?.[0]?.message?.content || "";
 
     return new Response(JSON.stringify({ synthesis }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {
+    if ((error as any)?.name === "AbortError") console.error("synthesise-wisdom: gateway timeout after 30s");
     console.error("Error in synthesise-wisdom:", error);
     return new Response(JSON.stringify({ synthesis: "", error: String(error) }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

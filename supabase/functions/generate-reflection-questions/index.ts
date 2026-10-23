@@ -45,15 +45,20 @@ serve(async (req) => {
 
     const userContent = `The person's situation/question:\n"${query}"\n\nThe wisdom synthesis they were given:\n${synthesis || "(no synthesis available)"}\n\nReturn ONLY a JSON array of exactly 4 question strings.`;
 
+    const aiController = new AbortController();
+    const aiTimer = setTimeout(() => aiController.abort(), 30000);
+    const aiStart = Date.now();
     const aiResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      signal: aiController.signal,
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${Deno.env.get("LOVABLE_API_KEY")}`,
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        max_tokens: 400,
+        model: "google/gemini-3.8-flash",
+        reasoning_effort: "none",
+        max_tokens: 600,
         messages: [
           { role: "system", content: SYSTEM_PROMPT },
           { role: "user", content: userContent },
@@ -80,6 +85,10 @@ serve(async (req) => {
     }
 
     const data = await aiResp.json();
+    clearTimeout(aiTimer);
+    const finishReason = data.choices?.[0]?.finish_reason;
+    console.log("generate-reflection-questions", { finish_reason: finishReason, usage: data.usage, ms: Date.now() - aiStart });
+    if (finishReason === "length") console.warn("generate-reflection-questions: finish_reason length", { usage: data.usage });
     const raw = data.choices?.[0]?.message?.content || "";
 
     let questions: string[] = [];
@@ -111,6 +120,7 @@ serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {
+    if ((error as any)?.name === "AbortError") console.error("generate-reflection-questions: gateway timeout after 30s");
     console.error("Error in generate-reflection-questions:", error);
     return new Response(JSON.stringify({ questions: FALLBACK }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
