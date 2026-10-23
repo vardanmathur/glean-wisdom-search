@@ -188,8 +188,10 @@ Tone rules:
     });
 
     if (!response.ok) {
-      console.error("AI gateway error:", await response.text());
-      return new Response(JSON.stringify({ synthesis: "" }), {
+      const errBody = await response.text();
+      console.error("AI gateway error:", response.status, errBody);
+      const errCode = response.status === 402 ? "credits" : response.status === 429 ? "rate_limit" : undefined;
+      return new Response(JSON.stringify(errCode ? { synthesis: "", error: errCode } : { synthesis: "" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
