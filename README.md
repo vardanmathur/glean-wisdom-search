@@ -109,7 +109,7 @@ scripts/
 |----------|---------|------|
 | search-semantic | pgvector semantic search | public |
 | synthesise-wisdom | AI synthesis + Think! usage tracking | public |
-| generate-embeddings | Gemini embedding generation | admin |
+| generate-embeddings | Highlight fingerprints (Gemini embedding of quote + tags + notes; untagged skipped) | admin |
 | generate-topic-summary | AI topic summaries (6mo cache) | public |
 | generate-book-summary | AI book summaries (6mo cache) | public |
 | generate-reflection-questions | Worksheet coaching questions | public |
@@ -124,7 +124,9 @@ scripts/
 ## Admin pages
 
 All admin pages require the admin role via has_role() RPC.
-Access via /admin hub:
+Access via /admin hub, or from the floating quick menu (admins only):
+a draggable button pinned to the left or right edge that fans out
+shortcuts; press and hold it to rearrange them.
 
 | Page | Path | Purpose |
 |------|------|---------|
@@ -134,7 +136,8 @@ Access via /admin hub:
 | Permissions | /admin/permissions | User access management |
 | Worksheets | /admin/worksheets | View downloaded worksheets |
 | Search Logs | /admin/search-logs | Search query analytics |
-| Tag Management | /admin/tag-management | Tag taxonomy — inventory, overlaps, AI analysis, rename |
+| Tag Management | /admin/tag-management | Tag taxonomy — inventory, unused & unlisted tags, overlap review, rename |
+| Inbox | /admin/backlog | Quick-capture to-do list; separate from BACKLOG.md and not synced with it |
 | Admin Seed | /admin/seed | Batch utilities — normalise tags, seed data |
 
 ---
@@ -157,6 +160,8 @@ Access via /admin hub:
 | saved_highlights | Per-user highlight saves |
 | feedback | Thumbs up/down per highlight |
 | tags | Canonical tag taxonomy — 66 tags, DB-backed since Sep 2026 |
+| tag_overlap_decisions | Per-highlight Keep/Remove decisions from the overlap review (expire after 12 months) |
+| backlog_items | The in-app Inbox |
 
 ---
 
@@ -166,7 +171,12 @@ Access via /admin hub:
 - **Storage bucket:** worksheets (private)
 - **Key RPCs:** has_role(), match_highlights(),
   increment_think_usage(), suggest_tags_for_quote(),
-  merge_tags(), preview_tag_merge()
+  preview_book_merge(), merge_books(), tag_usage_counts(),
+  tag_overlap_pairs(), tag_overlap_highlights(),
+  resolve_tag_overlap(), undo_tag_overlap()
+  (merge_tags() and preview_tag_merge() still exist but are unused)
+- **SQL record:** docs/sql/ holds SQL run by hand outside Lovable
+  (not migrations)
 
 ---
 
@@ -183,41 +193,9 @@ and topic URLs.
 
 ## Backlog
 
-### Next dev session
-
-- Admin bulk-move of highlights from one book to another, for
-  when duplicate books get created (needs a database function,
-  so it goes through Lovable)
-- Hyperlinks from the admin page to each book's page
-- An in-app link to a backlog kept inside the admin page
-- ISBN search for newly added books, working the same way as
-  Find Covers
-
-### Kindle import follow-ups
-
-- Carry a note from a skipped duplicate to the kept copy (one
-  note is lost today)
-- Settings "From Kindle" counter reads source = "kindle", but
-  import writes "user", so it shows 0
-- Try the cleaned master clippings file after one or two more
-  small imports
-- Optional review-screen extras: a "will be added to existing
-  book" line, and an author-mismatch warning
-- Smaller known quirks: the malformed counter counts empty
-  bookmarks; "--" in a title is wrongly marked garbled; a
-  ", The - Author" title can come out with title and author
-  swapped
-
-### Other
-
-- Consolidate the four addTag() implementations and the four
-  copies of the "Add to taxonomy?" prompt (HighlightEditPanel,
-  AdminStudioHighlights, UserStudio, AddHighlightModal) into
-  one shared hook/component
-- BookLookup.tsx locked-book view still truncates long titles;
-  AddHighlightModal's header now wraps them
-- Dead `open` dependency in the EditPanel hydrate effect at
-  AdminStudioHighlights.tsx:1214 (resolves to window.open)
+The master dev backlog is BACKLOG.md in the repo root. The in-app
+Inbox (Admin → Inbox) is a separate to-do list and is not kept in
+sync with it.
 
 ---
 

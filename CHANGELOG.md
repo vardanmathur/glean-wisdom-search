@@ -2,6 +2,96 @@
 
 Notable changes to Glean, newest first. One entry per work session; group by what changed, not by file.
 
+## 2026-11-03 — Admin Quick Menu, Safer Book Deletes
+
+### Shipped
+- Added: admin-only floating quick menu (radial shortcuts)
+  - a round button you can drag anywhere; on release it snaps to
+    the nearer side edge, and the position and side are remembered
+    on that device
+  - tap to fan out seven shortcuts (Admin Hub, Inbox, Admin
+    Studio, Add highlight, Search, Books, Overlap review); the
+    fan mirrors to open away from whichever edge it sits on
+  - press and hold the button to arrange the shortcut order
+    (up/down buttons, "Reset to default"); order is saved per
+    device
+  - the button is half transparent when idle and fully opaque
+    when pressed, hovered, focused or open
+  - the pressed icon and its label always paint on top of the
+    neighbouring icons
+- Added: "Add highlight" opens from the quick menu on any page
+- Changed: the phone's Back button now closes the Add highlight
+  window instead of leaving the page (the camera and dictation
+  stop the same way as on Cancel)
+- Changed: /admin/tag-management?tab=overlaps opens the Overlap
+  review tab directly
+- Changed: every book delete shows which book(s) will go first.
+  Find Duplicates "Delete" now opens the same confirmation as
+  the row delete, and the "Delete N books with no highlights"
+  dialog lists the books (title and author, sorted by title)
+- Fixed: before deleting, the highlight count is re-checked, so
+  a book that gained highlights since the page loaded is skipped
+  (deleting a book also deletes its highlights)
+
+---
+
+## 2026-10-23 — Tag Overlap Review, Highlight Fingerprints
+
+### Shipped
+- Added: Overlap review in Tag Management
+  - tag pairs ranked by how many highlights share both tags
+  - one highlight at a time: Keep both, Remove either tag, Skip
+    or Undo last; no bulk actions
+  - decisions are remembered and expire after 12 months
+- Added: tag counts now come from a database function with no
+  1,000-row limit, plus an "Unused & unlisted tags" card; the
+  delete button is only offered for taxonomy tags with 0
+  highlights
+- Changed: a highlight's fingerprint (embedding) is now quote +
+  tags + notes; highlights with no tags are never fingerprinted
+- Added: a shared helper refreshes a fingerprint in the
+  background whenever a tagged highlight's quote, tags or notes
+  change (new highlights, edits, tag rename, tag normalise)
+- Added: Admin Hub panel showing how many highlights need a
+  fingerprint refresh, with a "Refresh now" button
+- Changed: six AI functions moved to gemini-3.8-flash with
+  resized token limits and timeouts (fixes cut-off search
+  answers)
+- Changed: "Add tag" only treats taxonomy tags as duplicates
+- Removed: the analyse-tags function, the "Analyse with AI" tab
+  and the old two-tag overlap picker
+
+---
+
+## 2026-10-21 — Admin Book Links, Smarter Duplicate Finder
+
+### Shipped
+- Added: book titles in Admin Books link to their book page, and
+  the edit panel has a "View book page" link
+- Changed: Find Duplicates now matches near-identical titles
+  across subtitles, leading "The/A/An", number words and accents
+  (non-Latin titles are kept), and compares author surnames; it
+  was matching exact titles only
+- Fixed: GitHub and Lovable were out of step on
+  previewAuthStorage.ts; main now carries Lovable's version
+
+---
+
+## 2026-10-14 — Book Merge, Find ISBN, Inbox
+
+### Shipped
+- Added: merge a book into another from Admin Books (preview of
+  what moves, then merge); highlights move first so none are lost
+- Added: Find ISBN for a single book in the edit panel (Google
+  Books and Open Library, several editions to pick from)
+- Added: Inbox (/admin/backlog), a quick-capture to-do list for
+  jotting things down while using the app; it is separate from
+  BACKLOG.md and not synced with it
+- Added: BACKLOG.md in the repo root as the master dev backlog
+- Removed: Lovable's leftover test rows from production
+
+---
+
 ## 2026-10-13 — Kindle Import Rebuilt
 
 ### Shipped

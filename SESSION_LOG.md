@@ -1,5 +1,29 @@
 ---
 
+## [2026-11-03] Glean — Admin quick menu, safer book deletes, docs brought up to date
+
+**Mode**: Claude Code
+**Mem0**: not connected
+
+### What happened
+Shipped an admin-only floating quick menu: draggable radial shortcuts that snap to the left or right edge, rearrangeable by press-and-hold, half transparent when idle, and Back now closes the Add highlight window. Every book delete now names the book(s) first and re-checks highlights right before deleting. CHANGELOG, README and BACKLOG were stale since 10-13 and are now caught up. All code pushed (last commit 9b34ee7).
+
+### Key decisions
+- Quick menu is one ordered array in src/lib/quickMenu.ts; order and side are saved per device in localStorage, so no database change.
+- Arrange opens as a plain Dialog, not a drawer, because a drawer can treat the finger's release after a hold as an outside tap.
+- Back handling pushes one same-URL history entry and pops it exactly once; Back-close never pops, so no double navigation.
+- README's duplicate backlog replaced by a pointer to BACKLOG.md so there is one list.
+
+### Open threads
+- [ ] Try the quick menu on the phone: drag and snap, hold to arrange, Back inside Add highlight
+- [ ] Work through the Overlap review pairs; deploy generate-embeddings via Lovable and run "Refresh now"
+- [ ] Delete the 34 migrated Inbox rows (keep 2 Security rows); drop merge_tags / preview_tag_merge
+
+### Artifacts
+- QuickMenu.tsx, QuickMenuArrange.tsx, useCloseOnBack.ts, quickMenu.ts, CHANGELOG.md, README.md, BACKLOG.md
+
+---
+
 ## [2026-10-23] Glean — Tag overlap review, fingerprints with notes, backlog sync
 
 **Mode**: Claude Code

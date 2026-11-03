@@ -2,7 +2,7 @@
 
 This is the master dev backlog. The in-app Inbox (Admin → Inbox) is a separate mini to-do list that is managed by hand. It is not kept in sync with this file, and nothing needs to move from it into this file.
 
-Last updated: 2026-10-23
+Last updated: 2026-11-03
 
 ## Next
 - [ ] Alias table for merged books, so a Kindle import with an old title does not recreate a merged-away book
@@ -35,7 +35,6 @@ Last updated: 2026-10-23
 - [ ] A highlight whose last tag is removed keeps its old fingerprint (with the old tag names); clear or handle it
 ### Housekeeping
 - [ ] Update GLEAN_DEV_HANDOFF
-- [ ] Add CHANGELOG and README entries for the 2026-10-13 Kindle import rebuild and the 2026-10-14 work (book merge, Find ISBN, Inbox, BACKLOG.md), the 2026-10-21 work (admin book links, duplicate finder, sync fix) and the 2026-10-23 AI model switch
 - [ ] Decide whether to keep or remove the drizzle files Lovable added (drizzle.config.ts, drizzle/, three dev dependencies). Nothing in src/ imports them
 
 ## Someday
@@ -81,3 +80,6 @@ Last updated: 2026-10-23
 - [x] Tag overlap review in Tag Management: ranked tag pairs by shared highlights and meaning, one-highlight-at-a-time Keep both / Remove / Skip / Undo, decisions expire after 12 months; correct tag counts (no 1,000-row cap) and an Unused & unlisted tags card; retired analyse-tags and the old overlap picker (2026-10-23)
 - [x] Fingerprints now = quote + tags + notes; untagged highlights are never fingerprinted; a shared helper refreshes in the background whenever a tagged highlight's quote, tags or notes change; admin "Refresh now" panel; 408 rebuilt, 0 failed (2026-10-23)
 - [x] Add tag: only taxonomy tags count as duplicates (2026-10-23)
+- [x] Book deletes always show which book(s) will be deleted; highlight count re-checked right before deleting (2026-11-03)
+- [x] Admin quick menu: draggable radial shortcuts pinned to the left or right edge, rearrangeable by press-and-hold, half transparent when idle; Back closes the Add highlight window (2026-11-03)
+- [x] CHANGELOG and README brought up to date for 2026-10-14 to 2026-11-03 (2026-11-03)
