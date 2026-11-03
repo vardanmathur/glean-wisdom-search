@@ -10,17 +10,18 @@ import QuickMenuArrange from "@/components/QuickMenuArrange";
 import {
   BUTTON_SIZE,
   DEFAULT_FRACTION,
-  EDGE_INSET,
   FAN_RADIUS,
   HOLD_MS,
   ITEM_SIZE,
   ORDER_STORAGE_KEY,
-  QUICK_MENU_ITEMS,
+  SIDE_STORAGE_KEY,
   STAGGER_MS,
   STORAGE_KEY,
   TAP_THRESHOLD,
   arcOffsets,
+  clampCenterX,
   clampCenterY,
+  chooseSide,
   defaultOrder,
   fractionToY,
   itemsInOrder,
@@ -28,11 +29,13 @@ import {
   moveId,
   parseStoredFraction,
   parseStoredOrder,
+  parseStoredSide,
+  pinnedCenterX,
   yToFraction,
   type QuickMenuItem,
+  type Side,
 } from "@/lib/quickMenu";
 
-const OFFSETS = arcOffsets(QUICK_MENU_ITEMS.length, FAN_RADIUS);
 const FALLBACK_TOP_BAR = 64;
 
 function readStoredFraction(): number {
@@ -48,6 +51,22 @@ function saveFraction(fraction: number) {
     localStorage.setItem(STORAGE_KEY, String(fraction));
   } catch {
     /* storage unavailable: the position just won't persist */
+  }
+}
+
+function readStoredSide(): Side {
+  try {
+    return parseStoredSide(localStorage.getItem(SIDE_STORAGE_KEY));
+  } catch {
+    return parseStoredSide(null);
+  }
+}
+
+function saveSide(side: Side) {
+  try {
+    localStorage.setItem(SIDE_STORAGE_KEY, side);
+  } catch {
+    /* storage unavailable: the side just won't persist */
   }
 }
 
@@ -91,6 +110,7 @@ interface DragState {
   startY: number;
   startX: number;
   startCenter: number;
+  startCenterX: number;
   dragging: boolean;
   held: boolean;
 }
@@ -103,17 +123,21 @@ const QuickMenuInner = () => {
 
   const [open, setOpen] = useState(false);
   const [fraction, setFraction] = useState(readStoredFraction);
+  const [side, setSide] = useState<Side>(readStoredSide);
   const [viewport, setViewport] = useState(() => ({
+    w: window.innerWidth,
     h: window.innerHeight,
     safeBottom: measureSafeBottom(),
   }));
-  const [dragCenter, setDragCenter] = useState<number | null>(null);
+  const [dragPos, setDragPos] = useState<{ x: number; y: number } | null>(null);
+  const [pressed, setPressed] = useState(false);
   const [labelIndex, setLabelIndex] = useState<number | null>(null);
   const [addMounted, setAddMounted] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [order, setOrder] = useState<string[]>(readStoredOrder);
   const [arrangeOpen, setArrangeOpen] = useState(false);
   const items = useMemo(() => itemsInOrder(order), [order]);
+  const offsets = useMemo(() => arcOffsets(items.length, FAN_RADIUS, side), [items.length, side]);
 
   const buttonRef = useRef<HTMLButtonElement>(null);
   const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
@@ -125,11 +149,12 @@ const QuickMenuInner = () => {
     (y: number) => clampCenterY(y, viewport.h, readTopBar(), viewport.safeBottom),
     [viewport.h, viewport.safeBottom],
   );
-  const center = clamp(dragCenter ?? fractionToY(fraction, viewport.h));
+  const center = clamp(dragPos?.y ?? fractionToY(fraction, viewport.h));
+  const centerX = dragPos?.x ?? pinnedCenterX(side, viewport.w);
 
   // Re-clamp on resize and orientation change.
   useEffect(() => {
-    const onResize = () => setViewport({ h: window.innerHeight, safeBottom: measureSafeBottom() });
+    const onResize = () => setViewport({ w: window.innerWidth, h: window.innerHeight, safeBottom: measureSafeBottom() });
     window.addEventListener("resize", onResize);
     window.addEventListener("orientationchange", onResize);
     return () => {
@@ -189,15 +214,17 @@ const QuickMenuInner = () => {
     }
   };
 
-  // ---- dragging the button along the left edge ----
+  // ---- dragging the button; on release it snaps to the nearer side edge ----
   const onPointerDown = (e: ReactPointerEvent<HTMLButtonElement>) => {
     if (e.pointerType === "mouse" && e.button !== 0) return;
     e.currentTarget.setPointerCapture(e.pointerId);
+    setPressed(true);
     const state: DragState = {
       pointerId: e.pointerId,
       startY: e.clientY,
       startX: e.clientX,
       startCenter: center,
+      startCenterX: centerX,
       dragging: false,
       held: false,
     };
@@ -223,7 +250,12 @@ const QuickMenuInner = () => {
       clearHold();
       setOpen(false);
     }
-    if (d.dragging && !d.held) setDragCenter(clamp(d.startCenter + dy));
+    if (d.dragging && !d.held) {
+      setDragPos({
+        x: clampCenterX(d.startCenterX + (e.clientX - d.startX), viewport.w),
+        y: clamp(d.startCenter + dy),
+      });
+    }
   };
 
   const onPointerUp = (e: ReactPointerEvent<HTMLButtonElement>) => {
@@ -231,6 +263,7 @@ const QuickMenuInner = () => {
     if (!d || d.pointerId !== e.pointerId) return;
     drag.current = null;
     clearHold();
+    setPressed(false);
     if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
     if (d.held) return; // a hold opened the arrange window; it must not also toggle the fan
     if (!d.dragging) {
@@ -238,16 +271,21 @@ const QuickMenuInner = () => {
       return;
     }
     const finalY = clamp(d.startCenter + (e.clientY - d.startY));
+    const finalX = clampCenterX(d.startCenterX + (e.clientX - d.startX), viewport.w);
+    const nextSide = chooseSide(finalX, viewport.w);
     const next = yToFraction(finalY, viewport.h);
+    setSide(nextSide);
     setFraction(next);
-    setDragCenter(null);
+    setDragPos(null);
+    saveSide(nextSide);
     saveFraction(next);
   };
 
   const onPointerCancel = () => {
     drag.current = null;
     clearHold();
-    setDragCenter(null);
+    setPressed(false);
+    setDragPos(null);
   };
 
   // Keyboard activation arrives as a click with detail 0; pointer clicks are handled on pointerup.
@@ -269,7 +307,8 @@ const QuickMenuInner = () => {
     else if (e.key === "End") move(items.length - 1);
   };
 
-  const containerStyle = { left: EDGE_INSET, top: center - BUTTON_SIZE / 2, width: BUTTON_SIZE, height: BUTTON_SIZE };
+  const containerStyle = { left: centerX - BUTTON_SIZE / 2, top: center - BUTTON_SIZE / 2, width: BUTTON_SIZE, height: BUTTON_SIZE };
+  const buttonActive = open || pressed || dragPos !== null;
   const inset = (BUTTON_SIZE - ITEM_SIZE) / 2;
 
   return (
@@ -282,7 +321,10 @@ const QuickMenuInner = () => {
         />
       )}
 
-      <div className="fixed z-40" style={containerStyle}>
+      <div
+        className={`fixed z-40 ${dragPos ? "" : "transition-[left,top] duration-200 ease-out motion-reduce:transition-none"}`}
+        style={containerStyle}
+      >
         <div
           role="menu"
           aria-label="Quick menu shortcuts"
@@ -291,7 +333,7 @@ const QuickMenuInner = () => {
         >
           {items.map((item, i) => {
             const Icon = item.icon;
-            const { x, y } = OFFSETS[i];
+            const { x, y } = offsets[i];
             return (
               <button
                 key={item.id}
@@ -325,7 +367,7 @@ const QuickMenuInner = () => {
               >
                 <Icon className="h-5 w-5" aria-hidden="true" />
                 {open && labelIndex === i && (
-                  <span className="pointer-events-none absolute left-full top-1/2 ml-2 -translate-y-1/2 whitespace-nowrap rounded-md bg-foreground px-2 py-1 text-xs text-background shadow">
+                  <span className={`pointer-events-none absolute top-1/2 -translate-y-1/2 whitespace-nowrap ${side === "left" ? "left-full ml-2" : "right-full mr-2"} rounded-md bg-foreground px-2 py-1 text-xs text-background shadow`}>
                     {item.label}
                   </span>
                 )}
@@ -346,7 +388,7 @@ const QuickMenuInner = () => {
           onPointerCancel={onPointerCancel}
           onClick={onButtonClick}
           onContextMenu={(e) => e.preventDefault()}
-          className="absolute inset-0 flex touch-none select-none items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          className={`absolute inset-0 flex touch-none select-none items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-opacity duration-200 motion-reduce:transition-none [@media(hover:hover)]:hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${buttonActive ? "opacity-100" : "opacity-50"}`}
           style={{ touchAction: "none" }}
         >
           {open ? <X className="h-6 w-6" aria-hidden="true" /> : <Compass className="h-6 w-6" aria-hidden="true" />}

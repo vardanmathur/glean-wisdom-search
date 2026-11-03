@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   QUICK_MENU_ITEMS,
   arcOffsets,
+  chooseSide,
+  clampCenterX,
   clampCenterY,
   defaultOrder,
   fractionToY,
@@ -10,6 +12,8 @@ import {
   moveId,
   parseStoredFraction,
   parseStoredOrder,
+  parseStoredSide,
+  pinnedCenterX,
   yToFraction,
   type QuickMenuItem,
 } from "./quickMenu";
@@ -141,5 +145,65 @@ describe("shortcut order", () => {
   it("returns items in the saved order", () => {
     expect(itemsInOrder(["c", "a"], defaults).map((i) => i.id)).toEqual(["c", "a", "b", "d"]);
     expect(itemsInOrder([]).map((i) => i.id)).toEqual(QUICK_MENU_ITEMS.map((i) => i.id));
+  });
+});
+
+describe("arcOffsets mirrored for the right edge", () => {
+  const R = 110;
+  const left = arcOffsets(7, R, "left");
+  const right = arcOffsets(7, R, "right");
+
+  it("mirrors x and keeps y", () => {
+    right.forEach((o, i) => {
+      expect(o.y).toBe(left[i].y);
+      expect(o.x).toBe(left[i].x === 0 ? 0 : -left[i].x);
+    });
+  });
+
+  it("opens to the left: first straight up, middle straight left, last straight down", () => {
+    expect(right[0]).toEqual({ x: 0, y: -R });
+    expect(right[3]).toEqual({ x: -R, y: 0 });
+    expect(right[6]).toEqual({ x: 0, y: R });
+    for (const o of right) expect(o.x).toBeLessThanOrEqual(0);
+  });
+
+  it("never produces a negative zero", () => {
+    expect(Object.is(right[0].x, -0)).toBe(false);
+    expect(arcOffsets(2, 100, "right")).toEqual([
+      { x: 0, y: -100 },
+      { x: 0, y: 100 },
+    ]);
+  });
+
+  it("defaults to the left edge", () => {
+    expect(arcOffsets(3)).toEqual(arcOffsets(3, 110, "left"));
+  });
+});
+
+describe("side choice and pinning", () => {
+  it("picks the closer edge, ties go right", () => {
+    expect(chooseSide(40, 400)).toBe("left");
+    expect(chooseSide(199, 400)).toBe("left");
+    expect(chooseSide(200, 400)).toBe("right");
+    expect(chooseSide(380, 400)).toBe("right");
+  });
+
+  it("pins the centre 16px in from the chosen edge", () => {
+    expect(pinnedCenterX("left", 400)).toBe(44);
+    expect(pinnedCenterX("right", 400)).toBe(356);
+  });
+
+  it("keeps a dragged button on screen", () => {
+    expect(clampCenterX(-30, 400)).toBe(28);
+    expect(clampCenterX(500, 400)).toBe(372);
+    expect(clampCenterX(150, 400)).toBe(150);
+    expect(clampCenterX(10, 40)).toBe(20);
+  });
+
+  it("parses the saved side, defaulting to left", () => {
+    expect(parseStoredSide("right")).toBe("right");
+    expect(parseStoredSide("left")).toBe("left");
+    expect(parseStoredSide(null)).toBe("left");
+    expect(parseStoredSide("middle")).toBe("left");
   });
 });

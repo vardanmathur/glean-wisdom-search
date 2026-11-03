@@ -45,18 +45,46 @@ export interface Offset {
   y: number;
 }
 
+export type Side = "left" | "right";
+export const DEFAULT_SIDE: Side = "left";
+export const SIDE_STORAGE_KEY = "glean_quick_menu_side";
+
 const tidy = (n: number): number => Math.round(n * 100) / 100 + 0;
 
-// Offsets from the button's centre, on a half-circle opening to the right:
+// Offsets from the button's centre, on a half-circle opening away from the pinned edge:
 // first item straight up (-90deg), last straight down (+90deg), evenly spaced.
+// Pinned left, the fan opens to the right; pinned right, it is mirrored and opens to the left.
 // y grows downward, so straight up is a negative y.
-export function arcOffsets(count: number, radius: number = FAN_RADIUS): Offset[] {
+export function arcOffsets(count: number, radius: number = FAN_RADIUS, side: Side = "left"): Offset[] {
   if (count <= 0) return [];
-  if (count === 1) return [{ x: tidy(radius), y: 0 }];
+  const sign = side === "left" ? 1 : -1;
+  if (count === 1) return [{ x: tidy(sign * radius), y: 0 }];
   return Array.from({ length: count }, (_, i) => {
     const angle = ((-90 + (180 * i) / (count - 1)) * Math.PI) / 180;
-    return { x: tidy(radius * Math.cos(angle)), y: tidy(radius * Math.sin(angle)) };
+    return { x: tidy(sign * radius * Math.cos(angle)), y: tidy(radius * Math.sin(angle)) };
   });
+}
+
+// Whichever side edge the button's centre is closer to.
+export function chooseSide(centerX: number, viewportWidth: number): Side {
+  return centerX < viewportWidth / 2 ? "left" : "right";
+}
+
+// Centre x of the button when pinned to a side, EDGE_INSET from the screen edge.
+export function pinnedCenterX(side: Side, viewportWidth: number): number {
+  return side === "left" ? EDGE_INSET + BUTTON_SIZE / 2 : viewportWidth - EDGE_INSET - BUTTON_SIZE / 2;
+}
+
+// While dragging, the button may go anywhere on screen but never off it.
+export function clampCenterX(x: number, viewportWidth: number): number {
+  const half = BUTTON_SIZE / 2;
+  if (viewportWidth <= BUTTON_SIZE) return viewportWidth / 2;
+  return Math.min(Math.max(x, half), viewportWidth - half);
+}
+
+// Saved value -> side, else the default.
+export function parseStoredSide(raw: string | null): Side {
+  return raw === "left" || raw === "right" ? raw : DEFAULT_SIDE;
 }
 
 // Keeps the button's centre far enough from the top bar and the bottom of the
