@@ -40,6 +40,7 @@ interface DuplicateGroup {
 
 const PAGE = 1000;
 const DELETE_CHUNK = 100;
+const RECOUNT_CONCURRENCY = 10;
 
 const chunk = <T,>(arr: T[], size: number): T[][] => {
   const out: T[][] = [];
@@ -136,7 +137,11 @@ const AdminBooks = () => {
     );
   }, [books, search]);
 
-  const orphanCount = useMemo(() => books.filter((b) => b.highlight_count === 0).length, [books]);
+  const orphanBooks = useMemo(
+    () => books.filter((b) => b.highlight_count === 0).sort((a, b) => a.title.localeCompare(b.title)),
+    [books],
+  );
+  const orphanCount = orphanBooks.length;
 
   // Books offered as a merge target for the book being edited (needs 2+ characters to search).
   const pickResults = useMemo(() => {
@@ -254,13 +259,43 @@ const AdminBooks = () => {
     setEditing(null);
   };
 
+  // Deleting a book cascades to its highlights, so re-count right before any delete.
+  const countHighlights = async (bookId: string): Promise<number> => {
+    const { count, error } = await supabase
+      .from("highlights")
+      .select("id", { count: "exact", head: true })
+      .eq("book_id", bookId);
+    if (error) throw error;
+    return count ?? 0;
+  };
+
+  const applyHighlightCounts = (counts: Map<string, number>) => {
+    const update = (b: BookRow): BookRow => (counts.has(b.id) ? { ...b, highlight_count: counts.get(b.id)! } : b);
+    setBooks((prev) => prev.map(update));
+    setDuplicateGroups((prev) => prev.map((g) => ({ ...g, rows: g.rows.map(update) })));
+  };
+
   const handleDeleteBook = async () => {
     if (!confirmDelete) return;
+    const deletedId = confirmDelete.id;
+    const deletedTitle = confirmDelete.title;
     setDeleting(true);
     try {
-      const { error } = await supabase.from("books").delete().eq("id", confirmDelete.id);
+      const current = await countHighlights(deletedId);
+      if (current > 0) {
+        applyHighlightCounts(new Map([[deletedId, current]]));
+        setConfirmDelete(null);
+        toast.error(`'${deletedTitle}' now has highlights — not deleted.`);
+        return;
+      }
+      const { error } = await supabase.from("books").delete().eq("id", deletedId);
       if (error) throw error;
-      setBooks((prev) => prev.filter((b) => b.id !== confirmDelete.id));
+      setBooks((prev) => prev.filter((b) => b.id !== deletedId));
+      setDuplicateGroups((prev) =>
+        prev
+          .map((g) => ({ ...g, rows: g.rows.filter((r) => r.id !== deletedId) }))
+          .filter((g) => g.rows.length >= 2),
+      );
       toast.success("Book deleted");
       setConfirmDelete(null);
     } catch (err) {
@@ -272,18 +307,36 @@ const AdminBooks = () => {
   };
 
   const handleDeleteOrphans = async () => {
-    const orphanIds = books.filter((b) => b.highlight_count === 0).map((b) => b.id);
+    const orphanIds = orphanBooks.map((b) => b.id);
     if (orphanIds.length === 0) return;
     setDeletingOrphans(true);
     let deleted = 0;
     try {
-      for (const batch of chunk(orphanIds, DELETE_CHUNK)) {
+      // Re-count first; only books still at 0 highlights are deleted.
+      const current = new Map<string, number>();
+      for (const group of chunk(orphanIds, RECOUNT_CONCURRENCY)) {
+        const counts = await Promise.all(group.map((id) => countHighlights(id)));
+        group.forEach((id, i) => current.set(id, counts[i]));
+      }
+      const skippedIds = orphanIds.filter((id) => (current.get(id) ?? 0) > 0);
+      const deleteIds = orphanIds.filter((id) => (current.get(id) ?? 0) === 0);
+      for (const batch of chunk(deleteIds, DELETE_CHUNK)) {
         const { error } = await supabase.from("books").delete().in("id", batch);
         if (error) throw error;
         deleted += batch.length;
       }
-      setBooks((prev) => prev.filter((b) => b.highlight_count > 0));
-      toast.success(`Deleted ${deleted} book${deleted === 1 ? "" : "s"}`);
+      const gone = new Set(deleteIds);
+      setBooks((prev) => prev.filter((b) => !gone.has(b.id)));
+      setDuplicateGroups((prev) =>
+        prev.map((g) => ({ ...g, rows: g.rows.filter((r) => !gone.has(r.id)) })).filter((g) => g.rows.length >= 2),
+      );
+      applyHighlightCounts(new Map(skippedIds.map((id) => [id, current.get(id) ?? 0])));
+      if (deleted > 0) toast.success(`Deleted ${deleted} book${deleted === 1 ? "" : "s"}`);
+      if (skippedIds.length > 0) {
+        toast.warning(
+          `Skipped ${skippedIds.length} book${skippedIds.length === 1 ? "" : "s"} that now ${skippedIds.length === 1 ? "has" : "have"} highlights.`,
+        );
+      }
       setConfirmOrphans(false);
     } catch (err) {
       console.error(err);
@@ -308,24 +361,6 @@ const AdminBooks = () => {
     setKeepIds(initialKeep);
     setShowDuplicates(true);
     if (groups.length === 0) toast.info("No likely duplicates found");
-  };
-
-  const handleDeleteDuplicate = async (book: BookRow) => {
-    if (book.highlight_count > 0) return;
-    try {
-      const { error } = await supabase.from("books").delete().eq("id", book.id);
-      if (error) throw error;
-      setBooks((prev) => prev.filter((b) => b.id !== book.id));
-      setDuplicateGroups((prev) =>
-        prev
-          .map((g) => ({ ...g, rows: g.rows.filter((r) => r.id !== book.id) }))
-          .filter((g) => g.rows.length >= 2),
-      );
-      toast.success("Deleted");
-    } catch (err) {
-      console.error(err);
-      toast.error("Failed to delete");
-    }
   };
 
   if (authLoading || adminLoading) {
@@ -468,7 +503,7 @@ const AdminBooks = () => {
                                     variant="outline"
                                     size="sm"
                                     disabled={!canDelete}
-                                    onClick={() => handleDeleteDuplicate(b)}
+                                    onClick={() => setConfirmDelete(b)}
                                     className="gap-1.5"
                                   >
                                     <Trash2 className="h-3.5 w-3.5" /> Delete
@@ -1026,6 +1061,14 @@ const AdminBooks = () => {
               <AlertDialogDescription>
                 This will permanently delete {orphanCount} book{orphanCount === 1 ? "" : "s"} with no highlights. This cannot be undone.
               </AlertDialogDescription>
+              <ul className="max-h-60 space-y-1 overflow-y-auto rounded-md border bg-secondary/30 p-2 text-sm">
+                {orphanBooks.map((b) => (
+                  <li key={b.id} className="break-words">
+                    <span className="font-medium text-foreground">{b.title}</span>{" "}
+                    <span className="text-muted-foreground">by {b.author}</span>
+                  </li>
+                ))}
+              </ul>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel disabled={deletingOrphans}>Cancel</AlertDialogCancel>
