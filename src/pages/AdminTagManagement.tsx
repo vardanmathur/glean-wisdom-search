@@ -1,5 +1,5 @@
-import { useMemo, useRef, useState } from "react";
-import { Link, Navigate } from "react-router-dom";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Link, Navigate, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Loader2, Pencil, Trash2, Plus } from "lucide-react";
 import { toast } from "sonner";
@@ -57,7 +57,13 @@ const AdminTagManagement = () => {
 
   const [confirmDeleteTag, setConfirmDeleteTag] = useState<TagCount | null>(null);
 
-  const [activeTab, setActiveTab] = useState("inventory");
+  // ?tab=overlaps opens the Overlap review tab; anything else keeps the inventory.
+  const [searchParams] = useSearchParams();
+  const tabParam = searchParams.get("tab");
+  const [activeTab, setActiveTab] = useState(tabParam === "overlaps" ? "overlaps" : "inventory");
+  useEffect(() => {
+    if (tabParam === "overlaps" || tabParam === "inventory") setActiveTab(tabParam);
+  }, [tabParam]);
   const [justAddedTag, setJustAddedTag] = useState<string | null>(null);
   const scrolledForTagRef = useRef<string | null>(null);
 

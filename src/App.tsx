@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/context/AuthContext";
 import Navbar from "@/components/Navbar";
+import QuickMenu from "@/components/QuickMenu";
 import Index from "./pages/Index";
 import SearchResults from "./pages/SearchResults";
 import BrowseTopics from "./pages/BrowseTopics";
@@ -39,6 +40,7 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <Navbar />
+          <QuickMenu />
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/search" element={<SearchResults />} />
