@@ -16,6 +16,8 @@ import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { useSessionStorageState } from "@/hooks/useSessionStorageState";
 import { toTitleCase } from "@/lib/utils";
 
+import { useCloseOnBack } from "@/hooks/useCloseOnBack";
+
 const DRAFT_KEY = "glean_add_highlight_draft"; // suggest-tags v1
 
 interface AddHighlightModalProps {
@@ -30,6 +32,8 @@ interface AddHighlightModalProps {
 const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags, initialBook, onChangeBook }: AddHighlightModalProps) => {
   const { user } = useAuth();
   const { isAdmin } = useIsAdmin();
+  // Back closes the window; it goes through the normal close path, which also stops the camera and dictation.
+  useCloseOnBack(open, () => onOpenChange(false));
   const queryClient = useQueryClient();
   const isMobile = useIsMobile();
   const [tab, setTab, clearTab] = useSessionStorageState<"type" | "dictate" | "scan">(`${DRAFT_KEY}_tab`, "type");

@@ -87,3 +87,48 @@ export function parseStoredFraction(raw: string | null): number {
   const n = Number(raw);
   return Number.isFinite(n) && n >= 0 && n <= 1 ? n : DEFAULT_FRACTION;
 }
+
+// ---- per-device order of the shortcuts ----
+export const ORDER_STORAGE_KEY = "glean_quick_menu_order";
+export const HOLD_MS = 500;
+
+export const defaultOrder = (defaults: QuickMenuItem[] = QUICK_MENU_ITEMS): string[] => defaults.map((i) => i.id);
+
+// Saved value -> list of ids, or null if it is missing or not a list of strings.
+export function parseStoredOrder(raw: string | null): string[] | null {
+  if (raw === null) return null;
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    return Array.isArray(parsed) && parsed.every((v) => typeof v === "string") ? (parsed as string[]) : null;
+  } catch {
+    return null;
+  }
+}
+
+// Keep saved ids that still exist (once each), append shortcuts that are not in the saved
+// list (in default order), drop unknown ids.
+export function mergeOrder(saved: string[] | null, defaults: QuickMenuItem[] = QUICK_MENU_ITEMS): string[] {
+  const known = new Set(defaults.map((i) => i.id));
+  const kept: string[] = [];
+  for (const id of saved ?? []) {
+    if (known.has(id) && !kept.includes(id)) kept.push(id);
+  }
+  for (const item of defaults) {
+    if (!kept.includes(item.id)) kept.push(item.id);
+  }
+  return kept;
+}
+
+// Swap the item at `index` with its neighbour; at either end nothing moves.
+export function moveId(ids: string[], index: number, delta: -1 | 1): string[] {
+  const target = index + delta;
+  if (index < 0 || index >= ids.length || target < 0 || target >= ids.length) return ids;
+  const next = ids.slice();
+  [next[index], next[target]] = [next[target], next[index]];
+  return next;
+}
+
+export function itemsInOrder(ids: string[], defaults: QuickMenuItem[] = QUICK_MENU_ITEMS): QuickMenuItem[] {
+  const byId = new Map(defaults.map((i) => [i.id, i]));
+  return mergeOrder(ids, defaults).map((id) => byId.get(id)!);
+}

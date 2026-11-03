@@ -3,9 +3,15 @@ import {
   QUICK_MENU_ITEMS,
   arcOffsets,
   clampCenterY,
+  defaultOrder,
   fractionToY,
+  itemsInOrder,
+  mergeOrder,
+  moveId,
   parseStoredFraction,
+  parseStoredOrder,
   yToFraction,
+  type QuickMenuItem,
 } from "./quickMenu";
 
 describe("QUICK_MENU_ITEMS", () => {
@@ -88,5 +94,52 @@ describe("position fractions", () => {
     expect(parseStoredFraction(null)).toBe(0.8);
     expect(parseStoredFraction("abc")).toBe(0.8);
     expect(parseStoredFraction("1.5")).toBe(0.8);
+  });
+});
+
+describe("shortcut order", () => {
+  const mk = (id: string): QuickMenuItem => ({ id, label: id, icon: QUICK_MENU_ITEMS[0].icon, to: "/" });
+  const defaults = ["a", "b", "c", "d"].map(mk);
+
+  it("falls back to the default order when nothing is saved", () => {
+    expect(mergeOrder(null, defaults)).toEqual(["a", "b", "c", "d"]);
+    expect(defaultOrder(defaults)).toEqual(["a", "b", "c", "d"]);
+  });
+
+  it("keeps a saved order", () => {
+    expect(mergeOrder(["d", "b", "a", "c"], defaults)).toEqual(["d", "b", "a", "c"]);
+  });
+
+  it("drops unknown ids and repeated ids", () => {
+    expect(mergeOrder(["c", "zzz", "a", "c"], defaults)).toEqual(["c", "a", "b", "d"]);
+  });
+
+  it("appends shortcuts added since the order was saved, in default order", () => {
+    expect(mergeOrder(["c", "a"], defaults)).toEqual(["c", "a", "b", "d"]);
+  });
+
+  it("parses the stored value defensively", () => {
+    expect(parseStoredOrder('["a","b"]')).toEqual(["a", "b"]);
+    expect(parseStoredOrder(null)).toBeNull();
+    expect(parseStoredOrder("not json")).toBeNull();
+    expect(parseStoredOrder('{"a":1}')).toBeNull();
+    expect(parseStoredOrder("[1,2]")).toBeNull();
+  });
+
+  it("moves an item up or down by swapping with its neighbour", () => {
+    expect(moveId(["a", "b", "c"], 1, -1)).toEqual(["b", "a", "c"]);
+    expect(moveId(["a", "b", "c"], 1, 1)).toEqual(["a", "c", "b"]);
+  });
+
+  it("does nothing past the ends", () => {
+    const ids = ["a", "b", "c"];
+    expect(moveId(ids, 0, -1)).toBe(ids);
+    expect(moveId(ids, 2, 1)).toBe(ids);
+    expect(moveId(ids, 5, -1)).toBe(ids);
+  });
+
+  it("returns items in the saved order", () => {
+    expect(itemsInOrder(["c", "a"], defaults).map((i) => i.id)).toEqual(["c", "a", "b", "d"]);
+    expect(itemsInOrder([]).map((i) => i.id)).toEqual(QUICK_MENU_ITEMS.map((i) => i.id));
   });
 });

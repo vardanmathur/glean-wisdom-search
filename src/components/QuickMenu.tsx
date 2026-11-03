@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
@@ -6,20 +6,28 @@ import { Compass, X } from "lucide-react";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { useAllTags } from "@/hooks/useAllTags";
 import StudioAddHighlightModal from "@/components/studio/AddHighlightModal";
+import QuickMenuArrange from "@/components/QuickMenuArrange";
 import {
   BUTTON_SIZE,
   DEFAULT_FRACTION,
   EDGE_INSET,
   FAN_RADIUS,
+  HOLD_MS,
   ITEM_SIZE,
+  ORDER_STORAGE_KEY,
   QUICK_MENU_ITEMS,
   STAGGER_MS,
   STORAGE_KEY,
   TAP_THRESHOLD,
   arcOffsets,
   clampCenterY,
+  defaultOrder,
   fractionToY,
+  itemsInOrder,
+  mergeOrder,
+  moveId,
   parseStoredFraction,
+  parseStoredOrder,
   yToFraction,
   type QuickMenuItem,
 } from "@/lib/quickMenu";
@@ -40,6 +48,22 @@ function saveFraction(fraction: number) {
     localStorage.setItem(STORAGE_KEY, String(fraction));
   } catch {
     /* storage unavailable: the position just won't persist */
+  }
+}
+
+function readStoredOrder(): string[] {
+  try {
+    return mergeOrder(parseStoredOrder(localStorage.getItem(ORDER_STORAGE_KEY)));
+  } catch {
+    return defaultOrder();
+  }
+}
+
+function saveOrder(ids: string[]) {
+  try {
+    localStorage.setItem(ORDER_STORAGE_KEY, JSON.stringify(ids));
+  } catch {
+    /* storage unavailable: the order just won't persist */
   }
 }
 
@@ -68,6 +92,7 @@ interface DragState {
   startX: number;
   startCenter: number;
   dragging: boolean;
+  held: boolean;
 }
 
 const QuickMenuInner = () => {
@@ -86,11 +111,15 @@ const QuickMenuInner = () => {
   const [labelIndex, setLabelIndex] = useState<number | null>(null);
   const [addMounted, setAddMounted] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
+  const [order, setOrder] = useState<string[]>(readStoredOrder);
+  const [arrangeOpen, setArrangeOpen] = useState(false);
+  const items = useMemo(() => itemsInOrder(order), [order]);
 
   const buttonRef = useRef<HTMLButtonElement>(null);
   const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const drag = useRef<DragState | null>(null);
   const wasOpen = useRef(false);
+  const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const clamp = useCallback(
     (y: number) => clampCenterY(y, viewport.h, readTopBar(), viewport.safeBottom),
@@ -138,6 +167,19 @@ const QuickMenuInner = () => {
     }
   }, [open]);
 
+  const updateOrder = (ids: string[]) => {
+    setOrder(ids);
+    saveOrder(ids);
+  };
+
+  const clearHold = () => {
+    if (holdTimer.current !== null) {
+      clearTimeout(holdTimer.current);
+      holdTimer.current = null;
+    }
+  };
+  useEffect(() => clearHold, []);
+
   const run = (item: QuickMenuItem) => {
     setOpen(false);
     if (item.to) navigate(item.to);
@@ -151,25 +193,46 @@ const QuickMenuInner = () => {
   const onPointerDown = (e: ReactPointerEvent<HTMLButtonElement>) => {
     if (e.pointerType === "mouse" && e.button !== 0) return;
     e.currentTarget.setPointerCapture(e.pointerId);
-    drag.current = { pointerId: e.pointerId, startY: e.clientY, startX: e.clientX, startCenter: center, dragging: false };
+    const state: DragState = {
+      pointerId: e.pointerId,
+      startY: e.clientY,
+      startX: e.clientX,
+      startCenter: center,
+      dragging: false,
+      held: false,
+    };
+    drag.current = state;
+    clearHold();
+    // Press and hold without moving opens "Arrange quick menu".
+    holdTimer.current = setTimeout(() => {
+      holdTimer.current = null;
+      if (drag.current === state && !state.dragging) {
+        state.held = true;
+        setOpen(false);
+        setArrangeOpen(true);
+      }
+    }, HOLD_MS);
   };
 
   const onPointerMove = (e: ReactPointerEvent<HTMLButtonElement>) => {
     const d = drag.current;
     if (!d || d.pointerId !== e.pointerId) return;
     const dy = e.clientY - d.startY;
-    if (!d.dragging && Math.hypot(e.clientX - d.startX, dy) > TAP_THRESHOLD) {
+    if (!d.dragging && !d.held && Math.hypot(e.clientX - d.startX, dy) > TAP_THRESHOLD) {
       d.dragging = true;
+      clearHold();
       setOpen(false);
     }
-    if (d.dragging) setDragCenter(clamp(d.startCenter + dy));
+    if (d.dragging && !d.held) setDragCenter(clamp(d.startCenter + dy));
   };
 
   const onPointerUp = (e: ReactPointerEvent<HTMLButtonElement>) => {
     const d = drag.current;
     if (!d || d.pointerId !== e.pointerId) return;
     drag.current = null;
+    clearHold();
     if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
+    if (d.held) return; // a hold opened the arrange window; it must not also toggle the fan
     if (!d.dragging) {
       setOpen((o) => !o);
       return;
@@ -183,6 +246,7 @@ const QuickMenuInner = () => {
 
   const onPointerCancel = () => {
     drag.current = null;
+    clearHold();
     setDragCenter(null);
   };
 
@@ -225,7 +289,7 @@ const QuickMenuInner = () => {
           onKeyDown={onMenuKeyDown}
           className="absolute inset-0"
         >
-          {QUICK_MENU_ITEMS.map((item, i) => {
+          {items.map((item, i) => {
             const Icon = item.icon;
             const { x, y } = OFFSETS[i];
             return (
@@ -256,6 +320,7 @@ const QuickMenuInner = () => {
                   top: inset + y,
                   transform: open ? "translate(0px, 0px) scale(1)" : `translate(${-x}px, ${-y}px) scale(0.3)`,
                   transitionDelay: open ? `${i * STAGGER_MS}ms` : "0ms",
+                  zIndex: labelIndex === i ? 20 : 1,
                 }}
               >
                 <Icon className="h-5 w-5" aria-hidden="true" />
@@ -280,12 +345,21 @@ const QuickMenuInner = () => {
           onPointerUp={onPointerUp}
           onPointerCancel={onPointerCancel}
           onClick={onButtonClick}
+          onContextMenu={(e) => e.preventDefault()}
           className="absolute inset-0 flex touch-none select-none items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           style={{ touchAction: "none" }}
         >
           {open ? <X className="h-6 w-6" aria-hidden="true" /> : <Compass className="h-6 w-6" aria-hidden="true" />}
         </button>
       </div>
+
+      <QuickMenuArrange
+        open={arrangeOpen}
+        onOpenChange={setArrangeOpen}
+        items={items}
+        onMove={(index, delta) => updateOrder(moveId(order, index, delta))}
+        onReset={() => updateOrder(defaultOrder())}
+      />
 
       {addMounted && (
         <StudioAddHighlightModal
