@@ -14,6 +14,7 @@ Last updated: 2026-11-05
 - [ ] BookLookup conflict UI resets on window switch
 - [ ] Find Covers improvements
 - [ ] Merging books copies across quotes that already exist in the target book, leaving duplicates. Add an option to skip or remove them (the merge preview already warns about them)
+- [ ] Delete a book's cached cover files from the covers bucket when the book is deleted or merged away (they stay in storage today)
 ### Kindle import
 - [ ] Carry a note from a skipped duplicate to the kept copy
 - [ ] Settings "From Kindle" counter reads source = kindle, but import writes user
@@ -87,3 +88,4 @@ Last updated: 2026-11-05
 - [x] CHANGELOG and README brought up to date for 2026-10-14 to 2026-11-03 (2026-11-03)
 - [x] Inspire Me picks the least-shown public highlight (random tie-break, never the same book twice in a row) and records each show; Admin Hub coverage card; Admin Studio "Inspire" column, sort and never-shown filter (2026-11-05)
 - [x] Find Duplicates now catches near-identical, contained and cross-book highlights, one pair at a time, merging tags/notes and bookmarks into the kept copy (2026-11-05)
+- [x] Book covers cached in our own storage, silently, with original link and placeholder fallbacks; Admin Hub decluttered (2026-11-05)

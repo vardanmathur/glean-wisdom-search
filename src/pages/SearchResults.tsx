@@ -6,8 +6,9 @@ import {
   getRecommendedBooks,
   synthesiseWisdom,
 } from "@/lib/data";
-import type { Highlight } from "@/lib/data";
+import { toBookTile, type BookTile, type Highlight } from "@/lib/data";
 import HighlightCard from "@/components/HighlightCard";
+import BookCover from "@/components/BookCover";
 import BookCard from "@/components/BookCard";
 import DownloadWorksheetButton from "@/components/DownloadWorksheetButton";
 import { ArrowLeft, Leaf } from "lucide-react";
@@ -45,16 +46,14 @@ function parseSynthesisSections(text: string): { label: string; content: string 
   return sections;
 }
 
-function getUniqueBooks(
-  highlights: Highlight[]
-): { title: string; author: string; coverImageUrl?: string }[] {
+function getUniqueBooks(highlights: Highlight[]): BookTile[] {
   const seen = new Set<string>();
-  const books: { title: string; author: string; coverImageUrl?: string }[] = [];
+  const books: BookTile[] = [];
   for (const h of highlights) {
     const key = `${h.bookTitle}::${h.author}`;
     if (!seen.has(key)) {
       seen.add(key);
-      books.push({ title: h.bookTitle, author: h.author, coverImageUrl: h.coverImageUrl });
+      books.push(toBookTile(h));
     }
   }
   return books;
@@ -296,19 +295,15 @@ const SearchResults = () => {
                   to={`/book/${encodeURIComponent(book.title)}`}
                   className="group flex flex-col items-center w-20 hover:opacity-90 transition-opacity"
                 >
-                  {book.coverImageUrl ? (
-                    <img
-                      src={book.coverImageUrl}
-                      alt={book.title}
-                      className="h-[88px] w-16 rounded-md object-cover shadow-sm"
-                    />
-                  ) : (
-                    <div className="h-[88px] w-16 rounded-md bg-primary/15 flex items-center justify-center shadow-sm">
-                      <span className="text-xl font-semibold text-primary">
-                        {book.title?.charAt(0) || "?"}
-                      </span>
-                    </div>
-                  )}
+                  <BookCover
+                    title={book.title}
+                    author={book.author}
+                    sourceUrl={book.coverImageUrl}
+                    cachedUrl={book.coverCachedUrl}
+                    cachedFrom={book.coverCachedFrom}
+                    bookId={book.bookId}
+                    className="h-[88px] w-16 rounded-md shadow-sm"
+                  />
                   <span className="mt-2 text-xs font-medium text-primary/80 group-hover:text-primary text-center line-clamp-2 leading-tight">
                     {book.title}
                   </span>

@@ -109,6 +109,7 @@ scripts/
 |----------|---------|------|
 | search-semantic | pgvector semantic search | public |
 | synthesise-wisdom | AI synthesis + Think! usage tracking | public |
+| cache-book-cover | Keeps our own copy of each book cover in the public covers bucket (admin; takes book ids only) | admin |
 | generate-embeddings | Highlight fingerprints (Gemini embedding of quote + tags + notes; untagged skipped) | admin |
 | generate-topic-summary | AI topic summaries (6mo cache) | public |
 | generate-book-summary | AI book summaries (6mo cache) | public |
@@ -130,7 +131,7 @@ shortcuts; press and hold it to rearrange them.
 
 | Page | Path | Purpose |
 |------|------|---------|
-| Admin Hub | /admin | Landing page for all admin tools, plus fingerprint and Inspire Me coverage panels |
+| Admin Hub | /admin | Landing page for all admin tools, plus a fingerprint refresh line when needed |
 | Admin Studio | /admin/studio/highlights | Edit highlights, tags, embeddings; find and merge duplicate highlights; Inspire Me show counts |
 | Books | /admin/books | Manage book catalogue and covers |
 | Permissions | /admin/permissions | User access management |
@@ -177,6 +178,7 @@ shortcuts; press and hold it to rearrange them.
   resolve_tag_overlap(), undo_tag_overlap(),
   pick_inspire_highlight(), inspire_stats_summary()
   (merge_tags() and preview_tag_merge() still exist but are unused)
+- **Storage:** covers (public bucket; our copies of book covers, see books.cover_cached_url)
 - **SQL record:** docs/sql/ holds SQL run by hand outside Lovable
   (not migrations)
 

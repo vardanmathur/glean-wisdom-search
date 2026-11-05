@@ -61,6 +61,8 @@ export interface Highlight {
   tags: string[];
   bookId?: string;
   coverImageUrl?: string;
+  coverCachedUrl?: string;
+  coverCachedFrom?: string;
   myNotes?: string;
   source?: string;
   userId?: string;
@@ -76,8 +78,31 @@ export interface Book {
   description: string;
   isbn?: string;
   coverImageUrl?: string;
+  coverCachedUrl?: string;
+  coverCachedFrom?: string;
   highlightCount?: number;
   avgHighlightLength?: number;
+}
+
+// A small book tile built from a highlight's book (search results, topic pages).
+export interface BookTile {
+  title: string;
+  author: string;
+  bookId?: string;
+  coverImageUrl?: string;
+  coverCachedUrl?: string;
+  coverCachedFrom?: string;
+}
+
+export function toBookTile(h: Highlight): BookTile {
+  return {
+    title: h.bookTitle,
+    author: h.author,
+    bookId: h.bookId,
+    coverImageUrl: h.coverImageUrl,
+    coverCachedUrl: h.coverCachedUrl,
+    coverCachedFrom: h.coverCachedFrom,
+  };
 }
 
 export interface Topic {
@@ -98,6 +123,8 @@ function toHighlight(row: any): Highlight {
     tags: row.tags || [],
     bookId: row.book_id,
     coverImageUrl: row.books?.cover_image_url,
+    coverCachedUrl: row.books?.cover_cached_url || undefined,
+    coverCachedFrom: row.books?.cover_cached_from || undefined,
     myNotes: row.my_notes || undefined,
     source: row.source || "curated",
     userId: row.user_id || undefined,
@@ -114,6 +141,8 @@ function toBook(row: any): Book {
     description: row.description || "",
     isbn: row.isbn,
     coverImageUrl: row.cover_image_url,
+    coverCachedUrl: row.cover_cached_url || undefined,
+    coverCachedFrom: row.cover_cached_from || undefined,
     highlightCount: row.highlights?.[0]?.count ?? 0,
   };
 }
@@ -304,7 +333,7 @@ export async function searchHighlights(
   const MAX_ROWS = 200;
   const { data: rows } = await supabase
     .from("highlights")
-    .select("id, book_id, quote, tags, my_notes, source, stars, visibility, created_at, user_id, books(title, author, cover_image_url), user_profiles(display_name)")
+    .select("id, book_id, quote, tags, my_notes, source, stars, visibility, created_at, user_id, books(title, author, cover_image_url, cover_cached_url, cover_cached_from), user_profiles(display_name)")
     .range(0, MAX_ROWS - 1);
   const data: any[] = rows ?? [];
 
@@ -455,7 +484,7 @@ async function computeKeywordScores(query: string): Promise<{
   while (true) {
     const { data: page, error } = await supabase
       .from("highlights")
-      .select("id, book_id, quote, tags, my_notes, source, stars, visibility, created_at, user_id, books(title, author, cover_image_url), user_profiles(display_name)")
+      .select("id, book_id, quote, tags, my_notes, source, stars, visibility, created_at, user_id, books(title, author, cover_image_url, cover_cached_url, cover_cached_from), user_profiles(display_name)")
       .range(from, from + PAGE_SIZE - 1);
     if (error || !page || page.length === 0) break;
     data = data.concat(page);
@@ -507,7 +536,7 @@ async function fetchHighlightsById(): Promise<{ byId: Map<string, any> }> {
   while (true) {
     const { data: page, error } = await supabase
       .from("highlights")
-      .select("id, book_id, quote, tags, my_notes, source, stars, visibility, created_at, user_id, books(title, author, cover_image_url), user_profiles(display_name)")
+      .select("id, book_id, quote, tags, my_notes, source, stars, visibility, created_at, user_id, books(title, author, cover_image_url, cover_cached_url, cover_cached_from), user_profiles(display_name)")
       .range(from, from + PAGE_SIZE - 1);
     if (error || !page || page.length === 0) break;
     data = data.concat(page);
@@ -749,7 +778,7 @@ export async function getHighlightsByTag(tag: string): Promise<Highlight[]> {
   // Exact match via Supabase array contains
   const { data, error } = await supabase
     .from("highlights")
-    .select("id, book_id, quote, tags, my_notes, source, stars, visibility, created_at, user_id, books(title, author, cover_image_url), user_profiles(display_name)")
+    .select("id, book_id, quote, tags, my_notes, source, stars, visibility, created_at, user_id, books(title, author, cover_image_url, cover_cached_url, cover_cached_from), user_profiles(display_name)")
     .contains("tags", [tag]);
 
   if (error) return [];
@@ -765,7 +794,7 @@ export async function getHighlightsByTag(tag: string): Promise<Highlight[]> {
   while (true) {
     const { data: page, error: pgErr } = await supabase
       .from("highlights")
-      .select("id, book_id, quote, tags, my_notes, source, stars, visibility, created_at, user_id, books(title, author, cover_image_url), user_profiles(display_name)")
+      .select("id, book_id, quote, tags, my_notes, source, stars, visibility, created_at, user_id, books(title, author, cover_image_url, cover_cached_url, cover_cached_from), user_profiles(display_name)")
       .range(from, from + PAGE_SIZE - 1);
     if (pgErr || !page || page.length === 0) break;
     allData = allData.concat(page);
@@ -813,7 +842,7 @@ export async function getBookById(id: string): Promise<Book | undefined> {
 export async function getHighlightsByBook(bookId: string): Promise<Highlight[]> {
   const { data, error } = await supabase
     .from("highlights")
-    .select("id, book_id, quote, tags, my_notes, source, stars, visibility, created_at, user_id, books(title, author, cover_image_url), user_profiles(display_name)")
+    .select("id, book_id, quote, tags, my_notes, source, stars, visibility, created_at, user_id, books(title, author, cover_image_url, cover_cached_url, cover_cached_from), user_profiles(display_name)")
     .eq("book_id", bookId);
 
   if (error || !data) return [];

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'glean-v27';
+const CACHE_NAME = 'glean-v28';
 const SHELL_ASSETS = ['/', '/index.html'];
 
 self.addEventListener('install', (event) => {
@@ -22,8 +22,14 @@ self.addEventListener('fetch', (event) => {
   event.respondWith(
     fetch(event.request)
       .then((response) => {
-        const clone = response.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+        // Only keep good replies: an error or an opaque cross-origin response must never replace a good cached copy.
+        if (response.ok) {
+          const clone = response.clone();
+          caches
+            .open(CACHE_NAME)
+            .then((cache) => cache.put(event.request, clone))
+            .catch(() => {});
+        }
         return response;
       })
       .catch(() => caches.match(event.request))

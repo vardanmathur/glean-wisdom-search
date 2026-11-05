@@ -2,6 +2,28 @@
 
 Notable changes to Glean, newest first. One entry per work session; group by what changed, not by file.
 
+## 2026-11-05 — Book Covers Kept in Our Own Storage
+
+### Shipped
+- Added: a copy of every book cover is now kept in our own
+  storage, silently. The original cover link stays as the backup;
+  a cover is re-copied when its original link changes
+- Added: one shared cover component used everywhere a cover is
+  shown (cards, book page, search, saved, Inspire Me, Admin
+  Books, lookup dialogs). It shows our copy, then the original
+  link, then a soft coloured card with the book's title; a broken
+  image icon never appears
+- Added: when you (as admin) look at a cover that has no current
+  copy, it is copied in the background; opening Admin Books
+  fills them all in
+- Changed: the offline cache no longer stores error or opaque
+  replies, so a broken reply can't replace a good cached copy
+- Changed: Admin Hub is tidier. The fingerprint panel shows
+  only when something needs refreshing, and the Inspire Me
+  coverage moved to one line at the top of Admin Studio
+
+---
+
 ## 2026-11-05 — Find Duplicates Catches Near-Identical, Contained and Cross-Book Highlights
 
 ### Shipped

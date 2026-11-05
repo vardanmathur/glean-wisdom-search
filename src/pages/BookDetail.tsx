@@ -3,6 +3,7 @@ import { useParams, Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { type Highlight, getAmazonUrl, getBookByTitle, getGoodreadsUrl, getHighlightsByBook } from "@/lib/data";
 import HighlightCard from "@/components/HighlightCard";
+import BookCover from "@/components/BookCover";
 import SortFilterBar, { SortOption } from "@/components/SortFilterBar";
 import { useHighlightSaveCounts } from "@/hooks/useHighlightSaves";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
@@ -52,6 +53,8 @@ const BookDetail = () => {
       title: book.title,
       author: book.author,
       coverImageUrl: book.coverImageUrl ?? undefined,
+      coverCachedUrl: book.coverCachedUrl,
+      coverCachedFrom: book.coverCachedFrom,
       isbn: book.isbn ?? undefined,
       pending: false,
     };
@@ -251,13 +254,16 @@ const BookDetail = () => {
       </Link>
 
       <div className="flex gap-6 mb-8">
-        <div className="flex h-32 w-24 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary overflow-hidden">
-          {book.coverImageUrl ? (
-            <img src={book.coverImageUrl} alt={book.title} className="h-full w-full object-cover" />
-          ) : (
-            <BookOpen className="h-10 w-10" />
-          )}
-        </div>
+        <BookCover
+          title={book.title}
+          author={book.author}
+          sourceUrl={book.coverImageUrl}
+          cachedUrl={book.coverCachedUrl}
+          cachedFrom={book.coverCachedFrom}
+          bookId={book.id}
+          className="h-32 w-24 shrink-0 rounded-lg bg-primary/10"
+          textClassName="text-xs"
+        />
         <div>
           <h1 className="font-display text-xl sm:text-3xl text-foreground">{book.title}</h1>
           <p className="text-muted-foreground mt-1">{book.author}</p>

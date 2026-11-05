@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, Navigate } from "react-router-dom";
 import { findDuplicateGroups } from "@/lib/findDuplicateBooks";
+import BookCover from "@/components/BookCover";
 import { useQueryClient } from "@tanstack/react-query";
 import { Loader2, Pencil, Trash2, Search, Copy, Image as ImageIcon, Check, X, Sparkles, ArrowLeft, Table as TableIcon, LayoutGrid, LayoutList, BookOpen, GitMerge } from "lucide-react";
 import { toast } from "sonner";
@@ -30,6 +31,9 @@ interface BookRow {
   author: string;
   isbn: string | null;
   cover_image_url: string | null;
+  // Our stored copy of the cover (see cache-book-cover); not in the generated types yet
+  cover_cached_url?: string | null;
+  cover_cached_from?: string | null;
   highlight_count: number;
 }
 
@@ -88,11 +92,11 @@ const AdminBooks = () => {
         for (;;) {
           const { data, error } = await supabase
             .from("books")
-            .select("id, title, author, isbn, cover_image_url")
+            .select("id, title, author, isbn, cover_image_url, cover_cached_url, cover_cached_from")
             .order("title")
             .range(from, from + PAGE - 1);
           if (error) throw error;
-          const rows = data ?? [];
+          const rows = (data ?? []) as unknown as Omit<BookRow, "highlight_count">[];
           allBooks.push(...rows);
           if (rows.length < PAGE) break;
           from += PAGE;
@@ -550,11 +554,16 @@ const AdminBooks = () => {
                 const canDelete = b.highlight_count === 0;
                 return (
                   <div key={b.id} className="rounded-lg border bg-card p-3 flex gap-3">
-                    <div className="h-14 w-10 flex-shrink-0 overflow-hidden rounded border bg-muted">
-                      {b.cover_image_url ? (
-                        <img src={b.cover_image_url} alt={b.title} className="h-full w-full object-cover" loading="lazy" />
-                      ) : null}
-                    </div>
+                    <BookCover
+                      title={b.title}
+                      author={b.author}
+                      sourceUrl={b.cover_image_url}
+                      cachedUrl={b.cover_cached_url}
+                      cachedFrom={b.cover_cached_from}
+                      bookId={b.id}
+                      className="h-14 w-10 flex-shrink-0 rounded border bg-muted"
+                      compact
+                    />
                     <div className="flex-1 min-w-0 space-y-1">
                       <div className="font-medium text-foreground truncate">
                         <Link
@@ -617,16 +626,16 @@ const AdminBooks = () => {
                     return (
                       <tr key={b.id} className="border-t hover:bg-muted/40">
                         <td className="px-3 py-2">
-                          <div className="h-14 w-10 overflow-hidden rounded border bg-muted">
-                            {b.cover_image_url ? (
-                              <img
-                                src={b.cover_image_url}
-                                alt={b.title}
-                                className="h-full w-full object-cover"
-                                loading="lazy"
-                              />
-                            ) : null}
-                          </div>
+                          <BookCover
+                            title={b.title}
+                            author={b.author}
+                            sourceUrl={b.cover_image_url}
+                            cachedUrl={b.cover_cached_url}
+                            cachedFrom={b.cover_cached_from}
+                            bookId={b.id}
+                            className="h-14 w-10 rounded border bg-muted"
+                            compact
+                          />
                         </td>
                         <td className="px-3 py-2">
                           <div className="font-medium text-foreground">
@@ -710,18 +719,17 @@ const AdminBooks = () => {
                       className="text-left group"
                     >
                       <div className="relative aspect-[2/3] overflow-hidden rounded-lg bg-primary/10 border">
-                        {b.cover_image_url ? (
-                          <img
-                            src={b.cover_image_url}
-                            alt={b.title}
-                            className="h-full w-full object-cover group-hover:opacity-90 transition-opacity"
-                            loading="lazy"
-                          />
-                        ) : (
-                          <div className="flex h-full w-full items-center justify-center">
-                            <BookOpen className="h-8 w-8 text-primary/40" />
-                          </div>
-                        )}
+                        <BookCover
+                          title={b.title}
+                          author={b.author}
+                          sourceUrl={b.cover_image_url}
+                          cachedUrl={b.cover_cached_url}
+                          cachedFrom={b.cover_cached_from}
+                          bookId={b.id}
+                          className="h-full w-full"
+                          imgClassName="h-full w-full object-cover group-hover:opacity-90 transition-opacity"
+                          textClassName="text-xs"
+                        />
                         <Badge
                           variant={b.highlight_count > 0 ? "secondary" : "outline"}
                           className="absolute bottom-2 right-2"
@@ -752,15 +760,15 @@ const AdminBooks = () => {
                   const canDelete = b.highlight_count === 0;
                   return (
                     <div key={b.id} className="rounded-lg border bg-card p-4 flex gap-4">
-                      <div className="h-20 w-14 flex-shrink-0 overflow-hidden rounded border bg-muted">
-                        {b.cover_image_url ? (
-                          <img src={b.cover_image_url} alt={b.title} className="h-full w-full object-cover" loading="lazy" />
-                        ) : (
-                          <div className="flex h-full w-full items-center justify-center">
-                            <BookOpen className="h-5 w-5 text-muted-foreground" />
-                          </div>
-                        )}
-                      </div>
+                      <BookCover
+                        title={b.title}
+                        author={b.author}
+                        sourceUrl={b.cover_image_url}
+                        cachedUrl={b.cover_cached_url}
+                        cachedFrom={b.cover_cached_from}
+                        bookId={b.id}
+                        className="h-20 w-14 flex-shrink-0 rounded border bg-muted"
+                      />
                       <div className="flex-1 min-w-0 space-y-1.5">
                         <div className="font-medium text-foreground truncate">
                           <Link
@@ -894,10 +902,10 @@ const AdminBooks = () => {
                 />
                 <div className="mt-2 h-44 w-32 overflow-hidden rounded border bg-muted">
                   {editForm.cover_image_url ? (
-                    <img
-                      src={editForm.cover_image_url}
-                      alt="Cover preview"
-                      className="h-full w-full object-cover"
+                    <BookCover
+                      title={editForm.title || "Cover preview"}
+                      sourceUrl={editForm.cover_image_url}
+                      className="h-full w-full"
                     />
                   ) : (
                     <div className="flex h-full w-full items-center justify-center text-xs text-muted-foreground">

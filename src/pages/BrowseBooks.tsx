@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { getAmazonUrl, getAllBooks, getGoodreadsUrl } from "@/lib/data";
 import SortFilterBar, { SortOption } from "@/components/SortFilterBar";
+import BookCover from "@/components/BookCover";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { BookOpen, Loader2, ShoppingCart } from "lucide-react";
 
@@ -62,13 +63,15 @@ const BrowseBooks = () => {
                     className="absolute inset-0 z-0 rounded-lg"
                   />
 
-                  <div className="flex h-20 w-14 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary overflow-hidden">
-                    {book.coverImageUrl ? (
-                      <img src={book.coverImageUrl} alt={book.title} className="h-full w-full object-cover" />
-                    ) : (
-                      <BookOpen className="h-6 w-6" />
-                    )}
-                  </div>
+                  <BookCover
+                    title={book.title}
+                    author={book.author}
+                    sourceUrl={book.coverImageUrl}
+                    cachedUrl={book.coverCachedUrl}
+                    cachedFrom={book.coverCachedFrom}
+                    bookId={book.id}
+                    className="h-20 w-14 shrink-0 rounded-md bg-primary/10"
+                  />
 
                   <div className="min-w-0 relative z-10 overflow-hidden">
                 <Tooltip>

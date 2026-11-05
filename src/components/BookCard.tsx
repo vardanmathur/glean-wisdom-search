@@ -1,6 +1,6 @@
 import { Book } from "@/lib/data";
 import { Link } from "react-router-dom";
-import { BookOpen } from "lucide-react";
+import BookCover from "@/components/BookCover";
 
 interface BookCardProps {
   book: Book;
@@ -14,13 +14,15 @@ const BookCard = ({ book, reason, matchedHighlightCount }: BookCardProps) => {
       to={`/book/${encodeURIComponent(book.title)}`}
       className="flex gap-4 rounded-lg border bg-card p-4 card-shadow hover:card-shadow-hover transition-all duration-300"
     >
-      <div className="flex h-20 w-14 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary overflow-hidden">
-        {book.coverImageUrl ? (
-          <img src={book.coverImageUrl} alt={book.title} className="h-full w-full object-cover" />
-        ) : (
-          <BookOpen className="h-6 w-6" />
-        )}
-      </div>
+      <BookCover
+        title={book.title}
+        author={book.author}
+        sourceUrl={book.coverImageUrl}
+        cachedUrl={book.coverCachedUrl}
+        cachedFrom={book.coverCachedFrom}
+        bookId={book.id}
+        className="h-20 w-14 shrink-0 rounded-md bg-primary/10"
+      />
       <div className="min-w-0">
         <h3 className="font-display text-base font-semibold text-foreground">{book.title}</h3>
         <p className="text-sm text-muted-foreground">{book.author}</p>

@@ -4,7 +4,6 @@ import { useAuth } from "@/context/AuthContext";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { Badge } from "@/components/ui/badge";
 import FingerprintPanel from "@/components/admin/FingerprintPanel";
-import InspireStatsCard from "@/components/admin/InspireStatsCard";
 
 interface ToolCard {
   title: string;
@@ -46,7 +45,6 @@ const AdminHub = () => {
       </header>
 
       <FingerprintPanel />
-      <InspireStatsCard />
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {tools.map((tool) => {

@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { getAllTopics, getHighlightsByTag, getRelatedTopics } from "@/lib/data";
+import { getAllTopics, getHighlightsByTag, getRelatedTopics, toBookTile, type BookTile } from "@/lib/data";
 import { Link, useParams } from "react-router-dom";
 import HighlightCard from "@/components/HighlightCard";
+import BookCover from "@/components/BookCover";
 import SortFilterBar, { SortOption } from "@/components/SortFilterBar";
 import { useHighlightSaveCounts } from "@/hooks/useHighlightSaves";
 import { ArrowLeft, Leaf, Loader2 } from "lucide-react";
@@ -99,12 +100,12 @@ const TopicDetail = ({ tag }: { tag: string }) => {
 
   const uniqueBooks = useMemo(() => {
     const seen = new Set<string>();
-    const list: { title: string; author: string; coverImageUrl?: string }[] = [];
+    const list: BookTile[] = [];
     for (const h of highlights) {
       const key = `${h.bookTitle}::${h.author}`;
       if (!seen.has(key)) {
         seen.add(key);
-        list.push({ title: h.bookTitle, author: h.author, coverImageUrl: h.coverImageUrl });
+        list.push(toBookTile(h));
       }
     }
     return list;
@@ -197,19 +198,15 @@ const TopicDetail = ({ tag }: { tag: string }) => {
                     to={`/book/${encodeURIComponent(book.title)}`}
                     className="group flex flex-col items-center w-20 hover:opacity-90 transition-opacity"
                   >
-                    {book.coverImageUrl ? (
-                      <img
-                        src={book.coverImageUrl}
-                        alt={book.title}
-                        className="h-[88px] w-16 rounded-md object-cover shadow-sm"
-                      />
-                    ) : (
-                      <div className="h-[88px] w-16 rounded-md bg-primary/15 flex items-center justify-center shadow-sm">
-                        <span className="text-xl font-semibold text-primary">
-                          {book.title?.charAt(0) || "?"}
-                        </span>
-                      </div>
-                    )}
+                    <BookCover
+                      title={book.title}
+                      author={book.author}
+                      sourceUrl={book.coverImageUrl}
+                      cachedUrl={book.coverCachedUrl}
+                      cachedFrom={book.coverCachedFrom}
+                      bookId={book.bookId}
+                      className="h-[88px] w-16 rounded-md shadow-sm"
+                    />
                     <span className="mt-2 text-xs font-medium text-primary/80 group-hover:text-primary text-center line-clamp-2 leading-tight">
                       {book.title}
                     </span>

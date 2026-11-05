@@ -15,12 +15,18 @@ export interface InspireRow {
   visibility: string | null;
   user_id: string | null;
   book_id: string | null;
-  books: { title: string | null; author: string | null; cover_image_url: string | null } | null;
+  books: {
+    title: string | null;
+    author: string | null;
+    cover_image_url: string | null;
+    cover_cached_url?: string | null;
+    cover_cached_from?: string | null;
+  } | null;
   user_profiles: { display_name: string | null } | null;
 }
 
 export const INSPIRE_SELECT =
-  "id, quote, tags, my_notes, source, visibility, user_id, book_id, books(title, author, cover_image_url), user_profiles(display_name)";
+  "id, quote, tags, my_notes, source, visibility, user_id, book_id, books(title, author, cover_image_url, cover_cached_url, cover_cached_from), user_profiles(display_name)";
 
 export function rowToHighlight(row: InspireRow): Highlight {
   return {
@@ -31,6 +37,8 @@ export function rowToHighlight(row: InspireRow): Highlight {
     tags: row.tags || [],
     bookId: row.book_id ?? undefined,
     coverImageUrl: row.books?.cover_image_url ?? undefined,
+    coverCachedUrl: row.books?.cover_cached_url ?? undefined,
+    coverCachedFrom: row.books?.cover_cached_from ?? undefined,
     myNotes: row.my_notes || undefined,
     source: row.source || "curated",
     userId: row.user_id || undefined,
@@ -134,11 +142,6 @@ export async function fetchInspireSummary(): Promise<InspireSummary> {
   };
 }
 
-export function describeInspireCoverage(s: InspireSummary): { headline: string; detail: string; percent: number } {
-  const percent = s.public_total > 0 ? Math.round((s.shown_at_least_once / s.public_total) * 100) : 0;
-  return {
-    headline: `Shown at least once: ${s.shown_at_least_once} of ${s.public_total}`,
-    detail: `${s.never_shown} never shown · shown ${s.min_shown} to ${s.max_shown} times each · ${s.total_shows} shows in total`,
-    percent,
-  };
+export function describeInspireLine(s: InspireSummary): string {
+  return `Inspire: ${s.shown_at_least_once} of ${s.public_total} shown at least once · min ${s.min_shown} / max ${s.max_shown}`;
 }

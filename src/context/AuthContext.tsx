@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { User } from "@supabase/supabase-js";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface AuthContextType {
   user: User | null;
@@ -19,12 +20,19 @@ export const useAuth = () => useContext(AuthContext);
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         setUser(session?.user ?? null);
         setAuthLoading(false);
+
+        // The admin answer is cached per user id. Drop it on sign-out; on sign-in re-check it in the
+        // background (invalidate keeps the old answer on screen meanwhile, so a repeated SIGNED_IN
+        // event when a tab regains focus does not flash a spinner).
+        if (event === "SIGNED_OUT") queryClient.removeQueries({ queryKey: ["is-admin"] });
+        else if (event === "SIGNED_IN") queryClient.invalidateQueries({ queryKey: ["is-admin"] });
 
         if (event === "SIGNED_IN" && session?.user) {
           // Defer profile creation to avoid Supabase deadlock
@@ -54,7 +62,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [queryClient]);
 
   const signOut = async () => {
     await supabase.auth.signOut();

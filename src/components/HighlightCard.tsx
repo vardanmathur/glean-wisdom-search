@@ -20,6 +20,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAllTags } from "@/hooks/useAllTags";
 import { toTitleCase } from "@/lib/utils";
 import HighlightEditPanel from "./HighlightEditPanel";
+import BookCover from "@/components/BookCover";
 
 interface HighlightCardProps {
   highlight: Highlight;
@@ -112,19 +113,16 @@ const HighlightCard = ({ highlight, index = 0, showSaveCount = false }: Highligh
         title="Find on Amazon"
         className="float-left mr-4 mb-2 hover:opacity-90 transition-opacity"
       >
-        {highlight.coverImageUrl ? (
-          <img
-            src={highlight.coverImageUrl}
-            alt={highlight.bookTitle}
-            className="w-16 h-auto rounded-md object-cover"
-          />
-        ) : (
-          <div className="w-16 h-[84px] rounded-md bg-primary/15 flex items-center justify-center">
-            <span className="text-lg font-semibold text-primary">
-              {highlight.bookTitle?.charAt(0) || "?"}
-            </span>
-          </div>
-        )}
+        <BookCover
+          title={highlight.bookTitle}
+          author={highlight.author}
+          sourceUrl={highlight.coverImageUrl}
+          cachedUrl={highlight.coverCachedUrl}
+          cachedFrom={highlight.coverCachedFrom}
+          bookId={highlight.bookId}
+          className="w-16 min-h-[84px] rounded-md"
+          imgClassName="w-full h-auto object-cover"
+        />
       </a>
 
       {/* 2. Quote — wraps beside cover, flows full width below */}

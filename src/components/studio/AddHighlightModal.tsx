@@ -17,6 +17,7 @@ import { useSessionStorageState } from "@/hooks/useSessionStorageState";
 import { toTitleCase } from "@/lib/utils";
 
 import { useCloseOnBack } from "@/hooks/useCloseOnBack";
+import BookCover from "@/components/BookCover";
 
 const DRAFT_KEY = "glean_add_highlight_draft"; // suggest-tags v1
 
@@ -588,7 +589,16 @@ const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags, initi
             {initialBook && !bookLookupOverride ? (
               <div className="rounded-lg border bg-muted/30 p-3 flex items-start gap-3">
                 {initialBook.coverImageUrl && (
-                  <img src={initialBook.coverImageUrl} className="h-12 w-8 object-cover rounded" />
+                  <BookCover
+                    title={initialBook.title}
+                    author={initialBook.author}
+                    sourceUrl={initialBook.coverImageUrl}
+                    cachedUrl={initialBook.coverCachedUrl}
+                    cachedFrom={initialBook.coverCachedFrom}
+                    bookId={initialBook.id}
+                    className="h-12 w-8 rounded shrink-0"
+                    compact
+                  />
                 )}
                 <div className="flex-1 min-w-0">
                   <p className="text-xs text-muted-foreground uppercase tracking-wider mb-0.5">Adding highlight to</p>

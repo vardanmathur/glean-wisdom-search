@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { refreshFingerprintAfterEdit, type FingerprintFields } from "@/lib/refreshFingerprint";
 import { inspireShows } from "@/lib/inspire";
 import DuplicateHighlightPairs, { type DupRow } from "@/components/admin/DuplicateHighlightPairs";
+import InspireStatsLine from "@/components/admin/InspireStatsLine";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Check, AlertCircle, ChevronLeft, ChevronRight, Pencil, X, ChevronDown, Search, ArrowUpDown, ArrowUp, ArrowDown, Trash2, Copy, Loader2, Sparkles, Download, Image as ImageIcon, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
@@ -794,6 +795,8 @@ const AdminStudioHighlights = () => {
           {totalCount} highlights
         </span>
       </div>
+
+      {!showDuplicates && <InspireStatsLine />}
 
       {showDuplicates ? (
         <DuplicateHighlightPairs

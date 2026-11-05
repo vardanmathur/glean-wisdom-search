@@ -18,7 +18,7 @@ const SavedHighlights = () => {
       const { data, error } = await supabase
         .from("highlights")
         .select(
-          "id, book_id, quote, tags, my_notes, source, user_id, books(title, author, cover_image_url), user_profiles(display_name)"
+          "id, book_id, quote, tags, my_notes, source, user_id, books(title, author, cover_image_url, cover_cached_url, cover_cached_from), user_profiles(display_name)"
         )
         .in("id", [...savedIds]);
       if (error || !data) return [];
@@ -30,6 +30,8 @@ const SavedHighlights = () => {
         tags: row.tags || [],
         bookId: row.book_id || undefined,
         coverImageUrl: row.books?.cover_image_url || undefined,
+        coverCachedUrl: row.books?.cover_cached_url || undefined,
+        coverCachedFrom: row.books?.cover_cached_from || undefined,
         myNotes: row.my_notes || undefined,
         source: row.source || "curated",
         userId: row.user_id || undefined,

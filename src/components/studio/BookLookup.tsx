@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import BookCover from "@/components/BookCover";
 import { Loader2, ScanBarcode, Keyboard, X } from "lucide-react";
 import { toast } from "sonner";
 
@@ -9,6 +10,8 @@ export interface SelectedBook {
   title: string;
   author: string;
   coverImageUrl?: string;
+  coverCachedUrl?: string;
+  coverCachedFrom?: string;
   isbn?: string;
   pending?: boolean;
 }
@@ -63,6 +66,8 @@ const BookLookup = ({ selectedBook, onSelect, onClear }: BookLookupProps) => {
     title: string;
     author: string;
     cover_image_url: string | null;
+    cover_cached_url?: string | null;
+    cover_cached_from?: string | null;
   } | null>(null);
 
   // Manual entry state
@@ -166,11 +171,11 @@ const BookLookup = ({ selectedBook, onSelect, onClear }: BookLookupProps) => {
     if (book.isbn) {
       const { data: existingBook } = await supabase
         .from("books")
-        .select("id, title, author, cover_image_url")
+        .select("id, title, author, cover_image_url, cover_cached_url, cover_cached_from")
         .eq("isbn", book.isbn)
         .maybeSingle();
       if (existingBook) {
-        setExistingBookConflict(existingBook);
+        setExistingBookConflict(existingBook as unknown as NonNullable<typeof existingBookConflict>);
         return;
       }
     }
@@ -339,12 +344,12 @@ if (!title) throw new Error("No book found for this ISBN");
       // failure at save time and lets the user reuse the existing row.
       const { data: existingBook } = await supabase
         .from("books")
-        .select("id, title, author, cover_image_url")
+        .select("id, title, author, cover_image_url, cover_cached_url, cover_cached_from")
         .eq("isbn", isbn)
         .maybeSingle();
 
       if (existingBook) {
-        setExistingBookConflict(existingBook);
+        setExistingBookConflict(existingBook as unknown as NonNullable<typeof existingBookConflict>);
         return;
       }
 
@@ -661,10 +666,14 @@ if (!title) throw new Error("No book found for this ISBN");
           </p>
           <div className="flex items-center gap-2">
             {existingBookConflict.cover_image_url && (
-              <img
-                src={existingBookConflict.cover_image_url}
-                alt=""
-                className="h-10 w-7 object-cover rounded shrink-0"
+              <BookCover
+                title={existingBookConflict.title}
+                sourceUrl={existingBookConflict.cover_image_url}
+                cachedUrl={existingBookConflict.cover_cached_url}
+                cachedFrom={existingBookConflict.cover_cached_from}
+                bookId={existingBookConflict.id}
+                className="h-10 w-7 rounded shrink-0"
+                compact
               />
             )}
             <div className="min-w-0">
@@ -686,6 +695,8 @@ if (!title) throw new Error("No book found for this ISBN");
                   title: existingBookConflict.title,
                   author: existingBookConflict.author,
                   coverImageUrl: existingBookConflict.cover_image_url ?? undefined,
+                  coverCachedUrl: existingBookConflict.cover_cached_url ?? undefined,
+                  coverCachedFrom: existingBookConflict.cover_cached_from ?? undefined,
                   pending: false,
                 });
                 setExistingBookConflict(null);

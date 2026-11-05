@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { describeInspireCoverage, inspireShows, randomOffset, rowToHighlight, type InspireRow } from "./inspire";
+import { describeInspireLine, inspireShows, randomOffset, rowToHighlight, type InspireRow } from "./inspire";
 
 const row = (over: Partial<InspireRow> = {}): InspireRow => ({
   id: "h1",
@@ -10,7 +10,13 @@ const row = (over: Partial<InspireRow> = {}): InspireRow => ({
   visibility: "public",
   user_id: null,
   book_id: "b1",
-  books: { title: "A Book", author: "An Author", cover_image_url: "cover.png" },
+  books: {
+    title: "A Book",
+    author: "An Author",
+    cover_image_url: "cover.png",
+    cover_cached_url: "stored.png",
+    cover_cached_from: "cover.png",
+  },
   user_profiles: null,
   ...over,
 });
@@ -44,6 +50,8 @@ describe("rowToHighlight", () => {
       tags: ["Money"],
       bookId: "b1",
       coverImageUrl: "cover.png",
+      coverCachedUrl: "stored.png",
+      coverCachedFrom: "cover.png",
       myNotes: "note",
       source: "curated",
       userId: "u1",
@@ -75,25 +83,17 @@ describe("inspireShows", () => {
   });
 });
 
-describe("describeInspireCoverage", () => {
-  it("summarises coverage", () => {
-    const d = describeInspireCoverage({
-      public_total: 1500,
-      shown_at_least_once: 375,
-      never_shown: 1125,
-      min_shown: 0,
-      max_shown: 3,
-      total_shows: 420,
-    });
-    expect(d.headline).toBe("Shown at least once: 375 of 1500");
-    expect(d.detail).toBe("1125 never shown · shown 0 to 3 times each · 420 shows in total");
-    expect(d.percent).toBe(25);
-  });
-
-  it("handles an empty library", () => {
+describe("describeInspireLine", () => {
+  it("is one compact line", () => {
     expect(
-      describeInspireCoverage({ public_total: 0, shown_at_least_once: 0, never_shown: 0, min_shown: 0, max_shown: 0, total_shows: 0 })
-        .percent,
-    ).toBe(0);
+      describeInspireLine({
+        public_total: 1500,
+        shown_at_least_once: 375,
+        never_shown: 1125,
+        min_shown: 0,
+        max_shown: 3,
+        total_shows: 420,
+      }),
+    ).toBe("Inspire: 375 of 1500 shown at least once · min 0 / max 3");
   });
 });

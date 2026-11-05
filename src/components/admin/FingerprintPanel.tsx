@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Fingerprint, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
@@ -22,30 +22,24 @@ interface RunResult {
   failed: number;
 }
 
+// Admin Hub: shows nothing while every tagged highlight is fingerprinted; otherwise one slim line with the button.
 const FingerprintPanel = () => {
   const queryClient = useQueryClient();
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState<{ rebuilt: number; remaining: number | null } | null>(null);
   const [result, setResult] = useState<RunResult | null>(null);
 
-  const { data: counts, isLoading } = useQuery({
+  const { data: needs } = useQuery({
     queryKey: ["fingerprint-status"],
     queryFn: async () => {
-      const [needs, untagged] = await Promise.all([
-        supabase
-          .from("highlights")
-          .select("id", { count: "exact", head: true })
-          .not("tags", "is", null)
-          .filter("tags", "neq", "{}")
-          .or(NEEDS_REFRESH),
-        supabase
-          .from("highlights")
-          .select("id", { count: "exact", head: true })
-          .or("tags.is.null,tags.eq.{}"),
-      ]);
-      if (needs.error) throw needs.error;
-      if (untagged.error) throw untagged.error;
-      return { needs: needs.count ?? 0, untagged: untagged.count ?? 0 };
+      const { count, error } = await supabase
+        .from("highlights")
+        .select("id", { count: "exact", head: true })
+        .not("tags", "is", null)
+        .filter("tags", "neq", "{}")
+        .or(NEEDS_REFRESH);
+      if (error) throw error;
+      return count ?? 0;
     },
     staleTime: 30 * 1000,
   });
@@ -53,7 +47,7 @@ const FingerprintPanel = () => {
   const refreshNow = async () => {
     setRunning(true);
     setResult(null);
-    setProgress({ rebuilt: 0, remaining: counts?.needs ?? null });
+    setProgress({ rebuilt: 0, remaining: needs ?? null });
     let rebuilt = 0;
     let skipped: number | null = null;
     let failed = 0;
@@ -88,57 +82,34 @@ const FingerprintPanel = () => {
     }
   };
 
+  const outstanding = needs ?? 0;
+  if (!running && !result && outstanding === 0) return null;
+
   return (
-    <section className="mb-8 rounded-xl border bg-card p-5 shadow-sm">
-      <div className="flex items-start gap-4">
-        <div className="rounded-lg bg-primary/10 p-2.5 text-primary">
-          <Fingerprint className="h-5 w-5" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <h2 className="font-display text-lg font-semibold text-foreground">Highlight fingerprints</h2>
-          {isLoading ? (
-            <p className="mt-1 text-sm text-muted-foreground">Checking…</p>
-          ) : counts ? (
-            <div className="mt-1 space-y-0.5 text-sm text-muted-foreground">
-              <p>
-                <span className="font-medium text-foreground">{counts.needs}</span> highlight
-                {counts.needs === 1 ? "" : "s"} need fingerprint refresh
-              </p>
-              <p>
-                <span className="font-medium text-foreground">{counts.untagged}</span> untagged highlight
-                {counts.untagged === 1 ? "" : "s"} have no fingerprint (by design)
-              </p>
-            </div>
-          ) : (
-            <p className="mt-1 text-sm text-destructive">Couldn't load fingerprint counts.</p>
-          )}
-
-          {running && progress && (
-            <p className="mt-3 flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Rebuilt {progress.rebuilt}
-              {progress.remaining !== null ? ` · ${progress.remaining} remaining` : ""}
-            </p>
-          )}
-
-          {!running && result && (
-            <p className="mt-3 text-sm text-foreground">
-              Done. Rebuilt {result.rebuilt}
-              {result.skipped !== null ? ` · skipped ${result.skipped} untagged` : ""} · failed {result.failed}
-            </p>
-          )}
-
-          <Button
-            onClick={refreshNow}
-            disabled={running || isLoading || (counts?.needs ?? 0) === 0}
-            className="mt-4 h-11 w-full gap-1.5 sm:h-9 sm:w-auto"
-          >
-            {running ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-            {running ? "Refreshing…" : "Refresh now"}
-          </Button>
-        </div>
-      </div>
-    </section>
+    <div className="mb-6 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border bg-card px-4 py-2 text-sm">
+      {running && progress ? (
+        <span className="flex items-center gap-2 text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Rebuilt {progress.rebuilt}
+          {progress.remaining !== null ? ` · ${progress.remaining} remaining` : ""}
+        </span>
+      ) : result ? (
+        <span className="text-foreground">
+          Done. Rebuilt {result.rebuilt}
+          {result.skipped !== null ? ` · skipped ${result.skipped} untagged` : ""} · failed {result.failed}
+        </span>
+      ) : (
+        <span className="text-muted-foreground">
+          <span className="font-medium text-foreground">{outstanding}</span> highlight{outstanding === 1 ? "" : "s"} need
+          fingerprint refresh
+        </span>
+      )}
+      {outstanding > 0 && (
+        <Button size="sm" variant="outline" onClick={refreshNow} disabled={running} className="h-9">
+          {running ? "Refreshing…" : "Refresh now"}
+        </Button>
+      )}
+    </div>
   );
 };
 
