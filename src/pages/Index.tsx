@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Search, Leaf, Brain, Upload, ArrowRight, Sparkles, Loader2, Shuffle } from "lucide-react";
 import { Link } from "react-router-dom";
 import InstallPrompt from "@/components/InstallPrompt";
@@ -7,7 +7,7 @@ import HighlightCard from "@/components/HighlightCard";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useQuery } from "@tanstack/react-query";
 import { getGleanStats, type Highlight } from "@/lib/data";
-import { supabase } from "@/integrations/supabase/client";
+import { loadInspireHighlight } from "@/lib/inspire";
 import { useAuth } from "@/context/AuthContext";
 
 const exampleQueries = [
@@ -48,42 +48,18 @@ const Index = () => {
   const [sparkHighlight, setSparkHighlight] = useState<Highlight | null>(null);
   const [sparkError, setSparkError] = useState(false);
 
+  // Book of the last highlight shown, so the same book is not served twice in a row.
+  const lastBookId = useRef<string | null>(null);
+
   const handleInspireMe = async () => {
     setSparkOpen(true);
     setSparkLoading(true);
     setSparkError(false);
     setSparkHighlight(null);
     try {
-      const { count, error: countErr } = await supabase
-        .from("highlights")
-        .select("id", { count: "exact", head: true })
-        .eq("visibility", "public");
-      if (countErr || !count) throw countErr ?? new Error("no highlights");
-      const offset = Math.floor(Math.random() * count);
-      const { data, error } = await supabase
-        .from("highlights")
-        .select(
-          "id, quote, tags, my_notes, source, visibility, user_id, book_id, books(title, author, cover_image_url), user_profiles(display_name)"
-        )
-        .eq("visibility", "public")
-        .range(offset, offset)
-        .single();
-      if (error || !data) throw error ?? new Error("no row");
-      const row: any = data;
-      setSparkHighlight({
-        id: row.id,
-        text: row.quote,
-        bookTitle: row.books?.title || "Unknown",
-        author: row.books?.author || "Unknown",
-        tags: row.tags || [],
-        bookId: row.book_id,
-        coverImageUrl: row.books?.cover_image_url,
-        myNotes: row.my_notes || undefined,
-        source: row.source || "curated",
-        userId: row.user_id || undefined,
-        displayName: row.user_profiles?.display_name || undefined,
-        visibility: (row.visibility as "public" | "private") || undefined,
-      });
+      const highlight = await loadInspireHighlight(lastBookId.current);
+      lastBookId.current = highlight.bookId ?? null;
+      setSparkHighlight(highlight);
     } catch {
       setSparkError(true);
     } finally {

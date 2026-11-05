@@ -2,6 +2,24 @@
 
 Notable changes to Glean, newest first. One entry per work session; group by what changed, not by file.
 
+## 2026-11-05 — Inspire Me No Longer Repeats
+
+### Shipped
+- Changed: "Inspire Me" and its Shuffle button now pick the
+  public highlight that has been shown the fewest times (random
+  among ties), like working through a shuffled deck, and never
+  show the same book twice in a row; before, a random position
+  in the library was chosen each time, so repeats came early
+- Added: each show is counted (global, no user data stored)
+- Added: Admin Hub "Inspire Me coverage" card (how many public
+  highlights have been shown at least once, and min/max shows)
+- Added: Admin Studio "Inspire" column, "Least/Most shown in
+  Inspire" sorts and a "Never shown in Inspire" filter
+- Changed: if the new pick fails, Inspire Me falls back to the
+  old random method instead of showing an error
+
+---
+
 ## 2026-11-03 — Admin Quick Menu, Safer Book Deletes
 
 ### Shipped

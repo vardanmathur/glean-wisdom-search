@@ -2,7 +2,7 @@
 
 This is the master dev backlog. The in-app Inbox (Admin → Inbox) is a separate mini to-do list that is managed by hand. It is not kept in sync with this file, and nothing needs to move from it into this file.
 
-Last updated: 2026-11-03
+Last updated: 2026-11-05
 
 ## Next
 - [ ] Alias table for merged books, so a Kindle import with an old title does not recreate a merged-away book
@@ -33,6 +33,7 @@ Last updated: 2026-11-03
 - [ ] "Access requested ✓" stays after a revoke
 - [ ] Search page hides "Glean's take" silently when the AI answer is empty or fails. Show "Couldn't generate Glean's take — try again" with a retry instead (frontend only, Cursor; edge function now returns error: "credits" / "rate_limit")
 - [ ] A highlight whose last tag is removed keeps its old fingerprint (with the old tag names); clear or handle it
+- [ ] Think! picks only from an early slice of the library (opponent: first 300 curated rows; forge: first 500 rows / 50 per tag) — make it pick across the whole library.
 ### Housekeeping
 - [ ] Update GLEAN_DEV_HANDOFF
 - [ ] Decide whether to keep or remove the drizzle files Lovable added (drizzle.config.ts, drizzle/, three dev dependencies). Nothing in src/ imports them
@@ -83,3 +84,4 @@ Last updated: 2026-11-03
 - [x] Book deletes always show which book(s) will be deleted; highlight count re-checked right before deleting (2026-11-03)
 - [x] Admin quick menu: draggable radial shortcuts pinned to the left or right edge, rearrangeable by press-and-hold, half transparent when idle; Back closes the Add highlight window (2026-11-03)
 - [x] CHANGELOG and README brought up to date for 2026-10-14 to 2026-11-03 (2026-11-03)
+- [x] Inspire Me picks the least-shown public highlight (random tie-break, never the same book twice in a row) and records each show; Admin Hub coverage card; Admin Studio "Inspire" column, sort and never-shown filter (2026-11-05)

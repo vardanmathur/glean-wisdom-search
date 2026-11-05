@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { refreshFingerprintAfterEdit, type FingerprintFields } from "@/lib/refreshFingerprint";
+import { inspireShows } from "@/lib/inspire";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Check, AlertCircle, ChevronLeft, ChevronRight, Pencil, X, ChevronDown, Search, ArrowUpDown, ArrowUp, ArrowDown, Trash2, Copy, Loader2, Sparkles, Download, Image as ImageIcon, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
@@ -34,7 +35,7 @@ const ADMIN_EDIT_DRAFT_PREFIX = "glean_admin_studio_edit_draft";
 
 const PAGE_SIZE = 20;
 
-type SortOption = "recent" | "oldest" | "no_notes" | "no_tags" | "oldest_embedding";
+type SortOption = "recent" | "oldest" | "no_notes" | "no_tags" | "oldest_embedding" | "inspire_least" | "inspire_most";
 type ColumnSortState = { col: string; dir: "asc" | "desc" } | null;
 
 interface HighlightRow {
@@ -47,6 +48,8 @@ interface HighlightRow {
   book_id: string | null;
   embedding_refreshed_at: string | null;
   books: { title: string } | null;
+  // Inspire Me stats (admin-only); null/absent = never shown
+  highlight_inspire_stats?: { times_shown: number } | { times_shown: number }[] | null;
 }
 
 interface DuplicateRow {
@@ -217,6 +220,7 @@ const AdminStudioHighlights = () => {
   const [filterTags, setFilterTags] = useState<string[]>([]);
   const [filterNoNotes, setFilterNoNotes] = useState(false);
   const [filterUnrefreshed, setFilterUnrefreshed] = useState(false);
+  const [filterNeverInspired, setFilterNeverInspired] = useState(false);
   const [sortBy, setSortBy] = useState<SortOption>("recent");
   const [columnSort, setColumnSort] = useState<ColumnSortState>(null);
   const [feedback, setFeedback] = useState<Record<string, "success" | "error">>({});
@@ -256,11 +260,11 @@ const AdminStudioHighlights = () => {
   const allTags = useAllTags();
 
   const { data: highlightsData, isLoading } = useQuery({
-    queryKey: ["studio-highlights", page, filterBook, filterTags, filterNoNotes, filterUnrefreshed, sortBy, searchQuery],
+    queryKey: ["studio-highlights", page, filterBook, filterTags, filterNoNotes, filterUnrefreshed, filterNeverInspired, sortBy, searchQuery],
     queryFn: async () => {
       let query = supabase
         .from("highlights")
-        .select("id, quote, tags, my_notes, visibility, created_at, book_id, embedding_refreshed_at, books(title)", { count: "exact" });
+        .select("id, quote, tags, my_notes, visibility, created_at, book_id, embedding_refreshed_at, books(title), highlight_inspire_stats(times_shown)", { count: "exact" });
 
       if (filterBook !== "all") query = query.eq("book_id", filterBook);
       if (filterTags.includes(NO_TAGS_SENTINEL)) {
@@ -270,6 +274,8 @@ const AdminStudioHighlights = () => {
       }
       if (filterNoNotes) query = query.or("my_notes.is.null,my_notes.eq.");
       if (filterUnrefreshed) query = query.is("embedding_refreshed_at", null);
+      // Only public highlights can be served by Inspire Me, so "never shown" means public and no stats row.
+      if (filterNeverInspired) query = query.eq("visibility", "public").is("highlight_inspire_stats", null);
 
       const trimmedSearch = searchQuery.trim();
       if (trimmedSearch) {
@@ -315,6 +321,17 @@ const AdminStudioHighlights = () => {
           query = query
             .order("embedding_refreshed_at", { ascending: true, nullsFirst: true })
             .order("created_at", { ascending: true });
+          break;
+        case "inspire_least":
+          // Never-shown (no stats row) first, then fewest shows
+          query = query
+            .order("highlight_inspire_stats(times_shown)", { ascending: true, nullsFirst: true })
+            .order("created_at", { ascending: false });
+          break;
+        case "inspire_most":
+          query = query
+            .order("highlight_inspire_stats(times_shown)", { ascending: false, nullsFirst: false })
+            .order("created_at", { ascending: false });
           break;
       }
 
@@ -431,6 +448,8 @@ const AdminStudioHighlights = () => {
         }
         case "visibility":
           return mult * (a.visibility ?? "").localeCompare(b.visibility ?? "");
+        case "inspire":
+          return mult * (inspireShows(a.highlight_inspire_stats) - inspireShows(b.highlight_inspire_stats));
         default:
           return 0;
       }
@@ -662,7 +681,7 @@ const AdminStudioHighlights = () => {
 
   useEffect(() => {
     setPage(0);
-  }, [filterBook, filterTags, filterNoNotes, filterUnrefreshed, sortBy, searchQuery]);
+  }, [filterBook, filterTags, filterNoNotes, filterUnrefreshed, filterNeverInspired, sortBy, searchQuery]);
 
   const truncate = (text: string, max: number) =>
     text.length > max ? text.slice(0, max) + "…" : text;
@@ -737,6 +756,11 @@ const AdminStudioHighlights = () => {
           Unrefreshed only
         </label>
 
+        <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer">
+          <Checkbox checked={filterNeverInspired} onCheckedChange={(v) => setFilterNeverInspired(v === true)} />
+          Never shown in Inspire
+        </label>
+
         <Separator orientation="vertical" className="h-8 hidden sm:block" />
 
         <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortOption)}>
@@ -747,6 +771,8 @@ const AdminStudioHighlights = () => {
             <SelectItem value="no_notes">No notes first</SelectItem>
             <SelectItem value="no_tags">No tags first</SelectItem>
             <SelectItem value="oldest_embedding">Oldest embedding first</SelectItem>
+            <SelectItem value="inspire_least">Least shown in Inspire</SelectItem>
+            <SelectItem value="inspire_most">Most shown in Inspire</SelectItem>
           </SelectContent>
         </Select>
 
@@ -950,6 +976,7 @@ const AdminStudioHighlights = () => {
                       <Sparkles className="h-3 w-3 text-destructive" aria-label="Missing embedding" />
                     )}
                     <span>{formatRelativeTime(h.embedding_refreshed_at)}</span>
+                    {h.visibility === "public" && <span>· Inspire {inspireShows(h.highlight_inspire_stats)}</span>}
                   </div>
                   <div className="flex items-center gap-1">
                     <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setEditingHighlight(h)}>
@@ -985,24 +1012,25 @@ const AdminStudioHighlights = () => {
                   aria-label="Select all visible"
                 />
               </th>
-              <SortableHeader label="Quote" colKey="quote" columnSort={columnSort} onSort={handleColumnSort} className="w-[33%]" />
-              <SortableHeader label="Book" colKey="book" columnSort={columnSort} onSort={handleColumnSort} className="w-[15%]" />
-              <SortableHeader label="Tags" colKey="tags" columnSort={columnSort} onSort={handleColumnSort} className="w-[18%]" />
-              <SortableHeader label="Notes" colKey="notes" columnSort={columnSort} onSort={handleColumnSort} className="w-[14%]" />
-              <SortableHeader label="Visibility" colKey="visibility" columnSort={columnSort} onSort={handleColumnSort} className="w-[10%]" />
-              <th className="text-center p-3 font-medium text-muted-foreground w-[10%]"></th>
+              <SortableHeader label="Quote" colKey="quote" columnSort={columnSort} onSort={handleColumnSort} className="w-[27%]" />
+              <SortableHeader label="Book" colKey="book" columnSort={columnSort} onSort={handleColumnSort} className="w-[14%]" />
+              <SortableHeader label="Tags" colKey="tags" columnSort={columnSort} onSort={handleColumnSort} className="w-[16%]" />
+              <SortableHeader label="Notes" colKey="notes" columnSort={columnSort} onSort={handleColumnSort} className="w-[12%]" />
+              <SortableHeader label="Visibility" colKey="visibility" columnSort={columnSort} onSort={handleColumnSort} className="w-[9%]" />
+              <SortableHeader label="Inspire" colKey="inspire" columnSort={columnSort} onSort={handleColumnSort} className="w-[9%]" />
+              <th className="text-center p-3 font-medium text-muted-foreground w-[13%]"></th>
             </tr>
           </thead>
           <tbody>
             {isLoading ? (
               Array.from({ length: 5 }).map((_, i) => (
                 <tr key={i} className="border-b">
-                  <td colSpan={7} className="p-3"><div className="h-5 bg-muted/50 rounded animate-pulse" /></td>
+                  <td colSpan={8} className="p-3"><div className="h-5 bg-muted/50 rounded animate-pulse" /></td>
                 </tr>
               ))
             ) : highlights.length === 0 ? (
               <tr>
-                <td colSpan={7} className="p-8 text-center text-muted-foreground">No highlights found.</td>
+                <td colSpan={8} className="p-8 text-center text-muted-foreground">No highlights found.</td>
               </tr>
             ) : (
               highlights.map((h) => {
@@ -1032,6 +1060,9 @@ const AdminStudioHighlights = () => {
                     <Badge variant={h.visibility === "public" ? "outline" : "secondary"} className="text-xs">
                       {h.visibility === "public" ? "Public" : "Private"}
                     </Badge>
+                  </td>
+                  <td className="p-3 text-xs text-muted-foreground tabular-nums">
+                    {h.visibility === "public" ? inspireShows(h.highlight_inspire_stats) : "—"}
                   </td>
                   <td className="p-3 text-center">
                     {feedback[h.id] === "success" ? (

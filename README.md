@@ -162,6 +162,7 @@ shortcuts; press and hold it to rearrange them.
 | tags | Canonical tag taxonomy — 66 tags, DB-backed since Sep 2026 |
 | tag_overlap_decisions | Per-highlight Keep/Remove decisions from the overlap review (expire after 12 months) |
 | backlog_items | The in-app Inbox |
+| highlight_inspire_stats | How often "Inspire Me" has shown each public highlight (admin read-only) |
 
 ---
 
@@ -173,7 +174,8 @@ shortcuts; press and hold it to rearrange them.
   increment_think_usage(), suggest_tags_for_quote(),
   preview_book_merge(), merge_books(), tag_usage_counts(),
   tag_overlap_pairs(), tag_overlap_highlights(),
-  resolve_tag_overlap(), undo_tag_overlap()
+  resolve_tag_overlap(), undo_tag_overlap(),
+  pick_inspire_highlight(), inspire_stats_summary()
   (merge_tags() and preview_tag_merge() still exist but are unused)
 - **SQL record:** docs/sql/ holds SQL run by hand outside Lovable
   (not migrations)
