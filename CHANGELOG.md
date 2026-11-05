@@ -2,6 +2,26 @@
 
 Notable changes to Glean, newest first. One entry per work session; group by what changed, not by file.
 
+## 2026-11-05 — Find Duplicates Catches Near-Identical, Contained and Cross-Book Highlights
+
+### Shipped
+- Changed: Admin Studio "Find Duplicates" no longer needs
+  byte-identical quotes. It now finds, one pair at a time:
+  - near-identical saves in the same book (same text apart from
+    case, spacing, punctuation or a few characters)
+  - contained saves in the same book (a shorter save sitting
+    anywhere inside a longer one)
+  - the same text saved under a different book (for information)
+- Added: both versions side by side with the shared part
+  highlighted; the longer (or, for near-identical, the older)
+  one is kept by default and can be flipped
+- Added: "Keep selected, delete other" first copies the deleted
+  copy's tags and notes onto the kept one and moves your
+  bookmark across; "Not a duplicate" hides a pair on that device;
+  Skip moves on; deleting across books asks first and names both
+
+---
+
 ## 2026-11-05 — Inspire Me No Longer Repeats
 
 ### Shipped

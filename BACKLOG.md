@@ -85,3 +85,4 @@ Last updated: 2026-11-05
 - [x] Admin quick menu: draggable radial shortcuts pinned to the left or right edge, rearrangeable by press-and-hold, half transparent when idle; Back closes the Add highlight window (2026-11-03)
 - [x] CHANGELOG and README brought up to date for 2026-10-14 to 2026-11-03 (2026-11-03)
 - [x] Inspire Me picks the least-shown public highlight (random tie-break, never the same book twice in a row) and records each show; Admin Hub coverage card; Admin Studio "Inspire" column, sort and never-shown filter (2026-11-05)
+- [x] Find Duplicates now catches near-identical, contained and cross-book highlights, one pair at a time, merging tags/notes and bookmarks into the kept copy (2026-11-05)

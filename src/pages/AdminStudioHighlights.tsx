@@ -4,6 +4,7 @@ import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { refreshFingerprintAfterEdit, type FingerprintFields } from "@/lib/refreshFingerprint";
 import { inspireShows } from "@/lib/inspire";
+import DuplicateHighlightPairs, { type DupRow } from "@/components/admin/DuplicateHighlightPairs";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Check, AlertCircle, ChevronLeft, ChevronRight, Pencil, X, ChevronDown, Search, ArrowUpDown, ArrowUp, ArrowDown, Trash2, Copy, Loader2, Sparkles, Download, Image as ImageIcon, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
@@ -52,23 +53,6 @@ interface HighlightRow {
   highlight_inspire_stats?: { times_shown: number } | { times_shown: number }[] | null;
 }
 
-interface DuplicateRow {
-  id: string;
-  quote: string;
-  book_id: string | null;
-  tags: string[] | null;
-  created_at: string;
-  book_title: string | null;
-  book_author: string | null;
-}
-
-interface DuplicateGroup {
-  key: string;
-  book_title: string | null;
-  book_author: string | null;
-  quote: string;
-  rows: DuplicateRow[];
-}
 const NO_TAGS_SENTINEL = "__no_tags__";
 
 interface MultiTagFilterProps {
@@ -229,8 +213,7 @@ const AdminStudioHighlights = () => {
   const [showDuplicates, setShowDuplicates] = useState(false);
   const [loadingDuplicates, setLoadingDuplicates] = useState(false);
   const [exporting, setExporting] = useState(false);
-  const [duplicateGroups, setDuplicateGroups] = useState<DuplicateGroup[]>([]);
-  const [keepIds, setKeepIds] = useState<Record<string, string>>({}); // groupKey -> highlight id to keep
+  const [dupRows, setDupRows] = useState<DupRow[]>([]);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -595,6 +578,7 @@ const AdminStudioHighlights = () => {
         quote: string;
         book_id: string | null;
         tags: string[] | null;
+        my_notes: string | null;
         created_at: string;
         books: { title: string | null; author: string | null } | null;
       }> = [];
@@ -603,7 +587,8 @@ const AdminStudioHighlights = () => {
       while (true) {
         const { data, error } = await supabase
           .from("highlights")
-          .select("id, quote, book_id, tags, created_at, books(title, author)")
+          .select("id, quote, book_id, tags, my_notes, created_at, books(title, author)")
+          .order("id", { ascending: true })
           .range(from, from + PAGE - 1);
         if (error) throw error;
         const batch = (data ?? []) as typeof all;
@@ -612,39 +597,18 @@ const AdminStudioHighlights = () => {
         from += PAGE;
       }
 
-      const groups = new Map<string, DuplicateGroup>();
-      for (const r of all) {
-        const key = `${r.quote}||${r.book_id ?? ""}`;
-        const row: DuplicateRow = {
+      setDupRows(
+        all.map((r) => ({
           id: r.id,
           quote: r.quote,
           book_id: r.book_id,
           tags: r.tags,
+          my_notes: r.my_notes,
           created_at: r.created_at,
           book_title: r.books?.title ?? null,
           book_author: r.books?.author ?? null,
-        };
-        const existing = groups.get(key);
-        if (existing) {
-          existing.rows.push(row);
-        } else {
-          groups.set(key, { key, book_title: row.book_title, book_author: row.book_author, quote: row.quote, rows: [row] });
-        }
-      }
-
-      const dupGroups = Array.from(groups.values())
-        .filter((g) => g.rows.length > 1)
-        .map((g) => ({
-          ...g,
-          rows: [...g.rows].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()),
-        }))
-        .sort((a, b) => b.rows.length - a.rows.length);
-
-      const keep: Record<string, string> = {};
-      dupGroups.forEach((g) => { keep[g.key] = g.rows[0].id; });
-
-      setDuplicateGroups(dupGroups);
-      setKeepIds(keep);
+        })),
+      );
       setShowDuplicates(true);
     } catch (err) {
       console.error("Failed to load duplicates:", err);
@@ -659,14 +623,6 @@ const AdminStudioHighlights = () => {
     try {
       const { error } = await supabase.from("highlights").delete().eq("id", id);
       if (error) throw error;
-      setDuplicateGroups((prev) =>
-        prev.map((g) => ({ ...g, rows: g.rows.filter((r) => r.id !== id) })).filter((g) => g.rows.length > 1)
-      );
-      setKeepIds((prev) => {
-        const next = { ...prev };
-        Object.keys(next).forEach((k) => { if (next[k] === id) delete next[k]; });
-        return next;
-      });
       queryClient.invalidateQueries({ queryKey: ["studio-highlights"] });
       toast.success("Highlight deleted");
       return true;
@@ -840,92 +796,12 @@ const AdminStudioHighlights = () => {
       </div>
 
       {showDuplicates ? (
-        /* Duplicates Panel */
-        <div className="space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3 p-4 rounded-lg border bg-card">
-            <div>
-              <h2 className="font-display text-xl font-semibold text-foreground">Duplicates</h2>
-              <p className="text-sm text-muted-foreground">
-                {duplicateGroups.length === 0
-                  ? "No exact duplicates found."
-                  : `${duplicateGroups.length} duplicate ${duplicateGroups.length === 1 ? "group" : "groups"} found, ${duplicateGroups.reduce((sum, g) => sum + g.rows.length - 1, 0)} highlights to remove`}
-              </p>
-            </div>
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={loadDuplicates} disabled={loadingDuplicates} className="gap-2">
-                {loadingDuplicates ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                Refresh
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => setShowDuplicates(false)}>
-                Close duplicates view
-              </Button>
-            </div>
-          </div>
-
-          {duplicateGroups.length === 0 ? (
-            <div className="rounded-lg border bg-card p-8 text-center text-muted-foreground">
-              {loadingDuplicates ? "Scanning…" : "All clean — no duplicates found."}
-            </div>
-          ) : (
-            duplicateGroups.map((group) => {
-              const keepId = keepIds[group.key];
-              return (
-                <div key={group.key} className="rounded-lg border bg-card p-4">
-                  <div className="mb-3">
-                    <p className="text-sm font-medium text-foreground">
-                      {group.book_title ?? "Unknown book"}
-                      {group.book_author ? <span className="text-muted-foreground font-normal"> — {group.book_author}</span> : null}
-                    </p>
-                    <p className="text-sm text-muted-foreground italic mt-1">"{truncate(group.quote, 200)}"</p>
-                    <p className="text-xs text-muted-foreground mt-1">{group.rows.length} copies</p>
-                  </div>
-                  <div className="space-y-2">
-                    {group.rows.map((row) => {
-                      const isKeep = row.id === keepId;
-                      return (
-                        <div
-                          key={row.id}
-                          className={`flex items-center justify-between gap-3 rounded-md border p-3 ${isKeep ? "border-primary/40 bg-primary/5" : "border-border"}`}
-                        >
-                          <label className="flex items-center gap-2 text-sm cursor-pointer flex-1 min-w-0">
-                            <input
-                              type="radio"
-                              name={`keep-${group.key}`}
-                              checked={isKeep}
-                              onChange={() => setKeepIds((prev) => ({ ...prev, [group.key]: row.id }))}
-                              className="accent-primary"
-                            />
-                            <span className={isKeep ? "font-medium text-primary" : "text-muted-foreground"}>
-                              {isKeep ? "Keep" : "Duplicate"}
-                            </span>
-                            <span className="text-xs text-muted-foreground ml-2">
-                              {new Date(row.created_at).toLocaleString()}
-                            </span>
-                            {(row.tags?.length ?? 0) > 0 && (
-                              <span className="text-xs text-muted-foreground ml-2 truncate">
-                                · {row.tags!.join(", ")}
-                              </span>
-                            )}
-                          </label>
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            disabled={isKeep || deletingId === row.id}
-                            onClick={() => deleteHighlight(row.id)}
-                            className="gap-1.5"
-                          >
-                            {deletingId === row.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-                            Delete
-                          </Button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })
-          )}
-        </div>
+        <DuplicateHighlightPairs
+          rows={dupRows}
+          refreshing={loadingDuplicates}
+          onRefresh={loadDuplicates}
+          onClose={() => setShowDuplicates(false)}
+        />
       ) : (
       <>
       {/* Mobile card list */}
