@@ -88,6 +88,9 @@ export type Database = {
       books: {
         Row: {
           author: string
+          cover_cached_at: string | null
+          cover_cached_from: string | null
+          cover_cached_url: string | null
           cover_image_url: string | null
           created_at: string
           description: string | null
@@ -97,6 +100,9 @@ export type Database = {
         }
         Insert: {
           author: string
+          cover_cached_at?: string | null
+          cover_cached_from?: string | null
+          cover_cached_url?: string | null
           cover_image_url?: string | null
           created_at?: string
           description?: string | null
@@ -106,6 +112,9 @@ export type Database = {
         }
         Update: {
           author?: string
+          cover_cached_at?: string | null
+          cover_cached_from?: string | null
+          cover_cached_url?: string | null
           cover_image_url?: string | null
           created_at?: string
           description?: string | null
@@ -163,6 +172,32 @@ export type Database = {
             foreignKeyName: "feedback_highlight_id_fkey"
             columns: ["highlight_id"]
             isOneToOne: false
+            referencedRelation: "highlights"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      highlight_inspire_stats: {
+        Row: {
+          highlight_id: string
+          last_shown_at: string | null
+          times_shown: number
+        }
+        Insert: {
+          highlight_id: string
+          last_shown_at?: string | null
+          times_shown?: number
+        }
+        Update: {
+          highlight_id?: string
+          last_shown_at?: string | null
+          times_shown?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "highlight_inspire_stats_highlight_id_fkey"
+            columns: ["highlight_id"]
+            isOneToOne: true
             referencedRelation: "highlights"
             referencedColumns: ["id"]
           },
@@ -587,6 +622,17 @@ export type Database = {
     Functions: {
       has_role: { Args: { role_name: string }; Returns: boolean }
       increment_think_usage: { Args: { _user_id: string }; Returns: undefined }
+      inspire_stats_summary: {
+        Args: never
+        Returns: {
+          max_shown: number
+          min_shown: number
+          never_shown: number
+          public_total: number
+          shown_at_least_once: number
+          total_shows: number
+        }[]
+      }
       match_highlights: {
         Args: { match_count?: number; query_embedding: string }
         Returns: {
@@ -605,6 +651,10 @@ export type Database = {
       merge_tags: {
         Args: { source_tag: string; target_tag: string }
         Returns: Json
+      }
+      pick_inspire_highlight: {
+        Args: { p_avoid_book_id?: string; p_include_private?: boolean }
+        Returns: string
       }
       preview_book_merge: {
         Args: { source_book_id: string; target_book_id: string }
