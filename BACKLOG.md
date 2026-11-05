@@ -36,6 +36,7 @@ Last updated: 2026-11-05
 - [ ] Think! picks only from an early slice of the library (opponent: first 300 curated rows; forge: first 500 rows / 50 per tag) — make it pick across the whole library.
 ### Housekeeping
 - [ ] Update GLEAN_DEV_HANDOFF
+- [ ] Check the Admin Studio "Least shown / Most shown in Inspire" sorts work on live data (ordering by the embedded stats column is untested); fall back to a small view if not
 - [ ] Decide whether to keep or remove the drizzle files Lovable added (drizzle.config.ts, drizzle/, three dev dependencies). Nothing in src/ imports them
 
 ## Someday

@@ -1,5 +1,30 @@
 ---
 
+## [2026-11-05] Glean — Inspire Me stops repeating, Find Duplicates rebuilt
+
+**Mode**: Claude Code
+**Mem0**: not connected
+
+### What happened
+Inspire Me now serves the least-shown public highlight (random tie-break, never the same book twice in a row) and counts each show; the Admin Hub has a coverage card and Admin Studio has an Inspire column, sorts and a never-shown filter. Find Duplicates was rebuilt to catch near-identical, contained and cross-book highlights, one pair at a time, merging tags, notes and your bookmark into the kept copy. Everything is pushed (last commit 10c367a).
+
+### Key decisions
+- Strict least-shown with global counts: it behaves like a shuffled deck and stores no user data; private highlights stay out for now behind an unused include_private parameter.
+- Vardan runs the SQL by hand (docs/sql/2026-11-05_inspire_stats.sql); if the RPC fails the page falls back to the old random method.
+- A pair that is both contained and near-identical is treated as contained, so the default keeps the longer text.
+- The earlier "narrow subset" hunch was mostly plain random repeats (50% chance of a repeat within ~46 shuffles); the real narrow-slice bug is in Think!, not Inspire.
+
+### Open threads
+- [ ] Deploy check: Shuffle a few times, then the Hub card should climb from 0; truncate highlight_inspire_stats before real use
+- [ ] Verify the Studio "Least/Most shown in Inspire" sorts (embedded-column ordering untested)
+- [ ] Think! picks only from an early slice of the library (BACKLOG)
+- [ ] Check pg_policies on highlights has no leftover USING (true) SELECT policy
+
+### Artifacts
+- inspire.ts, InspireStatsCard.tsx, findDuplicateHighlights.ts, DuplicateHighlightPairs.tsx, docs/sql/2026-11-05_inspire_stats.sql
+
+---
+
 ## [2026-11-03] Glean — Admin quick menu, safer book deletes, docs brought up to date
 
 **Mode**: Claude Code

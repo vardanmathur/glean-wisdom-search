@@ -130,8 +130,8 @@ shortcuts; press and hold it to rearrange them.
 
 | Page | Path | Purpose |
 |------|------|---------|
-| Admin Hub | /admin | Landing page for all admin tools |
-| Admin Studio | /admin/studio/highlights | Edit highlights, tags, embeddings |
+| Admin Hub | /admin | Landing page for all admin tools, plus fingerprint and Inspire Me coverage panels |
+| Admin Studio | /admin/studio/highlights | Edit highlights, tags, embeddings; find and merge duplicate highlights; Inspire Me show counts |
 | Books | /admin/books | Manage book catalogue and covers |
 | Permissions | /admin/permissions | User access management |
 | Worksheets | /admin/worksheets | View downloaded worksheets |
