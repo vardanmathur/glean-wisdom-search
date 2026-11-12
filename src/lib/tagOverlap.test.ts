@@ -4,11 +4,15 @@ import {
   fitHint,
   initReview,
   isReviewDone,
+  parseStoredPairSort,
+  replaceCurrent,
   sharePercent,
   skipCurrent,
+  sortPairs,
   splitUnusedUnlisted,
   undoLast,
   type TagOverlapHighlight,
+  type TagOverlapPair,
 } from "./tagOverlap";
 
 const hl = (id: string, tags: string[] = ["Family", "Marriage", "Love"]): TagOverlapHighlight => ({
@@ -96,5 +100,70 @@ describe("review queue", () => {
     const done = decideCurrent(s, null);
     expect(decideCurrent(done, null)).toBe(done);
     expect(skipCurrent(done)).toBe(done);
+  });
+});
+
+describe("replaceCurrent", () => {
+  it("shows the updated version of the current highlight", () => {
+    let s = initReview([hl("a"), hl("b"), hl("c")]);
+    s = decideCurrent(s, null);
+    const edited = { ...hl("b"), quote: "Edited quote", tags: ["Family", "Marriage"] };
+    s = replaceCurrent(s, edited);
+    expect(s.items[1].quote).toBe("Edited quote");
+    expect(s.pos).toBe(1);
+    expect(s.decided).toHaveLength(1);
+  });
+
+  it("drops the current highlight when it no longer has both tags", () => {
+    let s = initReview([hl("a"), hl("b"), hl("c")]);
+    s = decideCurrent(s, null);
+    s = replaceCurrent(s, null);
+    expect(s.items.map((i) => i.highlight_id)).toEqual(["a", "c"]);
+    expect(s.pos).toBe(1);
+    expect(s.items[s.pos].highlight_id).toBe("c");
+    expect(s.decided.map((d) => d.index)).toEqual([0]);
+  });
+
+  it("finishes the queue when the last card is dropped, and ignores a finished queue", () => {
+    let s = initReview([hl("a")]);
+    s = replaceCurrent(s, null);
+    expect(isReviewDone(s)).toBe(true);
+    expect(replaceCurrent(s, hl("z"))).toBe(s);
+  });
+});
+
+const pair = (a: string, b: string, shared: number, share: number): TagOverlapPair => ({
+  tag_a: a,
+  tag_b: b,
+  count_a: 10,
+  count_b: 20,
+  shared,
+  to_review: shared,
+  share_of_smaller: share,
+  meaning_similarity: null,
+});
+
+describe("sortPairs", () => {
+  const pairs = [pair("A", "B", 10, 0.5), pair("C", "D", 40, 0.2), pair("E", "F", 25, 0.9), pair("G", "H", 25, 0.4)];
+
+  it("overlap: highest share of the smaller tag first, then more shared", () => {
+    expect(sortPairs(pairs, "overlap").map((p) => p.tag_a)).toEqual(["E", "A", "G", "C"]);
+  });
+
+  it("shared: most shared highlights first, then overlap", () => {
+    expect(sortPairs(pairs, "shared").map((p) => p.tag_a)).toEqual(["C", "E", "G", "A"]);
+  });
+
+  it("breaks full ties by tag names and does not change the input", () => {
+    const tied = [pair("Z", "Y", 5, 0.5), pair("A", "B", 5, 0.5)];
+    expect(sortPairs(tied, "overlap").map((p) => p.tag_a)).toEqual(["A", "Z"]);
+    expect(tied[0].tag_a).toBe("Z");
+  });
+
+  it("parses the remembered choice, defaulting to overlap", () => {
+    expect(parseStoredPairSort("shared")).toBe("shared");
+    expect(parseStoredPairSort("overlap")).toBe("overlap");
+    expect(parseStoredPairSort(null)).toBe("overlap");
+    expect(parseStoredPairSort("zzz")).toBe("overlap");
   });
 });

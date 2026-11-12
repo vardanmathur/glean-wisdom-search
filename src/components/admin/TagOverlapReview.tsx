@@ -1,9 +1,13 @@
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronDown, Loader2, Undo2 } from "lucide-react";
+import { ChevronDown, Loader2, Pencil, Undo2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import HighlightEditPanel from "@/components/HighlightEditPanel";
+import { supabase } from "@/integrations/supabase/client";
+import { useAllTags } from "@/hooks/useAllTags";
+import type { Highlight } from "@/lib/data";
 import { refreshFingerprint } from "@/lib/refreshFingerprint";
 import {
   decideCurrent,
@@ -12,11 +16,16 @@ import {
   fitHint,
   initReview,
   isReviewDone,
+  PAIR_SORT_KEY,
+  parseStoredPairSort,
+  replaceCurrent,
   resolveOverlap,
   sharePercent,
   skipCurrent,
+  sortPairs,
   undoLast,
   undoOverlap,
+  type PairSort,
   type ReviewState,
   type TagOverlapPair,
 } from "@/lib/tagOverlap";
@@ -31,6 +40,10 @@ const PairReview = ({ tagA, tagB, onBack }: PairReviewProps) => {
   const [state, setState] = useState<ReviewState | null>(null);
   const [busy, setBusy] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
+  const [editing, setEditing] = useState<Highlight | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
+  const [loadingEdit, setLoadingEdit] = useState(false);
+  const allTags = useAllTags();
 
   // Fetched once per visit: refetching mid-review would reset the queue.
   const { data, isLoading, isError } = useQuery({
@@ -106,6 +119,56 @@ const PairReview = ({ tagA, tagB, onBack }: PairReviewProps) => {
       toast.error("Couldn't undo — please try again");
     } finally {
       setBusy(false);
+    }
+  };
+
+  // Opens the same edit panel used elsewhere. The row is read fresh (including visibility), so saving
+  // from the panel cannot change anything that was not edited.
+  const openEdit = async () => {
+    if (!item) return;
+    setLoadingEdit(true);
+    try {
+      const { data: row, error } = await supabase
+        .from("highlights")
+        .select("id, quote, tags, my_notes, visibility, book_id, source, user_id")
+        .eq("id", item.highlight_id)
+        .single();
+      if (error || !row) throw error ?? new Error("not found");
+      setEditing({
+        id: row.id,
+        text: row.quote,
+        bookTitle: item.book_title,
+        author: item.book_author,
+        tags: row.tags ?? [],
+        bookId: row.book_id ?? undefined,
+        myNotes: row.my_notes ?? undefined,
+        source: row.source ?? undefined,
+        userId: row.user_id ?? undefined,
+        visibility: (row.visibility as "public" | "private" | null) ?? undefined,
+      });
+      setEditOpen(true);
+    } catch (err) {
+      console.error(err);
+      toast.error("Couldn't open this highlight — please try again");
+    } finally {
+      setLoadingEdit(false);
+    }
+  };
+
+  // After a save: reload this pair's queue. The edited highlight shows its new quote, tags and notes, or drops out
+  // if it no longer has both tags. Earlier Keep/Remove decisions are left alone.
+  const afterEditSaved = async () => {
+    const editedId = editing?.id;
+    if (!editedId) return;
+    try {
+      const fresh = await fetchOverlapHighlights(tagA, tagB);
+      const updated = fresh.find((h) => h.highlight_id === editedId) ?? null;
+      setState((prev) =>
+        prev && prev.items[prev.pos]?.highlight_id === editedId ? replaceCurrent(prev, updated) : prev,
+      );
+    } catch (err) {
+      console.error(err);
+      toast.error("Saved, but couldn't refresh this card");
     }
   };
 
@@ -211,15 +274,25 @@ const PairReview = ({ tagA, tagB, onBack }: PairReviewProps) => {
             Remove {tagB}
           </Button>
         </div>
-        <div className="mt-2 grid grid-cols-2 gap-2">
+        <div className="mt-2 grid grid-cols-3 gap-2">
           <Button variant="ghost" onClick={skip} disabled={busy} className="h-11">
             Skip
+          </Button>
+          <Button variant="ghost" onClick={openEdit} disabled={busy || loadingEdit} className="h-11 gap-1.5">
+            {loadingEdit ? <Loader2 className="h-4 w-4 animate-spin" /> : <Pencil className="h-4 w-4" />} Edit
           </Button>
           <Button variant="ghost" onClick={undo} disabled={!canUndo} className="h-11 gap-1.5">
             <Undo2 className="h-4 w-4" /> Undo last
           </Button>
         </div>
       </div>
+      <HighlightEditPanel
+        highlight={editing}
+        allTags={allTags}
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        onSaved={afterEditSaved}
+      />
     </div>
   );
 };
@@ -227,6 +300,21 @@ const PairReview = ({ tagA, tagB, onBack }: PairReviewProps) => {
 const TagOverlapReview = () => {
   const queryClient = useQueryClient();
   const [active, setActive] = useState<{ a: string; b: string } | null>(null);
+  const [sort, setSort] = useState<PairSort>(() => {
+    try {
+      return parseStoredPairSort(localStorage.getItem(PAIR_SORT_KEY));
+    } catch {
+      return "overlap";
+    }
+  });
+  const chooseSort = (next: PairSort) => {
+    setSort(next);
+    try {
+      localStorage.setItem(PAIR_SORT_KEY, next);
+    } catch {
+      /* storage unavailable: the choice just won't persist */
+    }
+  };
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["tag-overlap-pairs"],
@@ -258,13 +346,25 @@ const TagOverlapReview = () => {
     );
   }
 
-  const pairs: TagOverlapPair[] = (data ?? []).filter((p) => p.to_review > 0);
+  const pairs: TagOverlapPair[] = sortPairs(
+    (data ?? []).filter((p) => p.to_review > 0),
+    sort,
+  );
 
   return (
     <div>
-      <p className="mb-4 text-sm text-muted-foreground">
-        Tag pairs that often sit on the same highlight, most overlapping first. Review one highlight at a time.
+      <p className="mb-3 text-sm text-muted-foreground">
+        Tag pairs that often sit on the same highlight. Review one highlight at a time.
       </p>
+      <div className="mb-4 flex items-center gap-2" role="group" aria-label="Sort pairs">
+        <span className="text-xs text-muted-foreground">Sort by</span>
+        <Button size="sm" variant={sort === "overlap" ? "default" : "outline"} onClick={() => chooseSort("overlap")} className="h-9">
+          % overlap
+        </Button>
+        <Button size="sm" variant={sort === "shared" ? "default" : "outline"} onClick={() => chooseSort("shared")} className="h-9">
+          Most shared
+        </Button>
+      </div>
       {pairs.length === 0 ? (
         <div className="rounded-lg border bg-card p-6 text-center text-sm text-muted-foreground">
           No pairs left to review.

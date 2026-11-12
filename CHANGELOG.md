@@ -2,6 +2,31 @@
 
 Notable changes to Glean, newest first. One entry per work session; group by what changed, not by file.
 
+## 2026-11-12 — Book Aliases, Overlap Review Editing
+
+### Shipped
+- Added: book aliases (old or alternative titles that point at
+  a book). Renaming a book keeps its old title as an alias, and
+  merging two books keeps the merged-away title (and its aliases)
+  on the kept book
+- Changed: the Kindle import now attaches a highlight to the right
+  book when the file uses an old title: same title first, then an
+  alias, then your choice, and only then a new book
+- Added: a "New books" step in the import review. A title that
+  matches nothing gets a suggested existing book ("Use existing"
+  or "Create new", required before importing), or a "Match to an
+  existing book…" search. Choices and confirmed renames are
+  remembered as aliases (admin only)
+- Added: Admin Books shows "Also known as" under the title, with
+  × to remove an alias
+- Added: Tag Management → Overlap review: an Edit button on each
+  card opens the highlight editor, and the card refreshes after a
+  save (or drops out if the highlight no longer has both tags)
+- Added: sort the tag pairs by "% overlap" or "Most shared";
+  the choice is remembered on that device
+
+---
+
 ## 2026-11-12 — Inspire Me: One-Handed Shuffle
 
 ### Shipped

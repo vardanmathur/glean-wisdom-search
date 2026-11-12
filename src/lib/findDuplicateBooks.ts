@@ -14,7 +14,7 @@ const NUMBER_WORDS: Record<string, string> = {
   six: "6", seven: "7", eight: "8", nine: "9", ten: "10",
 };
 
-const MIN_PREFIX_LENGTH = 8;
+export const MIN_PREFIX_LENGTH = 8;
 
 export function normaliseTitle(title: string): string {
   let t = title.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
@@ -38,7 +38,7 @@ export function authorSurname(author: string): string {
 }
 
 // The shorter title must be a whole-word prefix of the longer one.
-function isWordPrefix(shorter: string, longer: string): boolean {
+export function isWordPrefix(shorter: string, longer: string): boolean {
   return longer === shorter || longer.startsWith(shorter + " ");
 }
 

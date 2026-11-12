@@ -12,6 +12,23 @@ import { toast } from "sonner";
 import { Link, useNavigate } from "react-router-dom";
 import AddHighlightModal from "@/components/studio/AddHighlightModal";
 import { useAllTags } from "@/hooks/useAllTags";
+import { useIsAdmin } from "@/hooks/useIsAdmin";
+import NewBooksSection from "@/components/import/NewBooksSection";
+import {
+  addAlias,
+  buildNewBookItems,
+  countUndecided,
+  fetchAllAliases,
+  fetchAllBooksLite,
+  findAliasBookId,
+  findBookByTitle,
+  resolveTitle,
+  titleKey,
+  unresolvedBooks,
+  type AliasRef,
+  type BookChoice,
+  type BookRef,
+} from "@/lib/bookAliases";
 import {
   autoResolveTruncated,
   booksNeedingAttention,
@@ -117,6 +134,28 @@ const Import = () => {
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [decidedOpen, setDecidedOpen] = useState(false);
+  const { isAdmin } = useIsAdmin();
+  // Existing books and aliases, loaded once for the review step; the user's answers for new book titles.
+  const [library, setLibrary] = useState<{ books: BookRef[]; aliases: AliasRef[] } | null>(null);
+  const [bookChoices, setBookChoices] = useState<Record<string, BookChoice>>({});
+  const [libraryFailed, setLibraryFailed] = useState(false);
+  const [libraryAttempt, setLibraryAttempt] = useState(0);
+
+  useEffect(() => {
+    if (step !== 3 || library) return;
+    let cancelled = false;
+    Promise.all([fetchAllBooksLite(), fetchAllAliases()])
+      .then(([books, aliases]) => {
+        if (!cancelled) setLibrary({ books, aliases });
+      })
+      .catch((err) => {
+        console.error("[Import] could not load books and aliases", err);
+        if (!cancelled) setLibraryFailed(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [step, library, libraryAttempt]);
   const allTags = useAllTags();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -522,13 +561,34 @@ const Import = () => {
   })();
   const cardsWithMembers = reviewCards.map((c) => ({ ...c, members: c.group ? c.group.versions : [c.row] }));
   const { needsDecision, decided } = splitReviewCards(cardsWithMembers);
-  const booksMissingAuthor = booksNeedingAttention(pendingItems, undecidedPendingIds(needsDecision));
+  const undecidedIds = undecidedPendingIds(needsDecision);
+  // New book titles: those that will be imported and match neither a book nor an alias.
+  const importRows = pendingItems.filter((r) => !undecidedIds.has(r.id));
+  const newBookItems = library
+    ? buildNewBookItems(
+        unresolvedBooks(
+          importRows.map((r) => ({ title: r.book_title, author: r.author })),
+          library.books,
+          library.aliases
+        ),
+        library.books
+      )
+    : [];
+  const newBooksToDecide = countUndecided(newBookItems, bookChoices);
+  // A book that already exists (by alias or by the user's choice) does not need an author typed in.
+  const usesExistingBook = (title: string) =>
+    bookChoices[titleKey(title)]?.kind === "existing" ||
+    (!!library && resolveTitle(title, null, library.books, library.aliases)?.via === "alias");
+  const booksMissingAuthor = booksNeedingAttention(pendingItems, undecidedIds).filter((t) => !usesExistingBook(t));
   const allAuthorsFilled = booksMissingAuthor.length === 0;
-  const blockReason = importBlockReason({
+  // New books are checked against your library first; if that check fails, importing is not blocked.
+  const libraryPending = step === 3 && !library && !libraryFailed;
+  const blockReason = libraryPending ? "Checking your books…" : importBlockReason({
     cardsLeft: needsDecision.length,
     rowsLeft: reviewItems.length,
     booksNeedingAttention: booksMissingAuthor.length,
     pendingCount: pendingItems.length,
+    newBooksToDecide,
   });
 
   const renderReviewCard = ({ key, row, group }: (typeof cardsWithMembers)[number]) => {
@@ -665,6 +725,15 @@ const Import = () => {
     }
     const skipped = new Set(ids);
     setStagedRows((prev) => prev.map((r) => (skipped.has(r.id) ? { ...r, status: "skipped" } : r)));
+
+    // Remember the old title for next time (admin only; a title that already has an alias is left alone).
+    if (isAdmin && library) {
+      const target = findBookByTitle(library.books, pair.libraryTitle);
+      if (target && titleKey(target.title) !== titleKey(pair.fileTitle)) {
+        const author = stagedRows.find((r) => titleKey(r.book_title) === titleKey(pair.fileTitle))?.author ?? null;
+        addAlias(target.id, pair.fileTitle, author).catch((err) => console.error("[Import] alias not saved", err));
+      }
+    }
   };
 
   // Applies a review action to the whole group at once. If any database update fails, the updates already made
@@ -806,6 +875,23 @@ const Import = () => {
           foundId = (match ?? existing[0]).id;
         }
         if (!foundId) {
+          // An old or alternative title of an existing book
+          try {
+            foundId = await findAliasBookId(escapeLikePattern(b.title.trim()));
+          } catch (aliasErr) {
+            console.error("[Import] alias lookup failed", aliasErr);
+          }
+        }
+        let viaChoice = false;
+        if (!foundId) {
+          // The choice made in the review step
+          const choice = bookChoices[titleKey(b.title)];
+          if (choice?.kind === "existing") {
+            foundId = choice.bookId;
+            viaChoice = true;
+          }
+        }
+        if (!foundId) {
           const authorToInsert = b.author ?? "Unknown";
           if (!b.author) booksMissingAuthorCount++;
           const { data: created, error: createErr } = await supabase
@@ -819,6 +905,9 @@ const Import = () => {
             continue;
           }
           foundId = created.id;
+        }
+        if (viaChoice && isAdmin && foundId) {
+          addAlias(foundId, b.title, b.author).catch((aliasErr) => console.error("[Import] alias not saved", aliasErr));
         }
         bookIdMap.set(key, foundId);
       }
@@ -920,6 +1009,9 @@ const Import = () => {
     setReviewSnapshot(null);
     setDismissedPairs(new Set());
     setImportResult(null);
+    setBookChoices({});
+    setLibrary(null);
+    setLibraryFailed(false);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
@@ -1208,6 +1300,26 @@ const Import = () => {
             </Card>
           )}
 
+          {/* New books: match to an existing book before importing */}
+          <NewBooksSection
+            items={newBookItems}
+            choices={bookChoices}
+            books={library?.books ?? []}
+            loadFailed={libraryFailed}
+            onRetry={() => {
+              setLibraryFailed(false);
+              setLibraryAttempt((n) => n + 1);
+            }}
+            onChoose={(key, choice) =>
+              setBookChoices((prev) => {
+                const next = { ...prev };
+                if (choice) next[key] = choice;
+                else delete next[key];
+                return next;
+              })
+            }
+          />
+
           {/* Section 3 — Books needing author info */}
           {booksMissingAuthor.length > 0 && (
             <Card className="p-6">
@@ -1288,7 +1400,7 @@ const Import = () => {
                 <Button
                   variant="outline"
                   onClick={() => { setStep(4); runImport(true); }}
-                  disabled={importing || pendingItems.length === 0}
+                  disabled={importing || pendingItems.length === 0 || newBooksToDecide > 0 || libraryPending}
                 >
                   Import without author info
                 </Button>
@@ -1296,7 +1408,7 @@ const Import = () => {
               <Button
                 size="lg"
                 onClick={() => { setStep(4); runImport(false); }}
-                disabled={!allReviewResolved || !allAuthorsFilled || importing || pendingItems.length === 0}
+                disabled={!allReviewResolved || !allAuthorsFilled || newBooksToDecide > 0 || libraryPending || importing || pendingItems.length === 0}
               >
                 Import {pendingItems.length} highlights →
               </Button>

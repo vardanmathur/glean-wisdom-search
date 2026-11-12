@@ -163,6 +163,7 @@ shortcuts; press and hold it to rearrange them.
 | tags | Canonical tag taxonomy — 66 tags, DB-backed since Sep 2026 |
 | tag_overlap_decisions | Per-highlight Keep/Remove decisions from the overlap review (expire after 12 months) |
 | backlog_items | The in-app Inbox |
+| book_aliases | Old or alternative titles that point at a book (set when a book is renamed or merged, or confirmed during import) |
 | highlight_inspire_stats | How often "Inspire Me" has shown each public highlight (admin read-only) |
 
 ---

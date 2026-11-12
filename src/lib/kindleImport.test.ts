@@ -1108,8 +1108,16 @@ describe("importBlockReason", () => {
     expect(importBlockReason({ ...base, pendingCount: 0 })).toBe("Nothing is set to import");
   });
 
+  it("asks for a choice on new books that look like an existing one, after the review cards", () => {
+    expect(importBlockReason({ ...base, newBooksToDecide: 2 })).toBe("2 new books need a choice");
+    expect(importBlockReason({ ...base, newBooksToDecide: 1 })).toBe("1 new book needs a choice");
+    expect(importBlockReason({ ...base, cardsLeft: 3, newBooksToDecide: 2 })).toBe("3 cards still need a decision");
+    expect(importBlockReason({ ...base, newBooksToDecide: 1, booksNeedingAttention: 4 })).toBe("1 new book needs a choice");
+  });
+
   it("is null when nothing blocks the import", () => {
     expect(importBlockReason(base)).toBeNull();
+    expect(importBlockReason({ ...base, newBooksToDecide: 0 })).toBeNull();
   });
 });
 

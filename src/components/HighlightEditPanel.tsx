@@ -32,6 +32,8 @@ interface HighlightEditPanelProps {
   allTags: string[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Called after a successful save (the panel closes itself). */
+  onSaved?: () => void;
 }
 
 /**
@@ -42,7 +44,7 @@ interface HighlightEditPanelProps {
  * - On save, refreshes the row's fingerprint (non-awaited) when its quote,
  *   tags or notes changed and it still has a tag.
  */
-const HighlightEditPanel = ({ highlight, allTags, open, onOpenChange }: HighlightEditPanelProps) => {
+const HighlightEditPanel = ({ highlight, allTags, open, onOpenChange, onSaved }: HighlightEditPanelProps) => {
   const isMobile = useIsMobile();
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -176,6 +178,7 @@ const HighlightEditPanel = ({ highlight, allTags, open, onOpenChange }: Highligh
       queryClient.invalidateQueries();
       clearDraft();
       onOpenChange(false);
+      onSaved?.();
     },
     onError: (err: any) => {
       toast({

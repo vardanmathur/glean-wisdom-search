@@ -797,9 +797,13 @@ export function importBlockReason(i: {
   rowsLeft: number;
   booksNeedingAttention: number;
   pendingCount: number;
+  /** New books that look like an existing book and still need "Use existing" or "Create new". */
+  newBooksToDecide?: number;
 }): string | null {
   if (i.cardsLeft > 0) return `${i.cardsLeft} ${i.cardsLeft === 1 ? "card still needs" : "cards still need"} a decision`;
   if (i.rowsLeft > 0) return `${i.rowsLeft} ${i.rowsLeft === 1 ? "highlight still needs" : "highlights still need"} a decision`;
+  const toDecide = i.newBooksToDecide ?? 0;
+  if (toDecide > 0) return `${toDecide} new ${toDecide === 1 ? "book needs" : "books need"} a choice`;
   if (i.booksNeedingAttention > 0)
     return `${i.booksNeedingAttention} ${i.booksNeedingAttention === 1 ? "book needs" : "books need"} author info`;
   if (i.pendingCount === 0) return "Nothing is set to import";

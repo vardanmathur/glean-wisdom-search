@@ -5,7 +5,6 @@ This is the master dev backlog. The in-app Inbox (Admin → Inbox) is a separate
 Last updated: 2026-11-12
 
 ## Next
-- [ ] Alias table for merged books, so a Kindle import with an old title does not recreate a merged-away book
 
 ## Later
 ### Books
@@ -90,3 +89,6 @@ Last updated: 2026-11-12
 - [x] Find Duplicates now catches near-identical, contained and cross-book highlights, one pair at a time, merging tags/notes and bookmarks into the kept copy (2026-11-05)
 - [x] Book covers cached in our own storage, silently, with original link and placeholder fallbacks; Admin Hub decluttered (2026-11-05)
 - [x] Inspire Me: Shuffle moved to a centred bottom bar, popup anchored near the bottom on phones, swipe left / right-arrow to shuffle, Back closes it (2026-11-12)
+- [x] Alias table for merged books: book aliases are kept on rename and merge, and the Kindle import uses them (and a "New books" review step) so an old title attaches to the right book; "Also known as" in Admin Books (2026-11-12)
+- [x] Overlap review: Edit button on each card (opens the highlight editor, refreshes the card after saving) (2026-11-12)
+- [x] Overlap review: sort pairs by % overlap or most shared, remembered per device (2026-11-12)

@@ -174,3 +174,32 @@ export function undoLast(s: ReviewState, restoredTags: string[]): ReviewState {
   items[last.index] = { ...items[last.index], tags: restoredTags };
   return { ...s, items, pos: last.index, decided: s.decided.slice(0, -1) };
 }
+
+// After the highlight on the current card was edited: show its fresh version, or, when it no longer has both
+// tags (so it is gone from the queue), take it out. Earlier decisions are untouched.
+export function replaceCurrent(s: ReviewState, updated: TagOverlapHighlight | null): ReviewState {
+  if (isReviewDone(s)) return s;
+  const items = s.items.slice();
+  if (updated) items[s.pos] = updated;
+  else items.splice(s.pos, 1);
+  return { ...s, items };
+}
+
+export type PairSort = "overlap" | "shared";
+export const PAIR_SORT_KEY = "glean_overlap_sort";
+
+export function parseStoredPairSort(raw: string | null): PairSort {
+  return raw === "shared" ? "shared" : "overlap";
+}
+
+// "overlap" is the database's own order (% of the smaller tag, then shared count); "shared" puts the pairs with the
+// most shared highlights first, then % overlap. Ties fall back to the tag names so the order is stable.
+export function sortPairs(pairs: TagOverlapPair[], mode: PairSort): TagOverlapPair[] {
+  const byNames = (a: TagOverlapPair, b: TagOverlapPair) =>
+    a.tag_a.localeCompare(b.tag_a) || a.tag_b.localeCompare(b.tag_b);
+  return [...pairs].sort((a, b) =>
+    mode === "shared"
+      ? b.shared - a.shared || b.share_of_smaller - a.share_of_smaller || byNames(a, b)
+      : b.share_of_smaller - a.share_of_smaller || b.shared - a.shared || byNames(a, b),
+  );
+}

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, Navigate } from "react-router-dom";
 import { findDuplicateGroups } from "@/lib/findDuplicateBooks";
 import BookCover from "@/components/BookCover";
+import { deleteAlias, fetchAliasesForBook, type AliasRef } from "@/lib/bookAliases";
 import { useQueryClient } from "@tanstack/react-query";
 import { Loader2, Pencil, Trash2, Search, Copy, Image as ImageIcon, Check, X, Sparkles, ArrowLeft, Table as TableIcon, LayoutGrid, LayoutList, BookOpen, GitMerge } from "lucide-react";
 import { toast } from "sonner";
@@ -80,6 +81,44 @@ const AdminBooks = () => {
   const [mergePicking, setMergePicking] = useState(false);
   const [pickSearch, setPickSearch] = useState("");
   const [findIsbnOpen, setFindIsbnOpen] = useState(false);
+  // "Also known as": other titles that point at the book being edited
+  const [aliases, setAliases] = useState<AliasRef[]>([]);
+  const [aliasToDelete, setAliasToDelete] = useState<AliasRef | null>(null);
+  const [deletingAlias, setDeletingAlias] = useState(false);
+
+  useEffect(() => {
+    const id = editing?.id;
+    if (!id) {
+      setAliases([]);
+      return;
+    }
+    let cancelled = false;
+    fetchAliasesForBook(id)
+      .then((rows) => !cancelled && setAliases(rows))
+      .catch((err) => {
+        console.error("Could not load aliases", err);
+        if (!cancelled) setAliases([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [editing?.id]);
+
+  const handleDeleteAlias = async () => {
+    if (!aliasToDelete?.id) return;
+    setDeletingAlias(true);
+    try {
+      await deleteAlias(aliasToDelete.id);
+      setAliases((prev) => prev.filter((a) => a.id !== aliasToDelete.id));
+      toast.success("Alias removed");
+      setAliasToDelete(null);
+    } catch (err) {
+      console.error(err);
+      toast.error("Couldn't remove the alias");
+    } finally {
+      setDeletingAlias(false);
+    }
+  };
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -822,8 +861,8 @@ const AdminBooks = () => {
           <SheetContent
             side="right"
             className="w-full sm:max-w-md overflow-y-auto"
-            onInteractOutside={(e) => findIsbnOpen && e.preventDefault()}
-            onEscapeKeyDown={(e) => findIsbnOpen && e.preventDefault()}
+            onInteractOutside={(e) => (findIsbnOpen || !!aliasToDelete) && e.preventDefault()}
+            onEscapeKeyDown={(e) => (findIsbnOpen || !!aliasToDelete) && e.preventDefault()}
           >
             <SheetHeader>
               <SheetTitle>Edit book</SheetTitle>
@@ -844,6 +883,31 @@ const AdminBooks = () => {
                   >
                     View book page →
                   </Link>
+                )}
+                {aliases.length > 0 && (
+                  <div className="pt-1">
+                    <p className="text-xs text-muted-foreground">Also known as</p>
+                    <ul className="mt-1 flex flex-wrap gap-1.5">
+                      {aliases.map((a) => (
+                        <li
+                          key={a.id ?? a.alias_title}
+                          className="flex max-w-full items-center gap-1 rounded-full bg-secondary px-2.5 py-1 text-xs text-secondary-foreground"
+                        >
+                          <span className="min-w-0 break-words">{a.alias_title}</span>
+                          {a.id && (
+                            <button
+                              type="button"
+                              onClick={() => setAliasToDelete(a)}
+                              aria-label={`Remove alias ${a.alias_title}`}
+                              className="shrink-0 rounded-full p-0.5 hover:bg-background/60"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
                 )}
               </div>
               <div className="space-y-1.5">
@@ -1038,6 +1102,30 @@ const AdminBooks = () => {
           targetBook={mergePair?.target ?? null}
           onMerged={handleMerged}
         />
+
+        <AlertDialog open={!!aliasToDelete} onOpenChange={(o) => !o && !deletingAlias && setAliasToDelete(null)}>
+          <AlertDialogContent className="max-h-[90vh] overflow-y-auto">
+            <AlertDialogHeader>
+              <AlertDialogTitle>Remove this alias?</AlertDialogTitle>
+              <AlertDialogDescription className="break-words">
+                {aliasToDelete && (
+                  <>
+                    <span className="font-medium text-foreground">{aliasToDelete.alias_title}</span> will stop pointing at{" "}
+                    <span className="font-medium text-foreground">{editing?.title}</span>. A Kindle import under that
+                    title would create a new book again.
+                  </>
+                )}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={deletingAlias}>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={handleDeleteAlias} disabled={deletingAlias}>
+                {deletingAlias && <Loader2 className="h-4 w-4 animate-spin" />}
+                Remove
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         <AlertDialog open={!!confirmDelete} onOpenChange={(o) => !o && setConfirmDelete(null)}>
           <AlertDialogContent className="max-h-[90vh] overflow-y-auto">
