@@ -2,7 +2,7 @@
 
 This is the master dev backlog. The in-app Inbox (Admin → Inbox) is a separate mini to-do list that is managed by hand. It is not kept in sync with this file, and nothing needs to move from it into this file.
 
-Last updated: 2026-11-05
+Last updated: 2026-11-12
 
 ## Next
 - [ ] Alias table for merged books, so a Kindle import with an old title does not recreate a merged-away book
@@ -89,3 +89,4 @@ Last updated: 2026-11-05
 - [x] Inspire Me picks the least-shown public highlight (random tie-break, never the same book twice in a row) and records each show; Admin Hub coverage card; Admin Studio "Inspire" column, sort and never-shown filter (2026-11-05)
 - [x] Find Duplicates now catches near-identical, contained and cross-book highlights, one pair at a time, merging tags/notes and bookmarks into the kept copy (2026-11-05)
 - [x] Book covers cached in our own storage, silently, with original link and placeholder fallbacks; Admin Hub decluttered (2026-11-05)
+- [x] Inspire Me: Shuffle moved to a centred bottom bar, popup anchored near the bottom on phones, swipe left / right-arrow to shuffle, Back closes it (2026-11-12)

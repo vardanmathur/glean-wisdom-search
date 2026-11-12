@@ -2,6 +2,20 @@
 
 Notable changes to Glean, newest first. One entry per work session; group by what changed, not by file.
 
+## 2026-11-12 — Inspire Me: One-Handed Shuffle
+
+### Shipped
+- Changed: the "Your daily spark" popup now has one wide
+  Shuffle button in a bar at the bottom that never scrolls away,
+  instead of a small button in the header; on phones the popup
+  sits near the bottom of the screen
+- Added: swipe left on the card (or press the right arrow key)
+  to shuffle, with a quick slide-out and slide-in; vertical
+  scrolling of a long quote never triggers it
+- Changed: the phone's Back button closes the popup
+
+---
+
 ## 2026-11-05 — Book Covers Kept in Our Own Storage
 
 ### Shipped

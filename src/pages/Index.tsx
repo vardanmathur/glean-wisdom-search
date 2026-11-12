@@ -1,10 +1,9 @@
 import { useNavigate } from "react-router-dom";
 import { useRef, useState } from "react";
-import { Search, Leaf, Brain, Upload, ArrowRight, Sparkles, Loader2, Shuffle } from "lucide-react";
+import { Search, Leaf, Brain, Upload, ArrowRight, Sparkles } from "lucide-react";
 import { Link } from "react-router-dom";
 import InstallPrompt from "@/components/InstallPrompt";
-import HighlightCard from "@/components/HighlightCard";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import InspireDialog from "@/components/InspireDialog";
 import { useQuery } from "@tanstack/react-query";
 import { getGleanStats, type Highlight } from "@/lib/data";
 import { loadInspireHighlight } from "@/lib/inspire";
@@ -180,40 +179,14 @@ const Index = () => {
         <Link to="/privacy" className="underline hover:text-foreground transition-colors">Privacy Policy</Link>
       </footer>
       
-      <Dialog open={sparkOpen} onOpenChange={setSparkOpen}>
-        <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader className="flex flex-row items-center justify-between">
-          <DialogTitle className="font-display">Your daily spark</DialogTitle>
-          <button
-            onClick={handleInspireMe}
-            className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/5 px-3 py-1.5 text-sm font-medium text-primary hover:bg-primary/10 transition-all mr-6"
-            title="Shuffle"
-          >
-            <Shuffle className="h-4 w-4" />
-            Shuffle
-          </button>
-        </DialogHeader>
-          {sparkLoading && (
-            <div className="flex items-center justify-center py-12 text-muted-foreground">
-              <Loader2 className="h-5 w-5 animate-spin" />
-            </div>
-          )}
-          {!sparkLoading && sparkError && (
-            <div className="flex flex-col items-center gap-3 py-8 text-center">
-              <p className="text-sm text-muted-foreground">Couldn't load a highlight. Try again.</p>
-              <button
-                onClick={handleInspireMe}
-                className="rounded-full border border-primary/30 bg-primary/5 px-4 py-2 text-sm font-medium text-primary hover:bg-primary/10 transition-all"
-              >
-                Retry
-              </button>
-            </div>
-          )}
-          {!sparkLoading && !sparkError && sparkHighlight && (
-            <HighlightCard highlight={sparkHighlight} index={0} />
-          )}
-        </DialogContent>
-      </Dialog>
+      <InspireDialog
+        open={sparkOpen}
+        onOpenChange={setSparkOpen}
+        loading={sparkLoading}
+        error={sparkError}
+        highlight={sparkHighlight}
+        onShuffle={handleInspireMe}
+      />
     </div>
   );
 };
