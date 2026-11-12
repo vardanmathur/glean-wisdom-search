@@ -1,5 +1,30 @@
 ---
 
+## [2026-11-12] Glean — Cover cache, one-handed Inspire popup, book aliases
+
+**Mode**: Claude Code
+**Mem0**: not connected
+
+### What happened
+Book covers are now copied into our own storage silently (shared BookCover component, admin-queued edge function, original link and placeholder as fallbacks) and Admin Hub was decluttered. The Inspire Me popup got a bottom Shuffle bar, swipe-left and right-arrow shuffle, and Back closes it. Book aliases now carry old titles through renames, merges and the Kindle import, with a "New books" review step, "Also known as" in Admin Books, and edit plus sort in the overlap review. All pushed (last commit 7821494).
+
+### Key decisions
+- Covers: ids only go to the edge function, the original cover_image_url stays as the backup, and a copy counts only while cached_from matches it.
+- useIsAdmin moved onto React Query (keyed by user id, cleared on sign-out) so hundreds of covers share one role check.
+- Aliases are written by admins only; a confirmed rename saves one at once, an import choice saves it when the import runs.
+- A failed books-and-aliases load shows an amber warning with Retry but never blocks the import.
+
+### Open threads
+- [ ] Open Admin Books as admin to fill the cover cache, then reload and confirm covers load from our storage
+- [ ] Try a small import using an old book title: it should attach to the existing book or offer it in "New books"
+- [ ] Delete a book's cached cover files when the book is deleted or merged (BACKLOG)
+- [ ] Check the Studio "Least/Most shown in Inspire" sorts on live data (BACKLOG)
+
+### Artifacts
+- BookCover.tsx, cache-book-cover edge function, InspireDialog.tsx, bookAliases.ts, NewBooksSection.tsx, docs/sql/2026-11-05_cover_cache.sql, 2026-11-12_book_aliases.sql
+
+---
+
 ## [2026-11-05] Glean — Inspire Me stops repeating, Find Duplicates rebuilt
 
 **Mode**: Claude Code
