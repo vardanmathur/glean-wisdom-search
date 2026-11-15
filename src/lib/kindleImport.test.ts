@@ -483,7 +483,8 @@ describe("loadMatchPool", () => {
 });
 
 describe("matchAgainstLibrary: trigram pre-filter keeps every decision", () => {
-  it("600 pairs, including the 15% threshold and strings too short for the filter, match the original rule", () => {
+  // CPU-heavy: the default 5 s limit is too tight when other test files run in parallel on a busy machine
+  it("600 pairs, including the 15% threshold and strings too short for the filter, match the original rule", { timeout: 60_000 }, () => {
     const rand = rng(4242);
     let pairs = 0;
     let atThreshold = 0;

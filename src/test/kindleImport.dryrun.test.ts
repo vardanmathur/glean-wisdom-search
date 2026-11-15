@@ -742,6 +742,7 @@ describe.skipIf(!HAVE_FILES)("Match timing (synthetic library, local only)", () 
     writeFileSync(path.join(OUT_DIR, "timing.txt"), line, "utf8");
     expect(missed).toBe(0);
     expect(extra).toBeLessThanOrEqual(5);
-    expect(ms).toBeLessThan(10_000);
+    // About 3 s alone; the budget leaves room for a busy machine running other test files in parallel
+    expect(ms).toBeLessThan(30_000);
   });
 });
