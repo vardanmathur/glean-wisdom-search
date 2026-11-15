@@ -2,6 +2,19 @@
 
 Notable changes to Glean, newest first. One entry per work session; group by what changed, not by file.
 
+## 2026-11-16 — Easier-to-Reach Mobile Menu
+
+### Shipped
+- Changed: on phones the menu items now sit at the bottom of the
+  menu, within thumb reach; the menu still scrolls if there are more
+  items than fit, and the close button stays at the top
+- Added: swipe left anywhere on the open menu to close it
+- Added: the phone's Back button closes the menu
+- Changed: choosing a menu item no longer adds an extra step to
+  Back
+
+---
+
 ## 2026-11-16 — Swipe to Open the Menu, One Studio Name
 
 ### Shipped

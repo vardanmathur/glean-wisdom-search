@@ -5,6 +5,8 @@ import { useAuth } from "@/context/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { useSwipeToOpenMenu } from "@/hooks/useSwipeToOpenMenu";
+import { useSwipeToClose } from "@/hooks/useSwipeToClose";
+import { useCloseOnBack } from "@/hooks/useCloseOnBack";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -30,6 +32,10 @@ const Navbar = () => {
   const { pathname } = useLocation();
   // Swipe right to open the menu: the home page only, while the menu is closed
   useSwipeToOpenMenu({ enabled: pathname === "/" && !mobileOpen, onOpen: () => setMobileOpen(true) });
+  // Swipe left on the open menu, or the phone's Back button, closes it
+  const [sheetEl, setSheetEl] = useState<HTMLDivElement | null>(null);
+  useSwipeToClose(sheetEl, () => setMobileOpen(false));
+  useCloseOnBack(mobileOpen, () => setMobileOpen(false), "overlayMenu");
   const { user, signOut } = useAuth();
   const { hasPermission } = usePermissions();
   const { isAdmin } = useIsAdmin();
@@ -66,16 +72,22 @@ const Navbar = () => {
                 <Menu className="h-5 w-5" />
               </button>
             </SheetTrigger>
-            <SheetContent side="left" className="w-72">
+            <SheetContent
+              ref={setSheetEl}
+              side="left"
+              className="flex w-72 flex-col max-sm:pb-[calc(1.5rem+env(safe-area-inset-bottom))]"
+            >
+              <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto">
               <SheetHeader>
                 <SheetTitle className="flex items-center gap-2 text-primary">
                   <Leaf className="h-5 w-5" />
                   <span className="font-display text-lg">Glean</span>
                 </SheetTitle>
               </SheetHeader>
-              <div className="mt-6 flex flex-col gap-1">
+              <div className="mt-6 flex flex-col gap-1 max-sm:mt-auto">
                 <SheetClose asChild>
                   <Link
+                    replace
                     to="/topics"
                     className="rounded-lg px-3 py-2.5 text-sm font-medium text-foreground hover:bg-secondary transition-colors"
                   >
@@ -84,6 +96,7 @@ const Navbar = () => {
                 </SheetClose>
                 <SheetClose asChild>
                   <Link
+                    replace
                     to="/books"
                     className="rounded-lg px-3 py-2.5 text-sm font-medium text-foreground hover:bg-secondary transition-colors"
                   >
@@ -92,6 +105,7 @@ const Navbar = () => {
                 </SheetClose>
                 <SheetClose asChild>
                   <Link
+                    replace
                     to="/saved"
                     className="inline-flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-foreground hover:bg-secondary transition-colors"
                   >
@@ -102,6 +116,7 @@ const Navbar = () => {
                 {(isAdmin || hasPermission("think")) && (
                   <SheetClose asChild>
                     <Link
+                      replace
                       to="/think"
                       className="inline-flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-foreground hover:bg-secondary transition-colors"
                     >
@@ -113,6 +128,7 @@ const Navbar = () => {
                 {hasPermission("import") && (
                   <SheetClose asChild>
                     <Link
+                      replace
                       to="/import"
                       className="inline-flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-foreground hover:bg-secondary transition-colors"
                     >
@@ -124,6 +140,7 @@ const Navbar = () => {
                 {hasPermission("import") && !isAdmin && (
                   <SheetClose asChild>
                     <Link
+                      replace
                       to="/studio"
                       className="inline-flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-foreground hover:bg-secondary transition-colors"
                     >
@@ -135,6 +152,7 @@ const Navbar = () => {
                 {isAdmin && (
                   <SheetClose asChild>
                     <Link
+                      replace
                       to="/studio"
                       className="inline-flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-foreground hover:bg-secondary transition-colors"
                     >
@@ -146,6 +164,7 @@ const Navbar = () => {
                 {isAdmin && (
                   <SheetClose asChild>
                     <Link
+                      replace
                       to="/admin"
                       className="inline-flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-foreground hover:bg-secondary transition-colors"
                     >
@@ -157,6 +176,7 @@ const Navbar = () => {
                 {user && (
                   <SheetClose asChild>
                     <Link
+                      replace
                       to="/settings"
                       className="inline-flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-foreground hover:bg-secondary transition-colors"
                     >
@@ -165,6 +185,7 @@ const Navbar = () => {
                     </Link>
                   </SheetClose>
                 )}
+              </div>
               </div>
             </SheetContent>
           </Sheet>
