@@ -107,3 +107,11 @@
     box-shadow: var(--shadow-card-hover);
   }
 }
+
+/* Scan text: bigger crop handles for fingers */
+@media (pointer: coarse) {
+  .ReactCrop__drag-handle {
+    width: 26px;
+    height: 26px;
+  }
+}

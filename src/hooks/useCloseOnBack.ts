@@ -37,7 +37,9 @@ export function overlayStep(phase: OverlayPhase, input: { open: boolean; markerP
 
 const newOverlayId = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 
-export function useCloseOnBack(open: boolean, onClose: () => void): void {
+// `markerKey` names this overlay's marker in location.state. Give an overlay that opens on top of another one
+// its own key, so that Back closes only the top one.
+export function useCloseOnBack(open: boolean, onClose: () => void, markerKey = "overlay"): void {
   const navigate = useNavigate();
   const location = useLocation();
   const phase = useRef<OverlayPhase>("idle");
@@ -47,17 +49,17 @@ export function useCloseOnBack(open: boolean, onClose: () => void): void {
 
   useEffect(() => {
     const state = (location.state ?? {}) as Record<string, unknown>;
-    const markerPresent = overlayId.current !== null && state.overlay === overlayId.current;
+    const markerPresent = overlayId.current !== null && state[markerKey] === overlayId.current;
     const step = overlayStep(phase.current, { open, markerPresent });
     phase.current = step.phase;
 
     if (step.action === "push") {
       overlayId.current = newOverlayId();
-      navigate(location, { state: { ...state, overlay: overlayId.current } });
+      navigate(location, { state: { ...state, [markerKey]: overlayId.current } });
     } else if (step.action === "pop") {
       navigate(-1);
     } else if (step.action === "close") {
       onCloseRef.current();
     }
-  }, [open, location, navigate]);
+  }, [open, location, navigate, markerKey]);
 }

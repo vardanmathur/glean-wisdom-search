@@ -123,3 +123,68 @@ describe("useCloseOnBack", () => {
     expect(screen.getByTestId("path").textContent).toBe("/page");
   });
 });
+
+const Nested = ({ onOuterClose, onInnerClose }: { onOuterClose: () => void; onInnerClose: () => void }) => {
+  const [outer, setOuter] = useState(true);
+  const [inner, setInner] = useState(false);
+  const location = useLocation();
+  const navigate = useNavigate();
+  useCloseOnBack(outer, () => {
+    onOuterClose();
+    setOuter(false);
+  });
+  useCloseOnBack(
+    inner,
+    () => {
+      onInnerClose();
+      setInner(false);
+    },
+    "overlayScan",
+  );
+  return (
+    <div>
+      <span data-testid="outer">{String(outer)}</span>
+      <span data-testid="inner">{String(inner)}</span>
+      <span data-testid="markers">{JSON.stringify(location.state)}</span>
+      <button onClick={() => setInner(true)}>open inner</button>
+      <button onClick={() => setInner(false)}>close inner</button>
+      <button onClick={() => navigate(-1)}>back</button>
+    </div>
+  );
+};
+
+describe("useCloseOnBack with an overlay on top of another", () => {
+  const setupNested = () => {
+    const onOuterClose = vi.fn();
+    const onInnerClose = vi.fn();
+    render(
+      <MemoryRouter initialEntries={["/start", "/page"]} initialIndex={1}>
+        <Nested onOuterClose={onOuterClose} onInnerClose={onInnerClose} />
+      </MemoryRouter>,
+    );
+    return { onOuterClose, onInnerClose };
+  };
+
+  it("Back closes only the top overlay, then the one below", () => {
+    const { onOuterClose, onInnerClose } = setupNested();
+    click("open inner");
+    expect(screen.getByTestId("markers").textContent).toContain("overlayScan");
+    expect(screen.getByTestId("markers").textContent).toContain("overlay");
+    click("back");
+    expect(onInnerClose).toHaveBeenCalledTimes(1);
+    expect(onOuterClose).not.toHaveBeenCalled();
+    expect(screen.getByTestId("outer").textContent).toBe("true");
+    click("back");
+    expect(onOuterClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("closing the top overlay another way removes only its own entry", () => {
+    const { onOuterClose, onInnerClose } = setupNested();
+    click("open inner");
+    click("close inner");
+    expect(onInnerClose).not.toHaveBeenCalled();
+    expect(onOuterClose).not.toHaveBeenCalled();
+    expect(screen.getByTestId("outer").textContent).toBe("true");
+    expect(screen.getByTestId("markers").textContent).not.toContain("overlayScan");
+  });
+});

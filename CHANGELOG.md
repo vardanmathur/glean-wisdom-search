@@ -2,6 +2,26 @@
 
 Notable changes to Glean, newest first. One entry per work session; group by what changed, not by file.
 
+## 2026-11-15 — Scan Text Rebuilt
+
+### Shipped
+- Changed: Add highlight → Scan now takes a full-resolution
+  photo inside the app (or lets you pick an existing image),
+  lets you crop it freely (with a 90-degree rotate), and an AI
+  reads the text exactly as printed
+- Added: highlighted or underlined text only by default; a
+  "Read all text" switch reads everything instead
+- Added: "Scan another page" adds the next page's text after what
+  is already in the box
+- Changed: the photo is only ever held in memory and is thrown
+  away after reading; it is never saved to your device or to Glean
+- Changed: the phone's Back button steps out of the camera or crop
+  screen without closing Add highlight
+- Removed: the old on-device text recognition (Tesseract) and its
+  ~3 MB model download
+
+---
+
 ## 2026-11-12 — Book Aliases, Overlap Review Editing
 
 ### Shipped

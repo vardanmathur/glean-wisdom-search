@@ -110,6 +110,7 @@ scripts/
 | search-semantic | pgvector semantic search | public |
 | synthesise-wisdom | AI synthesis + Think! usage tracking | public |
 | cache-book-cover | Keeps our own copy of each book cover in the public covers bucket (admin; takes book ids only) | admin |
+| read-text-from-image | Reads the text in a photo of a book page (AI vision; highlighted text only by default). Image is never stored. Any signed-in user | user |
 | generate-embeddings | Highlight fingerprints (Gemini embedding of quote + tags + notes; untagged skipped) | admin |
 | generate-topic-summary | AI topic summaries (6mo cache) | public |
 | generate-book-summary | AI book summaries (6mo cache) | public |

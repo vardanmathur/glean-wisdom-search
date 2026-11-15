@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Camera, X, Mic, Sparkles } from "lucide-react";
+import { Loader2, X, Mic, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import BookLookup, { type SelectedBook } from "./BookLookup";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -18,6 +18,7 @@ import { toTitleCase } from "@/lib/utils";
 
 import { useCloseOnBack } from "@/hooks/useCloseOnBack";
 import BookCover from "@/components/BookCover";
+import ScanTextPanel from "./ScanTextPanel";
 
 const DRAFT_KEY = "glean_add_highlight_draft"; // suggest-tags v1
 
@@ -51,13 +52,6 @@ const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags, initi
   const [saving, setSaving] = useState(false);
   const [bookLookupOverride, setBookLookupOverride] = useState(false);
 
-  // Scan tab state — Tesseract loaded lazily on first open
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const [cameraOn, setCameraOn] = useState(false);
-  const [ocrLoading, setOcrLoading] = useState(false);
-  const [ocrInitialised, setOcrInitialised] = useState(false);
-
   // Dictate tab state
   const [dictatedText, setDictatedText, clearDictatedText] = useSessionStorageState<string>(
     "glean_add_highlight_draft_dictated",
@@ -87,7 +81,6 @@ const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags, initi
     clearVisibility();
     clearTab();
     clearDictatedText();
-    stopCamera();
     stopDictation();
     setBookLookupOverride(false);
     setPendingTaxonomyTag(null);
@@ -109,10 +102,9 @@ const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags, initi
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  // Always release the camera on unmount
+  // Stop listening on unmount (the scan panel releases its own camera)
   useEffect(() => {
     return () => {
-      stopCamera();
       stopDictation();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -205,67 +197,6 @@ const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags, initi
     }
     setInterimText("");
     setListening(false);
-  };
-
-  const stopCamera = () => {
-    streamRef.current?.getTracks().forEach((t) => t.stop());
-    streamRef.current = null;
-    setCameraOn(false);
-  };
-
-  const openCamera = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: "environment" } },
-      });
-      streamRef.current = stream;
-      setCameraOn(true);
-    } catch (err) {
-      console.error("Camera error:", err);
-      toast.error("Couldn't access camera");
-    }
-  };
-
-  // Attach stream once the <video> element is mounted (cameraOn flips it into the DOM)
-  useEffect(() => {
-    if (!cameraOn) return;
-    const v = videoRef.current;
-    const s = streamRef.current;
-    if (!v || !s) return;
-    v.srcObject = s;
-    v.play().catch((err) => console.warn("video.play() failed:", err));
-  }, [cameraOn]);
-
-  const captureAndOcr = async () => {
-    if (!videoRef.current) return;
-    const video = videoRef.current;
-    const canvas = document.createElement("canvas");
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    ctx.drawImage(video, 0, 0);
-    setOcrLoading(true);
-    try {
-      const Tesseract = (await import("tesseract.js")).default;
-      setOcrInitialised(true);
-      const blob: Blob = await new Promise((res, rej) =>
-        canvas.toBlob((b) => (b ? res(b) : rej(new Error("blob fail"))), "image/jpeg", 0.9),
-      );
-      const { data } = await Tesseract.recognize(blob, "eng");
-      const cleaned = data.text
-        .replace(/\s+\n/g, "\n")
-        .replace(/\n{2,}/g, "\n\n")
-        .trim();
-      setQuote(cleaned);
-      stopCamera();
-      toast.success("Text extracted — review and edit if needed");
-    } catch (err) {
-      console.error(err);
-      toast.error("Couldn't read text from image");
-    } finally {
-      setOcrLoading(false);
-    }
   };
 
   const addTag = (raw: string) => {
@@ -515,66 +446,14 @@ const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags, initi
           </TabsContent>
 
           <TabsContent value="scan" className="space-y-3 mt-4">
-            <div className="rounded-md border bg-card p-3 space-y-2">
-              {!cameraOn ? (
-                <Button type="button" onClick={openCamera} className="gap-1.5">
-                  <Camera className="h-4 w-4" /> Open camera
-                </Button>
-              ) : isMobile ? (
-                <>
-                  <p className="text-xs text-muted-foreground">
-                    Camera is open in fullscreen — use the bottom toolbar to capture or stop.
-                  </p>
-                  <div className="fixed inset-0 z-50 bg-black flex flex-col">
-                    <video
-                      ref={videoRef}
-                      className="flex-1 w-full h-full object-contain bg-black"
-                      muted
-                      playsInline
-                      autoPlay
-                    />
-                    <div className="fixed bottom-0 left-0 right-0 z-[51] flex gap-2 justify-center p-4 bg-black/80 pb-[calc(1rem+env(safe-area-inset-bottom))]">
-                      <Button type="button" size="lg" onClick={captureAndOcr} disabled={ocrLoading}>
-                        {ocrLoading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
-                        {ocrLoading ? "Reading text…" : "Capture & read text"}
-                      </Button>
-                      <Button type="button" size="lg" variant="outline" onClick={stopCamera}>
-                        Stop
-                      </Button>
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <video
-                    ref={videoRef}
-                    className="w-full rounded-md bg-black aspect-video"
-                    muted
-                    playsInline
-                    autoPlay
-                  />
-                  <div className="flex gap-2">
-                    <Button type="button" size="sm" onClick={captureAndOcr} disabled={ocrLoading}>
-                      {ocrLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
-                      {ocrLoading ? "Reading text…" : "Capture & read text"}
-                    </Button>
-                    <Button type="button" size="sm" variant="outline" onClick={stopCamera}>
-                      Stop
-                    </Button>
-                  </div>
-                  {!ocrInitialised && (
-                    <p className="text-xs text-muted-foreground">First scan downloads the OCR model — ~2-3 MB.</p>
-                  )}
-                </>
-              )}
-            </div>
+            <ScanTextPanel quote={quote} onQuoteChange={setQuote} active={open} />
             <div className="space-y-1.5">
-              <label className="text-sm font-medium">Extracted text — edit before saving</label>
+              <label className="text-sm font-medium">Scanned text — edit before saving</label>
               <Textarea
                 value={quote}
                 onChange={(e) => setQuote(e.target.value)}
                 rows={5}
-                placeholder="OCR results will appear here…"
+                placeholder="Scanned text will appear here…"
               />
             </div>
           </TabsContent>

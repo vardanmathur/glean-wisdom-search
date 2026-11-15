@@ -1,4 +1,4 @@
-const CACHE_NAME = 'glean-v30';
+const CACHE_NAME = 'glean-v31';
 const SHELL_ASSETS = ['/', '/index.html'];
 
 self.addEventListener('install', (event) => {
