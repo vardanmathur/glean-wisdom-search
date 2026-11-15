@@ -1,9 +1,10 @@
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Leaf, Search, Bookmark, User, LogOut, Settings, BookOpen, Shield, Upload, Menu, Brain, Sparkles } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
+import { useSwipeToOpenMenu } from "@/hooks/useSwipeToOpenMenu";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -26,6 +27,9 @@ const Navbar = () => {
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { pathname } = useLocation();
+  // Swipe right to open the menu: the home page only, while the menu is closed
+  useSwipeToOpenMenu({ enabled: pathname === "/" && !mobileOpen, onOpen: () => setMobileOpen(true) });
   const { user, signOut } = useAuth();
   const { hasPermission } = usePermissions();
   const { isAdmin } = useIsAdmin();

@@ -1441,12 +1441,12 @@ const Import = () => {
             <h2 className="font-display text-2xl font-semibold text-foreground mb-2">
               {importResult.imported} highlights imported from {importResult.booksTouched} books
             </h2>
-            {importResult.booksMissingAuthor > 0 && (
+            {importResult.booksMissingAuthor > 0 && isAdmin && (
               <p className="text-sm text-muted-foreground mt-3">
                 {importResult.booksMissingAuthor}{" "}
                 {importResult.booksMissingAuthor === 1 ? "book still needs" : "books still need"} author info — update in{" "}
-                <Link to="/admin/studio/highlights" className="text-primary underline-offset-2 hover:underline">
-                  Glean Studio
+                <Link to="/admin/books" className="text-primary underline-offset-2 hover:underline">
+                  Admin Books
                 </Link>
                 .
               </p>
@@ -1488,8 +1488,8 @@ const Import = () => {
             <Link to="/saved">
               <Button variant="outline">Browse my highlights</Button>
             </Link>
-            <Link to="/admin/studio/highlights">
-              <Button>Open Glean Studio</Button>
+            <Link to="/studio">
+              <Button>Open My Studio</Button>
             </Link>
             <Button variant="ghost" onClick={goBackToStep1}>
               Import another file

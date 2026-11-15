@@ -766,7 +766,7 @@ const AdminStudioHighlights = () => {
       >
         <ArrowLeft className="h-4 w-4" /> Admin
       </Link>
-      <h1 className="font-display text-3xl font-semibold text-foreground mb-2">Glean Studio</h1>
+      <h1 className="font-display text-3xl font-semibold text-foreground mb-2">Admin Studio</h1>
       <p className="text-muted-foreground mb-6">Curate highlights — edit tags, notes, and visibility.</p>
 
       {/* Filter & Sort Bar */}

@@ -15,6 +15,17 @@ export function isLeftSwipe({ dx, dy }: Movement, minDistance = SWIPE_MIN_DISTAN
   return dx <= -minDistance && Math.abs(dx) > ratio * Math.abs(dy);
 }
 
+// A right swipe: the mirror of isLeftSwipe. The callers can ask for a longer distance or a stricter ratio.
+export function isRightSwipe({ dx, dy }: Movement, minDistance = SWIPE_MIN_DISTANCE, ratio = SWIPE_RATIO): boolean {
+  return dx >= minDistance && Math.abs(dx) > ratio * Math.abs(dy);
+}
+
+// True when a touch begins at least `edge` px away from both sides of the screen, so it cannot be the
+// phone's own "back" gesture (a swipe in from the left or right edge).
+export function isSwipeStartZone(startX: number, viewportWidth: number, edge = 32): boolean {
+  return startX >= edge && startX <= viewportWidth - edge;
+}
+
 // Keys that should not shuffle because the user is typing.
 export function isTypingTarget(target: EventTarget | null): boolean {
   const el = target as HTMLElement | null;

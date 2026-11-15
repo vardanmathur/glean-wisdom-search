@@ -2,6 +2,25 @@
 
 Notable changes to Glean, newest first. One entry per work session; group by what changed, not by file.
 
+## 2026-11-16 — Swipe to Open the Menu, One Studio Name
+
+### Shipped
+- Added: on the home page, on a phone, swiping right opens the
+  menu. It starts only away from the screen edges (so it never
+  fights the phone's own back gesture), needs a clearly sideways
+  swipe, and is ignored on buttons, links, scrolling areas, while
+  a dialog or menu is open, and when text is selected
+- Changed: the admin screen's heading now says "Admin Studio"
+  (it said "Glean Studio"), matching the Admin Hub and quick menu
+- Fixed: after a Kindle import, the links now open "My Studio",
+  where the imported highlights are; they used to send everyone to
+  the admin screen, which bounced people without admin access
+- Changed: the "books still need author info" note after an import
+  now points admins to Admin Books, where authors can be edited,
+  and is hidden for people who cannot edit books
+
+---
+
 ## 2026-11-16 — Whole-Card Book Links, Multi-Select Books Filter
 
 ### Shipped
