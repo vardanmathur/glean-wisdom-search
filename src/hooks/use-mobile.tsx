@@ -2,6 +2,11 @@ import * as React from "react";
 
 const MOBILE_BREAKPOINT = 768;
 
+// The same check as useIsMobile, readable straight away (before any effect has run).
+export function isMobileViewport(): boolean {
+  return typeof window !== "undefined" && window.innerWidth < MOBILE_BREAKPOINT;
+}
+
 export function useIsMobile() {
   const [isMobile, setIsMobile] = React.useState<boolean | undefined>(undefined);
 

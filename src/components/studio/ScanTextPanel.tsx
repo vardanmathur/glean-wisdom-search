@@ -11,7 +11,15 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/integrations/supabase/client";
 import { useCloseOnBack } from "@/hooks/useCloseOnBack";
-import { SCAN_JPEG_QUALITY, appendScanText, scanErrorMessage, scanSuccessMessage, targetSize } from "@/lib/scanText";
+import {
+  SCAN_JPEG_QUALITY,
+  SLOW_READ_MS,
+  appendScanText,
+  readingStatus,
+  scanErrorMessage,
+  scanSuccessMessage,
+  targetSize,
+} from "@/lib/scanText";
 
 // Scan text: an in-app photo (or an existing image) -> crop -> the AI reads the text.
 // The image only ever lives in memory (object URLs and canvases): it is never written to the device's storage,
@@ -56,6 +64,8 @@ const ScanTextPanel = ({ quote, onQuoteChange, active }: ScanTextPanelProps) => 
   const [completedCrop, setCompletedCrop] = useState<PixelCrop | null>(null);
   const [readAll, setReadAll] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [reading, setReading] = useState(false);
+  const [slow, setSlow] = useState(false);
   const [errorText, setErrorText] = useState<string | null>(null);
   const [hasScanned, setHasScanned] = useState(false);
   const [cameraReady, setCameraReady] = useState(false);
@@ -65,6 +75,7 @@ const ScanTextPanel = ({ quote, onQuoteChange, active }: ScanTextPanelProps) => 
   const imgRef = useRef<HTMLImageElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const aliveRef = useRef(true);
+  const slowTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const imageUrlRef = useRef<string | null>(null);
   imageUrlRef.current = imageUrl;
 
@@ -83,13 +94,24 @@ const ScanTextPanel = ({ quote, onQuoteChange, active }: ScanTextPanelProps) => 
     setCompletedCrop(null);
   }, []);
 
+  // Stops the 6-second "still reading" timer and puts the status line back to its first wording.
+  const clearSlowTimer = useCallback(() => {
+    if (slowTimer.current !== null) {
+      clearTimeout(slowTimer.current);
+      slowTimer.current = null;
+    }
+    setSlow(false);
+  }, []);
+
   const closeAll = useCallback(() => {
+    clearSlowTimer();
     stopCamera();
     clearImage();
     setScreen("idle");
     setBusy(false);
+    setReading(false);
     setErrorText(null);
-  }, [stopCamera, clearImage]);
+  }, [stopCamera, clearImage, clearSlowTimer]);
 
   // Phone Back steps out of the camera or crop screen only, not the whole Add highlight window.
   useCloseOnBack(screen !== "idle", closeAll, "overlayScan");
@@ -102,6 +124,7 @@ const ScanTextPanel = ({ quote, onQuoteChange, active }: ScanTextPanelProps) => 
     aliveRef.current = true;
     return () => {
       aliveRef.current = false;
+      if (slowTimer.current !== null) clearTimeout(slowTimer.current);
       streamRef.current?.getTracks().forEach((t) => t.stop());
       if (imageUrlRef.current) URL.revokeObjectURL(imageUrlRef.current);
     };
@@ -241,6 +264,7 @@ const ScanTextPanel = ({ quote, onQuoteChange, active }: ScanTextPanelProps) => 
 
   const retake = () => {
     if (busy) return;
+    clearSlowTimer();
     if (source === "camera") {
       void openCamera();
     } else {
@@ -283,6 +307,11 @@ const ScanTextPanel = ({ quote, onQuoteChange, active }: ScanTextPanelProps) => 
       return;
     }
     setBusy(true);
+    setReading(true);
+    slowTimer.current = setTimeout(() => {
+      slowTimer.current = null;
+      if (aliveRef.current) setSlow(true);
+    }, SLOW_READ_MS);
     try {
       const { data, error } = await supabase.functions.invoke("read-text-from-image", {
         body: { image, mode: readAll ? "all" : "auto" },
@@ -306,7 +335,11 @@ const ScanTextPanel = ({ quote, onQuoteChange, active }: ScanTextPanelProps) => 
       console.error("read-text-from-image failed");
       if (aliveRef.current) setErrorText(scanErrorMessage("failed"));
     } finally {
-      if (aliveRef.current) setBusy(false);
+      clearSlowTimer();
+      if (aliveRef.current) {
+        setBusy(false);
+        setReading(false);
+      }
     }
   };
 
@@ -385,6 +418,11 @@ const ScanTextPanel = ({ quote, onQuoteChange, active }: ScanTextPanelProps) => 
                   )}
                 </div>
                 <div className="space-y-3 bg-black/90 px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-3">
+                  {reading && (
+                    <p aria-live="polite" className="text-center text-sm text-white/80">
+                      {readingStatus(slow)}
+                    </p>
+                  )}
                   {errorText && (
                     <p role="alert" className="text-center text-sm font-medium text-red-300">
                       {errorText}

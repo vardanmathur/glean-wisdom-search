@@ -2,6 +2,22 @@
 
 Notable changes to Glean, newest first. One entry per work session; group by what changed, not by file.
 
+## 2026-11-15 — Scan First, Tidier Line Breaks
+
+### Shipped
+- Changed: Add highlight now lists Scan text first (then Type it,
+  then Dictate) and opens on Scan on phones and on Type on desktop,
+  unless you already picked a tab in this session
+- Changed: scanned text treats a single line break as a space and
+  uses a blank line only for a clearly new paragraph; empty ruled
+  lines in notebooks are ignored
+- Changed: the scan reader can return longer pages (higher output
+  limit) and waits up to 45 seconds for the AI instead of 30
+- Added: if reading takes more than 6 seconds, the screen says
+  "Still reading. Full pages can take 10 to 20 seconds."
+
+---
+
 ## 2026-11-15 — Scan Text Rebuilt
 
 ### Shipped

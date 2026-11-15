@@ -38,7 +38,7 @@ serve(async (req) => {
   const mime = detectImageMime(image)!;
 
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 30000);
+  const timer = setTimeout(() => controller.abort(), 45000);
   const started = Date.now();
   try {
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
@@ -51,7 +51,7 @@ serve(async (req) => {
       body: JSON.stringify({
         model: "google/gemini-3.8-flash",
         reasoning_effort: "none",
-        max_tokens: 2000,
+        max_tokens: 3000,
         messages: [
           {
             role: "user",

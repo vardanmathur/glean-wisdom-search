@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  SLOW_READ_MS,
   appendScanText,
+  readingStatus,
   scanErrorMessage,
   scanSuccessMessage,
   targetSize,
@@ -66,6 +68,14 @@ describe("messages", () => {
     expect(scanSuccessMessage(true, false)).toBe("Text read — check and edit if needed · highlighted text only");
     expect(scanSuccessMessage(true, true)).toBe("Text read — check and edit if needed");
     expect(scanSuccessMessage(false, false)).toBe("Text read — check and edit if needed");
+  });
+});
+
+describe("readingStatus", () => {
+  it("starts with Reading text… and explains the wait after 6 seconds", () => {
+    expect(SLOW_READ_MS).toBe(6000);
+    expect(readingStatus(false)).toBe("Reading text…");
+    expect(readingStatus(true)).toBe("Still reading. Full pages can take 10 to 20 seconds.");
   });
 });
 
@@ -161,6 +171,9 @@ describe("request checks (edge function)", () => {
     expect(auto).toContain("[illegible]");
     expect(auto).toContain("Do not guess");
     expect(auto).toContain("Handwritten margin notes are not highlighting");
+    expect(auto).toContain("Treat single line breaks as spaces");
+    expect(auto).toContain("Use a blank line only where a clearly new paragraph starts");
+    expect(auto).toContain("Ignore empty ruled lines in notebooks");
     expect(buildInstructions("all")).toContain("Do not guess");
     expect(auto).toContain("MODE auto");
     expect(auto.endsWith("MODE auto")).toBe(true);

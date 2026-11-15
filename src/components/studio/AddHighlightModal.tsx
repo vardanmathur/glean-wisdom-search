@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2, X, Mic, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import BookLookup, { type SelectedBook } from "./BookLookup";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { isMobileViewport, useIsMobile } from "@/hooks/use-mobile";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { useSessionStorageState } from "@/hooks/useSessionStorageState";
 import { toTitleCase } from "@/lib/utils";
@@ -38,7 +38,11 @@ const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags, initi
   useCloseOnBack(open, () => onOpenChange(false));
   const queryClient = useQueryClient();
   const isMobile = useIsMobile();
-  const [tab, setTab, clearTab] = useSessionStorageState<"type" | "dictate" | "scan">(`${DRAFT_KEY}_tab`, "type");
+  // A remembered tab wins; otherwise Scan on phones and Type on desktop.
+  const [tab, setTab, clearTab] = useSessionStorageState<"type" | "dictate" | "scan">(
+    `${DRAFT_KEY}_tab`,
+    isMobileViewport() ? "scan" : "type",
+  );
 
   const [quote, setQuote, clearQuote] = useSessionStorageState<string>(`${DRAFT_KEY}_quote`, "");
   const [book, setBook, clearBook] = useSessionStorageState<SelectedBook | null>(`${DRAFT_KEY}_book`, null);
@@ -383,9 +387,9 @@ const StudioAddHighlightModal = ({ open, onOpenChange, onCreated, allTags, initi
           className="mt-2"
         >
           <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="scan">Scan text</TabsTrigger>
             <TabsTrigger value="type">Type it</TabsTrigger>
             <TabsTrigger value="dictate">Dictate</TabsTrigger>
-            <TabsTrigger value="scan">Scan text</TabsTrigger>
           </TabsList>
 
           <TabsContent value="type" className="space-y-4 mt-4">

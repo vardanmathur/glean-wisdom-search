@@ -41,6 +41,7 @@ export function buildInstructions(mode: ReadMode): string {
     "The text may be printed or handwritten. For handwriting, transcribe as faithfully as you can; write [illegible] for any word you cannot read. Do not guess.",
     "Do not correct, modernise, summarise or reword anything; keep spelling and punctuation.",
     "Join words hyphenated across a line break, and join lines into paragraphs, keeping real paragraph breaks.",
+    "Treat single line breaks as spaces. Use a blank line only where a clearly new paragraph starts. Ignore empty ruled lines in notebooks.",
     "Leave out running headers, page numbers, footnote numbers and partial words cut off at the image edges.",
     "MODE auto: if any text is marked (highlighter or e-reader highlight colour, or underlined), return ONLY the marked text, in reading order, joining separate marked spans with a space. If nothing is marked, return all the text. Handwritten margin notes are not highlighting; only treat highlighter colour, e-reader highlight colour or underlining of the main text as marking.",
     "MODE all: return all the text, ignoring any marking.",

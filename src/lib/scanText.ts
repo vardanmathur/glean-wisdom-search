@@ -38,3 +38,10 @@ export function scanErrorMessage(code: ScanErrorCode | string | undefined): stri
 export function scanSuccessMessage(markedFound: boolean, readAll: boolean): string {
   return "Text read — check and edit if needed" + (markedFound && !readAll ? " · highlighted text only" : "");
 }
+
+export const SLOW_READ_MS = 6000;
+
+// The status line while the AI reads: after a few seconds it explains that full pages take a while.
+export function readingStatus(slow: boolean): string {
+  return slow ? "Still reading. Full pages can take 10 to 20 seconds." : "Reading text…";
+}
