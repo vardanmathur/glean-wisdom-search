@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4";
 import { buildInstructions, detectImageMime, parseMode, parseModelReply, validateImage } from "./parse.ts";
 
 // Reads the text in a photo of a book page. The image comes in as base64, goes to the AI gateway and is never

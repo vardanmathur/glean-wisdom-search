@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4";
 
 // Keeps our own copy of each book's cover in the public "covers" bucket.
 // Input is book ids only: the source URL always comes from books.cover_image_url, never from the client.
