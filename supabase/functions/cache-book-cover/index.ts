@@ -93,7 +93,7 @@ serve(async (req) => {
   try {
     const body = await req.json();
     if (body && Array.isArray(body.book_ids)) {
-      bookIds = [...new Set(body.book_ids.filter((x: unknown): x is string => typeof x === "string" && x.length > 0))];
+      bookIds = [...new Set<string>(body.book_ids.filter((x: unknown): x is string => typeof x === "string" && x.length > 0))];
     }
   } catch {
     return json({ error: "Invalid JSON body" }, 400);
