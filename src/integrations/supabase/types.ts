@@ -53,6 +53,38 @@ export type Database = {
         }
         Relationships: []
       }
+      book_aliases: {
+        Row: {
+          alias_author: string | null
+          alias_title: string
+          book_id: string
+          created_at: string
+          id: string
+        }
+        Insert: {
+          alias_author?: string | null
+          alias_title: string
+          book_id: string
+          created_at?: string
+          id?: string
+        }
+        Update: {
+          alias_author?: string | null
+          alias_title?: string
+          book_id?: string
+          created_at?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "book_aliases_book_id_fkey"
+            columns: ["book_id"]
+            isOneToOne: false
+            referencedRelation: "books"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       book_summaries: {
         Row: {
           book_id: string
