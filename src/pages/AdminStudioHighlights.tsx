@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useLayoutEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -6,6 +6,7 @@ import { refreshFingerprintAfterEdit, type FingerprintFields } from "@/lib/refre
 import { inspireShows } from "@/lib/inspire";
 import DuplicateHighlightPairs, { type DupRow } from "@/components/admin/DuplicateHighlightPairs";
 import InspireStatsLine from "@/components/admin/InspireStatsLine";
+import { filterOptions, multiSelectLabel, toggleId, type SelectOption } from "@/lib/multiSelect";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Check, AlertCircle, ChevronLeft, ChevronRight, Pencil, X, ChevronDown, Search, ArrowUpDown, ArrowUp, ArrowDown, Trash2, Copy, Loader2, Sparkles, Download, Image as ImageIcon, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
@@ -168,6 +169,101 @@ const MultiTagFilter = ({ allTags, selected, onChange }: MultiTagFilterProps) =>
   );
 };
 
+// --- Multi-select filter (Books) ---
+interface MultiSelectFilterProps {
+  options: SelectOption[];
+  selected: string[];
+  onChange: (ids: string[]) => void;
+  emptyLabel: string;
+  manyPrefix: string;
+  searchPlaceholder: string;
+  noResults: string;
+}
+
+const MultiSelectFilter = ({ options, selected, onChange, emptyLabel, manyPrefix, searchPlaceholder, noResults }: MultiSelectFilterProps) => {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  // Slides the panel left when it would run off the right edge of a small screen
+  const [shift, setShift] = useState(0);
+  const ref = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!open || !panelRef.current) return;
+    const rect = panelRef.current.getBoundingClientRect();
+    const over = rect.right - (window.innerWidth - 16);
+    setShift(over > 0 ? -over : 0);
+  }, [open]);
+
+  const shown = filterOptions(options, search);
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="flex h-10 w-[200px] items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+      >
+        <span className="truncate text-muted-foreground">{multiSelectLabel(selected, options, emptyLabel, manyPrefix)}</span>
+        <div className="flex items-center gap-1">
+          {selected.length > 0 && (
+            <X
+              className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground"
+              onClick={(e) => { e.stopPropagation(); onChange([]); }}
+            />
+          )}
+          <ChevronDown className="h-4 w-4 opacity-50" />
+        </div>
+      </button>
+      {open && (
+        <div
+          ref={panelRef}
+          style={{ marginLeft: shift }}
+          className="absolute z-50 top-full left-0 mt-1 w-[260px] max-w-[calc(100vw-2rem)] rounded-md border bg-popover shadow-md"
+        >
+          <div className="p-2 border-b">
+            <div className="flex items-center gap-2 rounded-md border px-2">
+              <Search className="h-3.5 w-3.5 text-muted-foreground" />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder={searchPlaceholder}
+                className="h-8 w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+                autoFocus
+              />
+            </div>
+          </div>
+          <div className="max-h-56 overflow-y-auto p-1">
+            {shown.length === 0 ? (
+              <p className="px-3 py-2 text-sm text-muted-foreground">{noResults}</p>
+            ) : (
+              shown.map((o) => (
+                <button
+                  type="button"
+                  key={o.id}
+                  className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent transition-colors"
+                  onClick={() => onChange(toggleId(selected, o.id))}
+                >
+                  <Checkbox checked={selected.includes(o.id)} className="pointer-events-none shrink-0" />
+                  <span className="min-w-0 break-words">{o.label}</span>
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 // --- Column sort header ---
 interface SortableHeaderProps {
   label: string;
@@ -201,7 +297,7 @@ const AdminStudioHighlights = () => {
   const queryClient = useQueryClient();
 
   const [page, setPage] = useState(0);
-  const [filterBook, setFilterBook] = useState<string>("all");
+  const [filterBooks, setFilterBooks] = useState<string[]>([]);
   const [filterTags, setFilterTags] = useState<string[]>([]);
   const [filterNoNotes, setFilterNoNotes] = useState(false);
   const [filterUnrefreshed, setFilterUnrefreshed] = useState(false);
@@ -244,13 +340,13 @@ const AdminStudioHighlights = () => {
   const allTags = useAllTags();
 
   const { data: highlightsData, isLoading } = useQuery({
-    queryKey: ["studio-highlights", page, filterBook, filterTags, filterNoNotes, filterUnrefreshed, filterNeverInspired, sortBy, searchQuery],
+    queryKey: ["studio-highlights", page, filterBooks, filterTags, filterNoNotes, filterUnrefreshed, filterNeverInspired, sortBy, searchQuery],
     queryFn: async () => {
       let query = supabase
         .from("highlights")
         .select("id, quote, tags, my_notes, visibility, created_at, book_id, embedding_refreshed_at, books(title), highlight_inspire_stats(times_shown)", { count: "exact" });
 
-      if (filterBook !== "all") query = query.eq("book_id", filterBook);
+      if (filterBooks.length > 0) query = query.in("book_id", filterBooks);
       if (filterTags.includes(NO_TAGS_SENTINEL)) {
         query = query.or("tags.eq.{},tags.is.null");
       } else if (filterTags.length > 0) {
@@ -638,7 +734,7 @@ const AdminStudioHighlights = () => {
 
   useEffect(() => {
     setPage(0);
-  }, [filterBook, filterTags, filterNoNotes, filterUnrefreshed, filterNeverInspired, sortBy, searchQuery]);
+  }, [filterBooks, filterTags, filterNoNotes, filterUnrefreshed, filterNeverInspired, sortBy, searchQuery]);
 
   const truncate = (text: string, max: number) =>
     text.length > max ? text.slice(0, max) + "…" : text;
@@ -693,13 +789,15 @@ const AdminStudioHighlights = () => {
           )}
         </div>
 
-        <Select value={filterBook} onValueChange={setFilterBook}>
-          <SelectTrigger className="w-[200px]"><SelectValue placeholder="Filter by book" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All books</SelectItem>
-            {books?.map((b) => <SelectItem key={b.id} value={b.id}>{b.title}</SelectItem>)}
-          </SelectContent>
-        </Select>
+        <MultiSelectFilter
+          options={(books ?? []).map((b) => ({ id: b.id, label: b.title }))}
+          selected={filterBooks}
+          onChange={setFilterBooks}
+          emptyLabel="All books"
+          manyPrefix="Books"
+          searchPlaceholder="Search books…"
+          noResults="No books found"
+        />
 
         <MultiTagFilter allTags={allTags} selected={filterTags} onChange={setFilterTags} />
 

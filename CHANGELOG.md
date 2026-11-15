@@ -2,6 +2,21 @@
 
 Notable changes to Glean, newest first. One entry per work session; group by what changed, not by file.
 
+## 2026-11-16 — Whole-Card Book Links, Multi-Select Books Filter
+
+### Shipped
+- Fixed: on the Books page the title and the cover swallowed taps;
+  now tapping anywhere on a book card opens the book (the Amazon and
+  Goodreads icons still work)
+- Changed: in Admin Books, clicking anywhere on a book opens its
+  page in every view (phone cards, list rows, detail cards and
+  thumbnail tiles); Edit and Delete still do their own thing. On
+  thumbnail tiles, Edit is now a small pencil button in the corner
+- Changed: Admin Studio's Books filter is now multi-select with a
+  search box ("All books", the title, or "Books (3)")
+
+---
+
 ## 2026-11-15 — Scan First, Tidier Line Breaks
 
 ### Shipped

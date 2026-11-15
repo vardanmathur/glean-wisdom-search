@@ -61,6 +61,8 @@ const BrowseBooks = () => {
                   <Link
                     to={`/book/${encodeURIComponent(book.title)}`}
                     className="absolute inset-0 z-0 rounded-lg"
+                    title={`${book.title} by ${book.author}`}
+                    aria-label={`${book.title} by ${book.author}`}
                   />
 
                   <BookCover
@@ -70,17 +72,12 @@ const BrowseBooks = () => {
                     cachedUrl={book.coverCachedUrl}
                     cachedFrom={book.coverCachedFrom}
                     bookId={book.id}
-                    className="h-20 w-14 shrink-0 rounded-md bg-primary/10"
+                    className="pointer-events-none h-20 w-14 shrink-0 rounded-md bg-primary/10"
                   />
 
-                  <div className="min-w-0 relative z-10 overflow-hidden">
-                <Tooltip>
-                  <TooltipTrigger className="w-full text-left block max-w-full overflow-hidden">
-                    <h3 className="font-display text-base font-semibold text-foreground break-words cursor-default">{book.title}</h3>
-                  </TooltipTrigger>
-                  <TooltipContent>{book.title} by {book.author}</TooltipContent>
-                </Tooltip>
-                <p className="text-sm text-muted-foreground">{book.author}</p>
+                  <div className="pointer-events-none min-w-0 relative z-10 overflow-hidden">
+                    <h3 className="font-display text-base font-semibold text-foreground break-words">{book.title}</h3>
+                    <p className="text-sm text-muted-foreground">{book.author}</p>
                     {reason && (
                       <p className="mt-1 text-xs text-muted-foreground line-clamp-2">{reason}</p>
                     )}

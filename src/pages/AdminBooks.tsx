@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, Navigate } from "react-router-dom";
+import { Link, Navigate, useNavigate } from "react-router-dom";
 import { findDuplicateGroups } from "@/lib/findDuplicateBooks";
 import BookCover from "@/components/BookCover";
 import { deleteAlias, fetchAliasesForBook, type AliasRef } from "@/lib/bookAliases";
@@ -76,6 +76,7 @@ const AdminBooks = () => {
   const [duplicateGroups, setDuplicateGroups] = useState<DuplicateGroup[]>([]);
   const [keepIds, setKeepIds] = useState<Record<string, string>>({});
   const [showCoversDialog, setShowCoversDialog] = useState(false);
+  const navigate = useNavigate();
   const [viewMode, setViewMode] = useState<"list" | "thumbnail" | "detail">("list");
   const [mergePair, setMergePair] = useState<{ source: BookRow; target: BookRow } | null>(null);
   const [mergePicking, setMergePicking] = useState(false);
@@ -592,7 +593,7 @@ const AdminBooks = () => {
               filteredBooks.map((b) => {
                 const canDelete = b.highlight_count === 0;
                 return (
-                  <div key={b.id} className="rounded-lg border bg-card p-3 flex gap-3">
+                  <div key={b.id} className="relative rounded-lg border bg-card p-3 flex gap-3 transition-colors hover:bg-muted/40">
                     <BookCover
                       title={b.title}
                       author={b.author}
@@ -607,7 +608,7 @@ const AdminBooks = () => {
                       <div className="font-medium text-foreground truncate">
                         <Link
                           to={`/book/${encodeURIComponent(b.title)}`}
-                          className="hover:underline hover:text-primary"
+                          className="hover:underline hover:text-primary after:absolute after:inset-0"
                         >
                           {b.title}
                         </Link>
@@ -620,7 +621,7 @@ const AdminBooks = () => {
                         <Badge variant={b.highlight_count > 0 ? "secondary" : "outline"}>
                           {b.highlight_count} highlight{b.highlight_count === 1 ? "" : "s"}
                         </Badge>
-                        <div className="flex gap-1">
+                        <div className="relative z-10 flex gap-1">
                           <Button size="icon" variant="ghost" onClick={() => openEdit(b)} aria-label="Edit">
                             <Pencil className="h-4 w-4" />
                           </Button>
@@ -663,7 +664,11 @@ const AdminBooks = () => {
                   {filteredBooks.map((b) => {
                     const canDelete = b.highlight_count === 0;
                     return (
-                      <tr key={b.id} className="border-t hover:bg-muted/40">
+                      <tr
+                        key={b.id}
+                        className="cursor-pointer border-t hover:bg-muted/40"
+                        onClick={() => navigate(`/book/${encodeURIComponent(b.title)}`)}
+                      >
                         <td className="px-3 py-2">
                           <BookCover
                             title={b.title}
@@ -681,6 +686,7 @@ const AdminBooks = () => {
                             <Link
                               to={`/book/${encodeURIComponent(b.title)}`}
                               className="hover:underline hover:text-primary"
+                              onClick={(e) => e.stopPropagation()}
                             >
                               {b.title}
                             </Link>
@@ -700,7 +706,7 @@ const AdminBooks = () => {
                             <X className="h-4 w-4 text-muted-foreground" />
                           )}
                         </td>
-                        <td className="px-3 py-2">
+                        <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
                           <div className="flex justify-end gap-1">
                             <Button size="icon" variant="ghost" onClick={() => openEdit(b)} title="Edit">
                               <Pencil className="h-4 w-4" />
@@ -751,12 +757,8 @@ const AdminBooks = () => {
               ) : (
                 <div className="grid grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
                   {filteredBooks.map((b) => (
-                    <button
-                      key={b.id}
-                      type="button"
-                      onClick={() => openEdit(b)}
-                      className="text-left group"
-                    >
+                    <div key={b.id} className="relative">
+                    <Link to={`/book/${encodeURIComponent(b.title)}`} className="group block text-left">
                       <div className="relative aspect-[2/3] overflow-hidden rounded-lg bg-primary/10 border">
                         <BookCover
                           title={b.title}
@@ -778,7 +780,21 @@ const AdminBooks = () => {
                       </div>
                       <div className="mt-2 text-xs font-medium text-foreground truncate">{b.title}</div>
                       <div className="text-xs text-muted-foreground truncate">{b.author}</div>
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        openEdit(b);
+                      }}
+                      aria-label={`Edit ${b.title}`}
+                      title="Edit"
+                      className="absolute right-1.5 top-1.5 z-10 inline-flex h-9 w-9 items-center justify-center rounded-md border bg-background/90 shadow-sm hover:bg-background"
+                    >
+                      <Pencil className="h-4 w-4" />
                     </button>
+                    </div>
                   ))}
                 </div>
               )}
@@ -798,7 +814,7 @@ const AdminBooks = () => {
                 filteredBooks.map((b) => {
                   const canDelete = b.highlight_count === 0;
                   return (
-                    <div key={b.id} className="rounded-lg border bg-card p-4 flex gap-4">
+                    <div key={b.id} className="relative rounded-lg border bg-card p-4 flex gap-4 transition-colors hover:bg-muted/40">
                       <BookCover
                         title={b.title}
                         author={b.author}
@@ -812,7 +828,7 @@ const AdminBooks = () => {
                         <div className="font-medium text-foreground truncate">
                           <Link
                             to={`/book/${encodeURIComponent(b.title)}`}
-                            className="hover:underline hover:text-primary"
+                            className="hover:underline hover:text-primary after:absolute after:inset-0"
                           >
                             {b.title}
                           </Link>
@@ -825,7 +841,7 @@ const AdminBooks = () => {
                           <Badge variant={b.highlight_count > 0 ? "secondary" : "outline"}>
                             {b.highlight_count} highlight{b.highlight_count === 1 ? "" : "s"}
                           </Badge>
-                          <div className="flex gap-1">
+                          <div className="relative z-10 flex gap-1">
                             <Button size="icon" variant="ghost" onClick={() => openEdit(b)} title="Edit">
                               <Pencil className="h-4 w-4" />
                             </Button>

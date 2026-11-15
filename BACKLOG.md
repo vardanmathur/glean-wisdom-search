@@ -2,7 +2,7 @@
 
 This is the master dev backlog. The in-app Inbox (Admin → Inbox) is a separate mini to-do list that is managed by hand. It is not kept in sync with this file, and nothing needs to move from it into this file.
 
-Last updated: 2026-11-15
+Last updated: 2026-11-16
 
 ## Next
 
@@ -93,3 +93,4 @@ Last updated: 2026-11-15
 - [x] Overlap review: Edit button on each card (opens the highlight editor, refreshes the card after saving) (2026-11-12)
 - [x] Overlap review: sort pairs by % overlap or most shared, remembered per device (2026-11-12)
 - [x] Scan text rebuilt: in-app full-res photo or existing image → crop → AI reads (highlighted text only by default, 'Read all text' switch), Scan another page; nothing saved to the device; Tesseract removed (2026-11-15)
+- [x] Whole-card click targets on Books and Admin Books; multi-select Books filter in Admin Studio (2026-11-16)
