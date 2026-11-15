@@ -1,5 +1,30 @@
 ---
 
+## [2026-11-16] Glean — Scan text rebuilt, whole-card links, thumb-friendly mobile menu
+
+**Mode**: Claude Code
+**Mem0**: not connected
+
+### What happened
+Add highlight → Scan now takes a full-resolution photo (or an existing image), crops it, and an AI reads the text (highlighted text only by default, handwriting supported, "Read all text" switch); Tesseract is gone and nothing is saved. Books and Admin Books cards now open on a tap anywhere, Admin Studio has a multi-select Books filter, and the home page opens the menu with a right swipe. The mobile menu has its items at the bottom and closes on a left swipe or Back. All pushed (last commit 96cc5b3).
+
+### Key decisions
+- Scan text: the photo lives only in memory and is discarded after reading; the camera and crop screens are a nested dialog on top of Add highlight, with their own Back marker.
+- Swipe rules: start at least 32px from the screen edges (the phone's own Back gesture), 70px sideways and more than twice the vertical, decided on touchend with passive listeners, off while any dialog is open.
+- One Studio name: "Admin Studio" for the admin screen and "My Studio" for the personal one; imports link to My Studio.
+- Menu links replace the Back marker entry, so one Back returns to the page you were on.
+
+### Open threads
+- [ ] Lovable must deploy read-text-from-image (handwriting wording, 3,000 tokens, 45 s timeout), then try Scan on a phone
+- [ ] bun.lock and bun.lockb still list tesseract.js and lack react-image-crop; bun is not installed here
+- [ ] generate-book-summary is public and trusts highlights sent by the browser; read them server-side (edge function change, keep out of the public repo)
+- [ ] Try the right swipe, left swipe and Back on a real phone
+
+### Artifacts
+- ScanTextPanel.tsx, read-text-from-image (edge function), useSwipeToOpenMenu.ts, useSwipeToClose.ts, scanText.ts, swipe.ts, multiSelect.ts
+
+---
+
 ## [2026-11-12] Glean — Cover cache, one-handed Inspire popup, book aliases
 
 **Mode**: Claude Code

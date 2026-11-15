@@ -36,6 +36,7 @@ Last updated: 2026-11-16
 - [ ] Think! picks only from an early slice of the library (opponent: first 300 curated rows; forge: first 500 rows / 50 per tag) — make it pick across the whole library.
 ### Housekeeping
 - [ ] Update GLEAN_DEV_HANDOFF
+- [ ] Regenerate bun.lock and bun.lockb: they still list tesseract.js and lack react-image-crop (bun is not installed on the dev machine; Lovable's build may do it)
 - [ ] Check the Admin Studio "Least shown / Most shown in Inspire" sorts work on live data (ordering by the embedded stats column is untested); fall back to a small view if not
 - [ ] Decide whether to keep or remove the drizzle files Lovable added (drizzle.config.ts, drizzle/, three dev dependencies). Nothing in src/ imports them
 
@@ -94,3 +95,6 @@ Last updated: 2026-11-16
 - [x] Overlap review: sort pairs by % overlap or most shared, remembered per device (2026-11-12)
 - [x] Scan text rebuilt: in-app full-res photo or existing image → crop → AI reads (highlighted text only by default, 'Read all text' switch), Scan another page; nothing saved to the device; Tesseract removed (2026-11-15)
 - [x] Whole-card click targets on Books and Admin Books; multi-select Books filter in Admin Studio (2026-11-16)
+- [x] Mobile menu: swipe right on the home page opens it, items sit at the bottom on phones, swipe left or Back closes it (2026-11-16)
+- [x] One Studio name: the admin screen is "Admin Studio"; Kindle import links open "My Studio"; the author-info hint points admins to Admin Books (2026-11-16)
+- [x] Add highlight opens on Scan on phones (Scan, Type, Dictate order); scanned text keeps single line breaks as spaces; 45 s read timeout with a "still reading" hint (2026-11-15)
