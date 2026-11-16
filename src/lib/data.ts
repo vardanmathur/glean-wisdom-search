@@ -53,6 +53,70 @@ export async function synthesiseWisdom(
   }
 }
 
+export class RefineError extends Error {
+  code: string;
+  constructor(code: string) {
+    super(code);
+    this.code = code;
+  }
+}
+
+// One tap = one call. Throws RefineError (never retries). The edge function checks the user's sign-in itself.
+export async function refineSynthesis(args: {
+  question: string;
+  synthesis: string;
+  context: string;
+  history: { context: string; answer: string }[];
+  highlights: Highlight[];
+  coveragePoor?: boolean;
+}): Promise<{ answer: string; searchedFor: string; added: { id: string; tier: NonNullable<Highlight["tier"]> }[] }> {
+  const { data, error } = await supabase.functions.invoke("synthesise-wisdom", {
+    body: {
+      mode: "refine",
+      question: args.question,
+      synthesis: args.synthesis,
+      context: args.context,
+      coveragePoor: args.coveragePoor === true,
+      history: args.history,
+      highlights: args.highlights.map((h) => ({ id: h.id, text: h.text, bookTitle: h.bookTitle, author: h.author })),
+    },
+  });
+  if (error) {
+    let code = "failed";
+    try {
+      const body = await (error as { context?: Response }).context?.json();
+      if (body?.error) code = String(body.error);
+    } catch {
+      /* no readable body */
+    }
+    throw new RefineError(code);
+  }
+  if (!data?.answer) throw new RefineError(data?.error ? String(data.error) : "failed");
+  return {
+    answer: String(data.answer),
+    searchedFor: String(data.searchedFor ?? ""),
+    added: Array.isArray(data.added) ? data.added : [],
+  };
+}
+
+// Highlights by id, for the ones a refinement brought in. Row-level security decides what comes back.
+export async function fetchHighlightsByIds(added: { id: string; tier: NonNullable<Highlight["tier"]> }[]): Promise<Highlight[]> {
+  if (added.length === 0) return [];
+  const { data, error } = await supabase
+    .from("highlights")
+    .select("id, book_id, quote, tags, my_notes, source, visibility, user_id, books(title, author, cover_image_url, cover_cached_url, cover_cached_from), user_profiles(display_name)")
+    .in("id", added.map((a) => a.id));
+  if (error || !data) return [];
+  const tiers = new Map(added.map((a) => [a.id, a.tier]));
+  const byId = new Map(data.map((row) => [row.id as string, row]));
+  const out: Highlight[] = [];
+  for (const a of added) {
+    const row = byId.get(a.id);
+    if (row) out.push({ ...toHighlight(row), tier: tiers.get(a.id) });
+  }
+  return out;
+}
+
 export interface Highlight {
   id: string;
   text: string;

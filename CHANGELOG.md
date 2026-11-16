@@ -2,6 +2,30 @@
 
 Notable changes to Glean, newest first. One entry per work session; group by what changed, not by file.
 
+## 2026-11-16 — Refine a Search Answer
+
+### Shipped
+- Added: under Glean's take on a search, signed-in readers get a box to
+  add what's missing or specific to their situation; "Refine" gives a
+  conversational follow-up answer that stacks below, with a muted
+  "Searched again for: ..." line showing the rewritten question
+- Added: a refinement searches the library again with the new context
+  folded in, and any new highlights it finds appear in the supporting
+  list under "Added after refining"
+- Added: up to 3 refinements per search, then "Start a new search to
+  go further"; each fires only on the Refine button, is disabled while
+  working, and never retries by itself; a failed or cut-off answer
+  does not use up a turn
+- Added: the refine box also shows on searches the library covers
+  poorly; if the new search still finds little, the answer says so
+  plainly instead of stretching
+- Changed: the synthesise-wisdom edge function has a new "refine" mode
+  (needs a deploy); the first answer, search, Idea Forge and Opponent
+  paths are untouched
+- Changed: service worker cache bumped to glean-v37
+
+---
+
 ## 2026-11-16 — Add My Take, Think! Draws from the Whole Library
 
 ### Shipped

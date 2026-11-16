@@ -1,11 +1,162 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  buildAnswerPrompt,
+  buildRewritePrompt,
+  cleanRewrite,
+  countMeaningfulWords,
+  isThinCoverage,
+  mergeForModel,
+  selectNewMatches,
+  validateRefineBody,
+} from "./refine.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+const jsonResponse = (payload: unknown, status = 200) =>
+  new Response(JSON.stringify(payload), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+
+// One chat call to the AI gateway. Logs only finish_reason, usage and timing (never the text).
+async function gatewayChat(step: string, prompt: string, maxTokens: number, timeoutMs: number) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const started = Date.now();
+  try {
+    const resp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      signal: controller.signal,
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${Deno.env.get("LOVABLE_API_KEY")}`,
+      },
+      body: JSON.stringify({
+        model: "google/gemini-3.8-flash",
+        reasoning_effort: "none",
+        max_tokens: maxTokens,
+        messages: [{ role: "user", content: prompt }],
+      }),
+    });
+    if (!resp.ok) {
+      console.error("synthesise-wisdom refine gateway error:", step, resp.status);
+      return { ok: false as const, status: resp.status };
+    }
+    const data = await resp.json();
+    const finishReason = data.choices?.[0]?.finish_reason;
+    console.log("synthesise-wisdom refine", { step, finish_reason: finishReason, usage: data.usage, ms: Date.now() - started });
+    return {
+      ok: true as const,
+      text: String(data.choices?.[0]?.message?.content ?? ""),
+      truncated: finishReason === "length",
+    };
+  } catch (e) {
+    console.error("synthesise-wisdom refine call failed:", step, e instanceof Error && e.name === "AbortError" ? "timeout" : "error");
+    return { ok: false as const, status: 0 };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+const gatewayErrorResponse = (status: number) =>
+  status === 429
+    ? jsonResponse({ error: "rate_limit" }, 429)
+    : status === 402
+      ? jsonResponse({ error: "credits" }, 402)
+      : jsonResponse({ error: "ai_failed" }, 502);
+
+// L2-normalize, as search-semantic does (Gemini's 768-dim truncated vectors are not unit length).
+function l2Normalize(v: number[]): number[] {
+  let sum = 0;
+  for (const x of v) sum += x * x;
+  const norm = Math.sqrt(sum);
+  return norm === 0 ? v : v.map((x) => x / norm);
+}
+
+// ============================================================
+// REFINE — the person added context to a search answer.
+// Signed-in users only. Rewrite the question, search again with the same visibility rule and
+// thresholds as search-semantic, merge with what they already saw, then answer conversationally.
+// ============================================================
+async function handleRefine(req: Request, body: unknown): Promise<Response> {
+  const jwt = (req.headers.get("Authorization") || "").replace("Bearer ", "").trim();
+  if (!jwt) return jsonResponse({ error: "sign_in" }, 401);
+  const serviceClient = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, {
+    auth: { persistSession: false },
+  });
+  const { data: userData, error: userErr } = await serviceClient.auth.getUser(jwt);
+  if (userErr || !userData?.user) return jsonResponse({ error: "sign_in" }, 401);
+
+  const parsed = validateRefineBody(body);
+  if (!parsed.ok) return jsonResponse({ error: "bad_request", detail: parsed.error }, 400);
+  const req_ = parsed.value;
+
+  // (a) rewrite the question with the new context folded in
+  const rewriteCall = await gatewayChat("rewrite", buildRewritePrompt(req_), 150, 15000);
+  if (!rewriteCall.ok) return gatewayErrorResponse(rewriteCall.status);
+  const rewritten = cleanRewrite(rewriteCall.text, req_.question, req_.context);
+
+  // (b) embed the rewritten question and match. match_highlights is SECURITY DEFINER and only returns
+  // public (or null-visibility) highlights; this is the same RPC and the same client key search-semantic uses.
+  const geminiApiKey = Deno.env.get("GEMINI_API_KEY");
+  if (!geminiApiKey) return jsonResponse({ error: "search_failed" }, 500);
+  const embStarted = Date.now();
+  const embResp = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=${geminiApiKey}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "models/gemini-embedding-001",
+        content: { parts: [{ text: rewritten }] },
+        outputDimensionality: 768,
+      }),
+    },
+  );
+  if (!embResp.ok) {
+    console.error("synthesise-wisdom refine embed error:", embResp.status);
+    return jsonResponse({ error: "search_failed" }, 502);
+  }
+  const embData = await embResp.json();
+  const raw: number[] | undefined = embData?.embedding?.values || embData?.embedding?.value;
+  if (!Array.isArray(raw) || raw.length === 0) return jsonResponse({ error: "search_failed" }, 502);
+  const { data: rows, error: rpcError } = await serviceClient.rpc("match_highlights", {
+    query_embedding: l2Normalize(raw),
+    match_count: 50,
+  });
+  console.log("synthesise-wisdom refine", { step: "match", ms: Date.now() - embStarted, ok: !rpcError });
+  if (rpcError) {
+    console.error("synthesise-wisdom refine match error:", rpcError.message);
+    return jsonResponse({ error: "search_failed" }, 500);
+  }
+
+  // (c) merge: new matches first, then what they already saw, 12 in all
+  const newMatches = selectNewMatches(rows || [], req_.highlights.map((h) => h.id), countMeaningfulWords(rewritten));
+  const bookIds = [...new Set(newMatches.map((m) => m.book_id).filter(Boolean))] as string[];
+  const books = new Map<string, { title: string; author: string }>();
+  if (bookIds.length > 0) {
+    const { data: bookRows } = await serviceClient.from("books").select("id, title, author").in("id", bookIds);
+    (bookRows || []).forEach((b: { id: string; title: string; author: string }) => books.set(b.id, { title: b.title, author: b.author }));
+  }
+  const addedForModel = newMatches.map((m) => ({
+    id: m.id,
+    text: String(m.quote || "").slice(0, 1200),
+    bookTitle: (m.book_id && books.get(m.book_id)?.title) || "Unknown",
+    author: (m.book_id && books.get(m.book_id)?.author) || "Unknown",
+  }));
+  const forModel = mergeForModel(addedForModel, req_.highlights);
+
+  // (d) answer
+  const answerCall = await gatewayChat("answer", buildAnswerPrompt({ ...req_, rewritten, highlights: forModel, thin: isThinCoverage(req_.coveragePoor, newMatches.length) }), 700, 30000);
+  if (!answerCall.ok) return gatewayErrorResponse(answerCall.status);
+  if (answerCall.truncated) return jsonResponse({ error: "truncated" }, 502);
+  const answer = answerCall.text.trim();
+  if (!answer) return jsonResponse({ error: "ai_failed" }, 502);
+
+  return jsonResponse({ answer, searchedFor: rewritten, added: newMatches.map((m) => ({ id: m.id, tier: m.tier })) });
+}
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -108,6 +259,10 @@ serve(async (req) => {
       return new Response(JSON.stringify({ response }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    if (mode === "refine") {
+      return await handleRefine(req, body);
     }
 
     // ============================================================

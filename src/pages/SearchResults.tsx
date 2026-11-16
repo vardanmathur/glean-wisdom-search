@@ -5,12 +5,17 @@ import {
   searchHighlightsSemantic,
   getRecommendedBooks,
   synthesiseWisdom,
+  fetchHighlightsByIds,
 } from "@/lib/data";
 import { toBookTile, type BookTile, type Highlight } from "@/lib/data";
 import HighlightCard from "@/components/HighlightCard";
 import BookCover from "@/components/BookCover";
 import BookCard from "@/components/BookCard";
 import DownloadWorksheetButton from "@/components/DownloadWorksheetButton";
+import RefineThread from "@/components/RefineThread";
+import { useAuth } from "@/context/AuthContext";
+import { useSessionStorageState } from "@/hooks/useSessionStorageState";
+import { addedAcrossTurns, type RefineTurn } from "@/lib/refine";
 import { ArrowLeft, Leaf } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
@@ -153,9 +158,11 @@ const SkeletonHighlightCard = () => (
   </div>
 );
 
-const SearchResults = () => {
-  const [searchParams] = useSearchParams();
-  const query = searchParams.get("q") || "";
+const SearchResultsInner = ({ query }: { query: string }) => {
+  const { user } = useAuth();
+
+  // Refinement turns survive backgrounding, per query (this component remounts when the query changes)
+  const [turns, setTurns] = useSessionStorageState<RefineTurn[]>(`glean_refine_${query}`, []);
 
   const FIVE_MIN = 5 * 60 * 1000;
 
@@ -180,6 +187,16 @@ const SearchResults = () => {
     queryKey: ["synthesis", query, results.length, isPoor],
     queryFn: () => synthesiseWisdom(query, results, isPoor),
     enabled: searchQuery.isSuccess && results.length > 0,
+    staleTime: Infinity,
+    gcTime: FIVE_MIN,
+  });
+
+  // Highlights brought in by refinement (a plain fetch by id, not an AI call)
+  const addedRefs = addedAcrossTurns(turns, results.map((h) => h.id));
+  const { data: addedHighlights = [] } = useQuery({
+    queryKey: ["refine-added", query, addedRefs.map((a) => a.id).join(",")],
+    queryFn: () => fetchHighlightsByIds(addedRefs),
+    enabled: addedRefs.length > 0,
     staleTime: Infinity,
     gcTime: FIVE_MIN,
   });
@@ -254,6 +271,17 @@ const SearchResults = () => {
             highlightCount={0}
           />
 
+          {!!user && !isSynthesising && !!synthesis && (
+            <RefineThread
+              question={query}
+              synthesis={synthesis}
+              known={[...results, ...addedHighlights]}
+              turns={turns}
+              onTurn={(turn) => setTurns((prev) => [...prev, turn])}
+              coveragePoor
+            />
+          )}
+
           {results.length > 0 && (
             <div className="space-y-4 mb-12 opacity-80">
               {results.map((h, i) => (
@@ -263,6 +291,20 @@ const SearchResults = () => {
                 </div>
               ))}
             </div>
+          )}
+
+          {addedHighlights.length > 0 && (
+            <>
+              <h2 className="font-display text-base text-muted-foreground mb-4">Added after refining</h2>
+              <div className="space-y-4 mb-12">
+                {addedHighlights.map((h, i) => (
+                  <div key={h.id}>
+                    <HighlightCard highlight={h} index={results.length + i} />
+                    <p className="text-xs text-primary/80 mt-1 ml-1">Added after refining</p>
+                  </div>
+                ))}
+              </div>
+            </>
           )}
         </>
       ) : results.length === 0 ? (
@@ -283,6 +325,16 @@ const SearchResults = () => {
             isLoading={isSynthesising}
             highlightCount={results.length}
           />
+
+          {!!user && !isSynthesising && !!synthesis && (
+            <RefineThread
+              question={query}
+              synthesis={synthesis}
+              known={[...results, ...addedHighlights]}
+              turns={turns}
+              onTurn={(turn) => setTurns((prev) => [...prev, turn])}
+            />
+          )}
 
           <div className="mb-6 rounded-lg border border-primary/20 bg-primary/5 px-4 py-4">
             <p className="text-xs font-semibold tracking-widest text-primary uppercase mb-3">
@@ -333,6 +385,19 @@ const SearchResults = () => {
               </div>
             ))}
           </div>
+          {addedHighlights.length > 0 && (
+            <>
+              <h2 className="font-display text-base text-muted-foreground mb-4">Added after refining</h2>
+              <div className="space-y-4 mb-12">
+                {addedHighlights.map((h, i) => (
+                  <div key={h.id}>
+                    <HighlightCard highlight={h} index={results.length + i} />
+                    <p className="text-xs text-primary/80 mt-1 ml-1">Added after refining</p>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
         </>
       )}
 
@@ -358,6 +423,12 @@ const SearchResults = () => {
       </div>
     </div>
   );
+};
+
+const SearchResults = () => {
+  const [searchParams] = useSearchParams();
+  const query = searchParams.get("q") || "";
+  return <SearchResultsInner key={query} query={query} />;
 };
 
 export default SearchResults;
