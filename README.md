@@ -15,7 +15,11 @@ with AI.
 - **Search** — describe a challenge, surface relevant
   highlights from a curated library of 100+ books
 - **Synthesise** — AI synthesis of relevant wisdom,
-  backed by real book passages
+  backed by real book passages; signed-in readers can
+  refine the answer by adding context (up to 3 times)
+- **Add my take** — a button on highlight cards (for
+  admins and the highlight's owner) to write a note on
+  any highlight in one tap
 - **Think!** — Forge your thinking or stress-test beliefs
   against your library (Forge + Opponent modes)
 - **Import** — Import Kindle highlights or add manually

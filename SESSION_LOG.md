@@ -1,5 +1,26 @@
 ---
 
+## [2026-11-16] Glean — Conversations Stages 1–2 shipped (Add my take, Think! fix, search refinement)
+
+**Mode**: Claude Code
+**Mem0**: not connected
+
+### What happened
+Shipped the conversations design in two stages. Stage 1 (597917c): "Add my take" on every highlight card via a note-only mode of the edit panel, an Inspire swipe guard, and Think! now picks at random from the whole library. Stage 2 (a1dc5f0, 68e166c): signed-in readers refine a search answer up to 3 times (new refine mode in synthesise-wisdom, rewrite + re-search + merge), also on poor-coverage searches; then fixed the keyboard-on-first-tap and found-count bugs from the phone test.
+
+### Key decisions
+- Note-only saves only my_notes, so a card source without visibility can never flip it.
+- Refine is one edge call per tap; the rewrite is shown as "Searched again for"; failed turns do not use up a turn.
+- The refine box latches once shown and keeps its draft, so a sign-in flicker cannot close the keyboard.
+- The found count is the length of the list on screen; added highlights live only under "Added after refining (N)".
+
+### Open threads
+- [ ] Lovable must deploy synthesise-wisdom (refine mode), then phone-test refinement, poor coverage and the keyboard fix
+- [ ] Lovable must still deploy read-text-from-image, then try Scan on a phone
+- [ ] Worksheet download should include refined results (BACKLOG)
+- [ ] Stage 3 (Spar with this, save conversation as note) on hold
+- [ ] Phone checks for Add my take, swipes and the mobile menu
+
 ## [2026-11-16] Glean — Scan text rebuilt, whole-card links, thumb-friendly mobile menu
 
 **Mode**: Claude Code

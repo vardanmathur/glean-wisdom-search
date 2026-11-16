@@ -28,12 +28,14 @@ Last updated: 2026-11-16
 - [ ] Work through the Overlap review pairs (Tag Management) one highlight at a time
 - [ ] Remove the unused merge_tags and preview_tag_merge database functions (whole-tag merge was replaced by per-highlight overlap review)
 - [ ] Switch src/lib/tagOverlap.ts wrappers to the generated types now in types.ts (Lovable regenerated them)
+### Search and conversations
+- [ ] Download worksheet on search results should include refined results (the refine turns and the "Added after refining" highlights)
+- [ ] Conversations Stage 3 (Spar with this + save conversation as note) — on hold. See docs/design/2026-11-16-conversations-design.md
 ### Bugs
 - [ ] Books with 0 visible highlights show when logged out
 - [ ] "Access requested ✓" stays after a revoke
 - [ ] Search page hides "Glean's take" silently when the AI answer is empty or fails. Show "Couldn't generate Glean's take — try again" with a retry instead (frontend only, Cursor; edge function now returns error: "credits" / "rate_limit")
 - [ ] A highlight whose last tag is removed keeps its old fingerprint (with the old tag names); clear or handle it
-- [ ] Think! picks only from an early slice of the library (opponent: first 300 curated rows; forge: first 500 rows / 50 per tag) — make it pick across the whole library.
 ### Housekeeping
 - [ ] Update GLEAN_DEV_HANDOFF
 - [ ] Regenerate bun.lock and bun.lockb: they still list tesseract.js and lack react-image-crop (bun is not installed on the dev machine; Lovable's build may do it)
@@ -71,6 +73,8 @@ Last updated: 2026-11-16
 - [ ] Fingerprint refresh only runs for admins; revisit if Glean gets other users
 
 ## Done
+- [x] Think! picks across the whole library: removed the curated-only filter and the unordered 300-row limit; ids are fetched, picked at random on the client, then the chosen rows are fetched (2026-11-16)
+- [x] Conversations Stage 1 ("Add my take" on highlight cards, note-only editor) and Stage 2 (refine a search answer, up to 3 turns) shipped (2026-11-16)
 - [x] Kindle "My Clippings" import rebuilt (2026-10-13)
 - [x] In-app backlog page in admin, now the Inbox (2026-10-14)
 - [x] Admin bulk-move of highlights between books, i.e. merge duplicate books (2026-10-14)

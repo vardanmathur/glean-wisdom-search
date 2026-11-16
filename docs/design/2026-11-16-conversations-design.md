@@ -1,6 +1,6 @@
 # Glean conversations — design and staged backlog (2026-11-16)
 
-Status: approved 2026-11-16. Stages are the dev backlog, built one at a time via Cursor (Lovable only for the two edge-function deploys).
+Status: Stage 1 shipped and tested 2026-11-16; Stage 2 shipped and tested 2026-11-16 (a1dc5f0, 68e166c); Stage 3 on hold. Stages are the dev backlog, built one at a time via Cursor (Lovable only for the two edge-function deploys).
 
 ## Intent and why
 Glean today talks *at* Vardan once: search gives one answer, Think! shows one prompt. Two losses follow. (1) When an answer is good but his question had more nuance, he can't add context and get a better answer — he re-searches from scratch. (2) When a highlight needs his perspective ("this misses something"), the thought strikes unbidden while reading anywhere in the app, and there's no one-tap way to capture it — so his voice is being lost. Notes feed the embeddings, so every captured note also improves future search: a flywheel.
@@ -35,13 +35,13 @@ Glean today talks *at* Vardan once: search gives one answer, Think! shows one pr
 2. **Staged convergence (chosen):** one conversation-and-capture architecture, shipped in three self-contained stages; nothing thrown away later.
 Never re-retrieving on follow-ups was rejected: the core want is *better recommendations given more context*. Instead, the model rewrites the question with the new context folded in, retrieval re-runs on the rewritten query, and new matches merge with the originals (avoids raw vector search on critique text pulling off-topic quotes).
 
-## Stage 1 — Capture + Think! dataset fix (Cursor only)
+## Stage 1 — Capture + Think! dataset fix (Cursor only) — SHIPPED
 - `HighlightCard`: visible "Add my take" affordance (admin/owner only; today there is no hint when a note is absent, only a collapsed Note chevron when one exists). Appears on all surfaces using HighlightCard: search results, book pages, topics, saved, Inspire Me.
 - `HighlightEditPanel`: new `mode: "full" | "note-only"` prop. Note-only renders the quote read-only, the notes textarea focused, and Save; identical updateMutation, draft keys and embedding refresh. Tests on both modes.
 - Think! dataset: remove `.eq("source","curated")` so all highlights qualify, and replace the unordered `.limit(300)` (which always returns the same earliest rows) with genuinely random selection across the library.
 - Service worker bump.
 
-## Stage 2 — Search refinement (Cursor + one Lovable deploy)
+## Stage 2 — Search refinement (Cursor + one Lovable deploy) — SHIPPED
 - UI: a card footer under the synthesis ("Tell Glean what's missing or specific to your situation…", button "Refine"), reading as an adjustment to this answer, not a chatbot. Refined answer replaces/threads under the synthesis; supporting highlights list below stays stable, with top-up matches added visibly.
 - State: sessionStorage keyed on the query (pattern from Think.tsx); no new tables.
 - Edge: `mode: "refine"` in synthesise-wisdom — takes conversation history (query → synthesis → critique), rewrites the question with context folded in, re-runs embedding + match_highlights on the rewritten query, merges new matches with the original set, answers conversationally (no rigid 5 headers on refinement turns).
