@@ -15,7 +15,7 @@ Shipped the conversations design in two stages. Stage 1 (597917c): "Add my take"
 - The found count is the length of the list on screen; added highlights live only under "Added after refining (N)".
 
 ### Open threads
-- [ ] Lovable must deploy synthesise-wisdom (refine mode), then phone-test refinement, poor coverage and the keyboard fix
+- [ ] Phone-test the keyboard-on-first-tap fix and the found-count fix (68e166c, client-only), and a poor-coverage refine
 - [ ] Lovable must still deploy read-text-from-image, then try Scan on a phone
 - [ ] Worksheet download should include refined results (BACKLOG)
 - [ ] Stage 3 (Spar with this, save conversation as note) on hold
