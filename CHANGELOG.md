@@ -2,6 +2,22 @@
 
 Notable changes to Glean, newest first. One entry per work session; group by what changed, not by file.
 
+## 2026-11-16 — Refine Box and Count Fixes
+
+### Shipped
+- Fixed: the refine box could be rebuilt while it was showing (sign-in
+  state flickering as the phone resumes, or the answer's loading flag),
+  which closed the keyboard on the first tap; once shown it now stays
+  put, and what was typed survives a rebuild
+- Fixed: the "N found" line now always matches the list under it
+  (it could say 7 while the list held more), and a repeated highlight
+  is listed once
+- Changed: "Added after refining" now shows its own count, and those
+  highlights appear only there
+- Changed: service worker cache bumped to glean-v38
+
+---
+
 ## 2026-11-16 — Refine a Search Answer
 
 ### Shipped

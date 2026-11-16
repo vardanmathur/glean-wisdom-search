@@ -7,6 +7,8 @@ import {
   historyForRequest,
   refineErrorMessage,
   turnsLeft,
+  foundLabel,
+  uniqueById,
   type RefineTurn,
 } from "./refine";
 
@@ -53,5 +55,19 @@ describe("refineErrorMessage", () => {
     expect(refineErrorMessage("sign_in")).toMatch(/Sign in/);
     expect(refineErrorMessage("nonsense")).toMatch(/Couldn't refine/);
     expect(refineErrorMessage(undefined)).toMatch(/Couldn't refine/);
+  });
+});
+describe("uniqueById and foundLabel", () => {
+  it("keeps the first of each id", () => {
+    expect(uniqueById([{ id: "a" }, { id: "b" }, { id: "a" }]).map((x) => x.id)).toEqual(["a", "b"]);
+  });
+
+  it("describes the list on screen", () => {
+    expect(foundLabel(1, 1)).toBe("1 highlight found");
+    expect(foundLabel(7, 7)).toBe("7 highlights found");
+    expect(foundLabel(7, 5)).toBe("7 highlights found");
+    expect(foundLabel(10, 14)).toBe("Showing the top 10 of 14 highlights");
+    expect(foundLabel(10, 10)).toBe("10 highlights found");
+    expect(foundLabel(3, 12)).toBe("3 highlights found"); // a count that disagrees with the list never wins
   });
 });

@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useSearchParams, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -15,7 +15,7 @@ import DownloadWorksheetButton from "@/components/DownloadWorksheetButton";
 import RefineThread from "@/components/RefineThread";
 import { useAuth } from "@/context/AuthContext";
 import { useSessionStorageState } from "@/hooks/useSessionStorageState";
-import { addedAcrossTurns, type RefineTurn } from "@/lib/refine";
+import { addedAcrossTurns, foundLabel, uniqueById, type RefineTurn } from "@/lib/refine";
 import { ArrowLeft, Leaf } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
@@ -177,7 +177,7 @@ const SearchResultsInner = ({ query }: { query: string }) => {
 
   const data = searchQuery.data;
   const isLoading = searchQuery.isLoading || (!!query && !data);
-  const results: Highlight[] = data?.highlights ?? [];
+  const results: Highlight[] = uniqueById(data?.highlights ?? []);
   const coverage = data?.coverage ?? "good";
   const isPoor = coverage === "poor";
   const totalFound = data?.totalFound ?? 0;
@@ -190,6 +190,14 @@ const SearchResultsInner = ({ query }: { query: string }) => {
     staleTime: Infinity,
     gcTime: FIVE_MIN,
   });
+
+  // The refine box is built once and then kept. Showing it depends on three things that can change late or
+  // flicker (sign-in state while a phone resumes, the synthesis loading flag), and each flip used to rebuild the
+  // box, which drops focus and closes the keyboard. Once it has been shown for this search it stays mounted.
+  const refineReady = !!user && !isSynthesising && !!synthesis;
+  const refineLatch = useRef(false);
+  if (refineReady) refineLatch.current = true;
+  const showRefine = refineLatch.current && !!synthesis;
 
   // Highlights brought in by refinement (a plain fetch by id, not an AI call)
   const addedRefs = addedAcrossTurns(turns, results.map((h) => h.id));
@@ -271,7 +279,7 @@ const SearchResultsInner = ({ query }: { query: string }) => {
             highlightCount={0}
           />
 
-          {!!user && !isSynthesising && !!synthesis && (
+          {showRefine && (
             <RefineThread
               question={query}
               synthesis={synthesis}
@@ -295,7 +303,9 @@ const SearchResultsInner = ({ query }: { query: string }) => {
 
           {addedHighlights.length > 0 && (
             <>
-              <h2 className="font-display text-base text-muted-foreground mb-4">Added after refining</h2>
+              <h2 className="font-display text-base text-muted-foreground mb-4">
+                Added after refining ({addedHighlights.length})
+              </h2>
               <div className="space-y-4 mb-12">
                 {addedHighlights.map((h, i) => (
                   <div key={h.id}>
@@ -326,7 +336,7 @@ const SearchResultsInner = ({ query }: { query: string }) => {
             highlightCount={results.length}
           />
 
-          {!!user && !isSynthesising && !!synthesis && (
+          {showRefine && (
             <RefineThread
               question={query}
               synthesis={synthesis}
@@ -367,9 +377,7 @@ const SearchResultsInner = ({ query }: { query: string }) => {
           <Separator className="mt-6 mb-6" />
 
           <p className="text-sm text-muted-foreground mb-6">
-            {totalFound <= 10
-              ? `${totalFound || results.length} highlight${(totalFound || results.length) !== 1 ? "s" : ""} found`
-              : `10 of ${totalFound} highlights used for synthesis`}
+            {foundLabel(results.length, totalFound)}
           </p>
 
           <h2 className="font-display text-base text-muted-foreground mb-4">
@@ -387,7 +395,9 @@ const SearchResultsInner = ({ query }: { query: string }) => {
           </div>
           {addedHighlights.length > 0 && (
             <>
-              <h2 className="font-display text-base text-muted-foreground mb-4">Added after refining</h2>
+              <h2 className="font-display text-base text-muted-foreground mb-4">
+                Added after refining ({addedHighlights.length})
+              </h2>
               <div className="space-y-4 mb-12">
                 {addedHighlights.map((h, i) => (
                   <div key={h.id}>

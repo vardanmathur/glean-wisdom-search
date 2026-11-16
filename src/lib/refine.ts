@@ -56,3 +56,16 @@ export const refineErrorMessage = (code: string | undefined): string => {
       return "Couldn't refine the answer. Try again.";
   }
 };
+
+// Drops repeated ids, keeping the first. The main list and its count both come from this, so they always agree.
+export function uniqueById<T extends { id: string }>(items: T[]): T[] {
+  const seen = new Set<string>();
+  return items.filter((i) => (seen.has(i.id) ? false : (seen.add(i.id), true)));
+}
+
+// The line above the supporting list. It always describes the list that is on screen. "Top N of M" is only said
+// when the list was cut at the page's limit of 10, never because a count and a list disagreed.
+export function foundLabel(listed: number, totalFound: number): string {
+  if (listed >= 10 && totalFound > listed) return `Showing the top ${listed} of ${totalFound} highlights`;
+  return `${listed} highlight${listed !== 1 ? "s" : ""} found`;
+}

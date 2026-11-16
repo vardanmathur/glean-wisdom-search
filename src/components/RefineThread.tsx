@@ -4,6 +4,7 @@ import { Leaf, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { RefineError, refineSynthesis, type Highlight } from "@/lib/data";
+import { useSessionStorageState } from "@/hooks/useSessionStorageState";
 import {
   MAX_REFINE_CONTEXT_CHARS,
   canRefine,
@@ -29,7 +30,8 @@ interface RefineThreadProps {
 // Under the turn-1 card: earlier refinements stacked, then the box for the next one.
 // The call happens only in submit(), which only the button runs: no effects, no auto-retry.
 const RefineThread = ({ question, synthesis, known, turns, onTurn, coveragePoor = false }: RefineThreadProps) => {
-  const [text, setText] = useState("");
+  // Kept per question, so if the box is ever rebuilt what was typed is still there
+  const [text, setText, clearText] = useSessionStorageState<string>(`glean_refine_draft_${question}`, "");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inFlight = useRef(false);
@@ -43,7 +45,7 @@ const RefineThread = ({ question, synthesis, known, turns, onTurn, coveragePoor 
     try {
       const r = await refineSynthesis({ question, synthesis, context, history: historyForRequest(turns), highlights: known, coveragePoor });
       onTurn({ context, answer: r.answer, searchedFor: r.searchedFor, added: r.added });
-      setText("");
+      clearText();
     } catch (e) {
       setError(refineErrorMessage(e instanceof RefineError ? e.code : undefined));
     } finally {

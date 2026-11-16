@@ -71,6 +71,15 @@ describe("RefineThread", () => {
     await waitFor(() => expect(box().value).toBe(""));
   });
 
+  it("keeps what was typed if the box is rebuilt", () => {
+    sessionStorage.clear();
+    const first = setup();
+    fireEvent.change(box(), { target: { value: "half typed thought" } });
+    first.unmount();
+    setup();
+    expect(box().value).toBe("half typed thought");
+  });
+
   it("tells the server when the first search had poor coverage", async () => {
     handler.current = async () => ({ answer: "a", searchedFor: "s", added: [] });
     const onTurn = vi.fn();
