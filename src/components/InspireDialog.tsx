@@ -66,13 +66,22 @@ const InspireDialog = ({ open, onOpenChange, loading, error, highlight, onShuffl
     return () => document.removeEventListener("keydown", onKey);
   }, [open, requestShuffle]);
 
+  // React events bubble out of portals, so touches inside a sheet opened from a card (e.g. "Add my take")
+  // arrive here too. Only touches that really happen inside the card area count.
+  const inBody = (e: ReactTouchEvent<HTMLDivElement>) => e.currentTarget.contains(e.target as Node);
+
   const onTouchStart = (e: ReactTouchEvent<HTMLDivElement>) => {
+    if (!inBody(e)) {
+      touchStart.current = null;
+      return;
+    }
     touchStart.current = e.touches.length === 1 ? { x: e.touches[0].clientX, y: e.touches[0].clientY } : null;
   };
 
   const onTouchEnd = (e: ReactTouchEvent<HTMLDivElement>) => {
     const start = touchStart.current;
     touchStart.current = null;
+    if (!inBody(e)) return;
     if (!start || loadingRef.current) return;
     const end = e.changedTouches[0];
     if (!end) return;

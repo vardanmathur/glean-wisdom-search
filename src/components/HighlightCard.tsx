@@ -14,7 +14,7 @@ import {
   useToggleThumbsUp,
   useToggleThumbsDown,
 } from "@/hooks/useHighlightFeedback";
-import { Bookmark, ThumbsUp, ThumbsDown, Flag, Pencil, ChevronDown, ChevronUp } from "lucide-react";
+import { Bookmark, ThumbsUp, ThumbsDown, Flag, Pencil, MessageSquarePlus, ChevronDown, ChevronUp } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useAllTags } from "@/hooks/useAllTags";
@@ -48,6 +48,7 @@ const HighlightCard = ({ highlight, index = 0, showSaveCount = false }: Highligh
   const [showReportConfirm, setShowReportConfirm] = useState(false);
   const [reported, setReported] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
+  const [takeOpen, setTakeOpen] = useState(false);
   const [displayName, setDisplayName] = useState<string | null>(highlight.displayName || null);
   const [notesOpen, setNotesOpen] = useState(false);
 
@@ -66,6 +67,8 @@ const HighlightCard = ({ highlight, index = 0, showSaveCount = false }: Highligh
 
   const isOwnHighlight = user && highlight.userId === user.id;
   const canReport = user && !isOwnHighlight && highlight.source !== "private";
+  // Same people who can edit the highlight: admins, or the owner for their own
+  const canAddTake = !!user && (isAdmin || !!isOwnHighlight);
 
   const handleSaveClick = () => {
     if (!user) {
@@ -255,6 +258,17 @@ const HighlightCard = ({ highlight, index = 0, showSaveCount = false }: Highligh
           </button>
         )}
 
+        {canAddTake && (
+          <button
+            onClick={() => setTakeOpen(true)}
+            className="ml-1 inline-flex items-center gap-1 rounded-md px-2 py-1.5 text-xs font-medium text-muted-foreground hover:text-primary hover:bg-secondary transition-colors"
+            title={highlight.myNotes ? "Edit my take" : "Add my take"}
+          >
+            <MessageSquarePlus className="h-[18px] w-[18px]" />
+            {highlight.myNotes ? "Edit my take" : "Add my take"}
+          </button>
+        )}
+
         {canReport && !reported && (
           <button
             onClick={() => setShowReportConfirm(true)}
@@ -293,6 +307,15 @@ const HighlightCard = ({ highlight, index = 0, showSaveCount = false }: Highligh
           allTags={allTags}
           open={editOpen}
           onOpenChange={setEditOpen}
+        />
+      )}
+      {canAddTake && (
+        <HighlightEditPanel
+          mode="note-only"
+          highlight={highlight}
+          allTags={allTags}
+          open={takeOpen}
+          onOpenChange={setTakeOpen}
         />
       )}
     </div>

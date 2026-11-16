@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { refreshFingerprintAfterEdit, type FingerprintFields } from "@/lib/refreshFingerprint";
@@ -34,6 +34,11 @@ interface HighlightEditPanelProps {
   onOpenChange: (open: boolean) => void;
   /** Called after a successful save (the panel closes itself). */
   onSaved?: () => void;
+  /**
+   * "full" (default): quote, tags, notes, visibility.
+   * "note-only": quote shown read-only, notes focused, only my_notes is saved. Same drafts and fingerprint pipeline.
+   */
+  mode?: "full" | "note-only";
 }
 
 /**
@@ -44,7 +49,9 @@ interface HighlightEditPanelProps {
  * - On save, refreshes the row's fingerprint (non-awaited) when its quote,
  *   tags or notes changed and it still has a tag.
  */
-const HighlightEditPanel = ({ highlight, allTags, open, onOpenChange, onSaved }: HighlightEditPanelProps) => {
+const HighlightEditPanel = ({ highlight, allTags, open, onOpenChange, onSaved, mode = "full" }: HighlightEditPanelProps) => {
+  const noteOnly = mode === "note-only";
+  const notesRef = useRef<HTMLTextAreaElement>(null);
   const isMobile = useIsMobile();
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -172,7 +179,7 @@ const HighlightEditPanel = ({ highlight, allTags, open, onOpenChange, onSaved }:
       if (error) throw error;
     },
     onSuccess: (_, { id, updates, before }) => {
-      toast({ title: "Highlight updated" });
+      toast({ title: noteOnly ? "Take saved" : "Highlight updated" });
       if (before) refreshFingerprintAfterEdit(id, before, updates);
       // Invalidate any cached highlight lists so the card reflects new content.
       queryClient.invalidateQueries();
@@ -194,12 +201,15 @@ const HighlightEditPanel = ({ highlight, allTags, open, onOpenChange, onSaved }:
     updateMutation.mutate({
       id: highlight.id,
       before: { quote: highlight.text, tags: highlight.tags, my_notes: highlight.myNotes ?? null },
-      updates: {
-        quote: quote.trim(),
-        tags,
-        my_notes: notes.trim() || null,
-        visibility,
-      },
+      // Note-only sends just the note, so quote, tags and visibility are never touched
+      updates: noteOnly
+        ? { my_notes: notes.trim() || null }
+        : {
+            quote: quote.trim(),
+            tags,
+            my_notes: notes.trim() || null,
+            visibility,
+          },
     });
   };
 
@@ -228,9 +238,17 @@ const HighlightEditPanel = ({ highlight, allTags, open, onOpenChange, onSaved }:
               ? "w-screen max-w-full h-[90vh] overflow-y-auto"
               : "w-full sm:w-[480px] sm:max-w-[480px] overflow-y-auto"
           }
+          onOpenAutoFocus={
+            noteOnly
+              ? (e) => {
+                  e.preventDefault();
+                  notesRef.current?.focus();
+                }
+              : undefined
+          }
         >
           <SheetHeader>
-            <SheetTitle>Edit Highlight</SheetTitle>
+            <SheetTitle>{noteOnly ? "My take" : "Edit Highlight"}</SheetTitle>
             <SheetDescription className="text-xs">
               {highlight?.bookTitle ?? "Unknown book"}
               {highlight?.author ? ` — ${highlight.author}` : ""}
@@ -238,6 +256,14 @@ const HighlightEditPanel = ({ highlight, allTags, open, onOpenChange, onSaved }:
           </SheetHeader>
 
           <div className="space-y-6 mt-6">
+            {noteOnly && (
+              <blockquote className="max-h-32 overflow-y-auto border-l-2 border-primary/40 pl-3 text-sm italic leading-relaxed text-muted-foreground">
+                {highlight?.text}
+              </blockquote>
+            )}
+
+            {!noteOnly && (
+              <>
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">Quote</label>
               <Textarea
@@ -366,18 +392,22 @@ const HighlightEditPanel = ({ highlight, allTags, open, onOpenChange, onSaved }:
                 )}
               </div>
             </div>
+              </>
+            )}
 
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">Personal Notes</label>
               <Textarea
+                ref={notesRef}
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                rows={4}
+                rows={noteOnly ? 6 : 4}
                 placeholder="Add your notes…"
                 className="text-sm"
               />
             </div>
 
+            {!noteOnly && (
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">Visibility</label>
               <div className="flex gap-2">
@@ -397,16 +427,17 @@ const HighlightEditPanel = ({ highlight, allTags, open, onOpenChange, onSaved }:
                 </Button>
               </div>
             </div>
+            )}
 
             <Separator />
 
             <div className="flex gap-3">
               <Button
                 onClick={handleSave}
-                disabled={updateMutation.isPending || !quote.trim()}
+                disabled={updateMutation.isPending || !quote.trim() || (noteOnly && notes.trim() === (highlight?.myNotes ?? "").trim())}
                 className="flex-1"
               >
-                {updateMutation.isPending ? "Saving…" : "Save"}
+                {updateMutation.isPending ? "Saving…" : noteOnly ? "Save take" : "Save"}
               </Button>
               <Button
                 variant="outline"

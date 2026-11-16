@@ -9,8 +9,10 @@ import { Loader2, Flame, Swords } from "lucide-react";
 import { useSessionStorageState } from "@/hooks/useSessionStorageState";
 import { useAuthGate } from "@/hooks/useAuthGate";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
+import { pickRandomN } from "@/lib/randomPick";
 
 const DEFAULT_DAILY_LIMIT = 10;
+type RandomRow = { id: string; quote: string; book_id: string | null };
 const THINK_SESSION_KEY = "glean_think_session";
 
 const FORGE_PROMPT =
@@ -125,52 +127,40 @@ const Think = () => {
     }));
   };
 
-  // ===== Fetch a single forge highlight (random tag, short, curated) =====
-  const fetchForgeHighlight = useCallback(async (): Promise<ForgeHighlight | null> => {
-    const { data: tagSample, error: tagErr } = await supabase
-      .from("highlights")
-      .select("tags")
-      .eq("source", "curated")
-      .or("visibility.eq.public,visibility.is.null")
-      .not("tags", "is", null)
-      .limit(500);
-    if (tagErr) throw tagErr;
-
-    const allTags = new Set<string>();
-    (tagSample || []).forEach((r: any) => {
-      (r.tags || []).forEach((t: string) => t && allTags.add(t));
-    });
-    const tagArr = Array.from(allTags);
-
-    for (let attempt = 0; attempt < 3 && tagArr.length > 0; attempt++) {
-      const tag = tagArr[Math.floor(Math.random() * tagArr.length)];
-      const { data: rows } = await supabase
+  // ===== Random highlights from the whole library =====
+  // Ids only (paged past the 1,000-row API cap), a uniform random pick on the client, then the chosen rows.
+  const fetchRandomRows = useCallback(async (count: number): Promise<RandomRow[]> => {
+    const PAGE = 1000;
+    const ids: string[] = [];
+    for (let from = 0; ; from += PAGE) {
+      const { data, error } = await supabase
         .from("highlights")
-        .select("id, quote, book_id")
-        .eq("source", "curated")
+        .select("id")
         .or("visibility.eq.public,visibility.is.null")
-        .contains("tags", [tag])
-        .limit(50);
-      const short = (rows || []).filter((r: any) => r.quote && r.quote.length < 250);
-      if (short.length >= 1) {
-        const pick = short[Math.floor(Math.random() * short.length)];
-        const enriched = await enrichWithBooks([pick]);
-        return enriched[0] || null;
-      }
+        .order("id")
+        .range(from, from + PAGE - 1);
+      if (error) throw error;
+      (data || []).forEach((r) => ids.push(r.id));
+      if (!data || data.length < PAGE) break;
     }
+    const chosen = pickRandomN(ids, count);
+    if (chosen.length === 0) return [];
+    const { data: rows, error } = await supabase.from("highlights").select("id, quote, book_id").in("id", chosen);
+    if (error) throw error;
+    return rows || [];
+  }, []);
 
-    const { data: rows } = await supabase
-      .from("highlights")
-      .select("id, quote, book_id")
-      .eq("source", "curated")
-      .or("visibility.eq.public,visibility.is.null")
-      .limit(200);
-    const short = (rows || []).filter((r: any) => r.quote && r.quote.length < 250);
-    if (short.length === 0) return null;
-    const pick = short[Math.floor(Math.random() * short.length)];
+  // ===== Fetch a single forge highlight (random, short) =====
+  const fetchForgeHighlight = useCallback(async (): Promise<ForgeHighlight | null> => {
+    const rows = await fetchRandomRows(30);
+    const usable = rows.filter((r) => r.quote);
+    const short = usable.filter((r) => r.quote.length < 250);
+    const pool = short.length > 0 ? short : usable;
+    if (pool.length === 0) return null;
+    const pick = pool[Math.floor(Math.random() * pool.length)];
     const enriched = await enrichWithBooks([pick]);
     return enriched[0] || null;
-  }, []);
+  }, [fetchRandomRows]);
 
   // ===== Mode selection handler =====
   const handleSelectMode = useCallback(async (chosen: Mode) => {
@@ -191,16 +181,11 @@ const Think = () => {
           setForgeHighlights([single]);
         }
       } else {
-        const { data: rows } = await supabase
-          .from("highlights")
-          .select("id, quote, book_id")
-          .eq("source", "curated")
-          .or("visibility.eq.public,visibility.is.null")
-          .limit(300);
-        if (!rows || rows.length === 0) {
+        const rows = await fetchRandomRows(1);
+        if (rows.length === 0) {
           setLoadError("Couldn't load highlights. Try again.");
         } else {
-          const pick = rows[Math.floor(Math.random() * rows.length)];
+          const pick = rows[0];
           const enriched = await enrichWithBooks([pick]);
           setOpponentHighlight(enriched[0] || null);
         }
@@ -210,7 +195,7 @@ const Think = () => {
       setLoadError("Couldn't load highlights. Try again.");
     }
     setModeLoading(false);
-  }, [fetchForgeHighlight]);
+  }, [fetchForgeHighlight, fetchRandomRows]);
 
   // ===== Skip handler for Forge — refetch a new highlight, no credit cost =====
   const handleForgeSkip = useCallback(async (): Promise<boolean> => {
@@ -234,17 +219,12 @@ const Think = () => {
   const handleOpponentSkip = useCallback(async (): Promise<boolean> => {
     setLoadError(null);
     try {
-      const { data: rows } = await supabase
-        .from("highlights")
-        .select("id, quote, book_id")
-        .eq("source", "curated")
-        .or("visibility.eq.public,visibility.is.null")
-        .limit(300);
-      if (!rows || rows.length === 0) {
+      const rows = await fetchRandomRows(1);
+      if (rows.length === 0) {
         setLoadError("Couldn't load highlights. Try again.");
         return false;
       }
-      const pick = rows[Math.floor(Math.random() * rows.length)];
+      const pick = rows[0];
       const enriched = await enrichWithBooks([pick]);
       setOpponentHighlight(enriched[0] || null);
       return true;
@@ -253,7 +233,7 @@ const Think = () => {
       setLoadError("Couldn't load highlights. Try again.");
       return false;
     }
-  }, [setOpponentHighlight]);
+  }, [setOpponentHighlight, fetchRandomRows]);
 
   // ===== Initial load: only credits, no highlights yet (selection screen first) =====
   useEffect(() => {

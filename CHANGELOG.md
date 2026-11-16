@@ -2,6 +2,25 @@
 
 Notable changes to Glean, newest first. One entry per work session; group by what changed, not by file.
 
+## 2026-11-16 — Add My Take, Think! Draws from the Whole Library
+
+### Shipped
+- Added: an "Add my take" button on every highlight card, for admins
+  and for the owner of their own highlights (it reads "Edit my take"
+  once a note exists); it opens a compact editor with the quote
+  read-only and the note focused, and saving it refreshes the
+  highlight's search fingerprint like any other edit
+- Added: the editor has a note-only mode (button "Save take") that
+  changes nothing but the note; the full editor is unchanged
+- Fixed: touches inside that editor on the Inspire Me popup no longer
+  count toward the shuffle swipe
+- Fixed: Think! picked only from curated highlights and always from
+  the same earliest rows; it now picks at random from every public
+  highlight in the library
+- Changed: service worker cache bumped to glean-v36
+
+---
+
 ## 2026-11-16 — Easier-to-Reach Mobile Menu
 
 ### Shipped
